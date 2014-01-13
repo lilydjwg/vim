@@ -5594,7 +5594,7 @@ msgid "type  :help register<Enter>   for information "
 msgstr "输入  :help register<Enter>   查看说明        "
 
 msgid "menu  Help->Sponsor/Register  for information    "
-msgstr "菜单  Help->Sponsor/Register  查看说明           "
+msgstr "菜单  帮助->赞助/注册  查看说明      "
 
 msgid "WARNING: Windows 95/98/ME detected"
 msgstr "警告: 检测到 Windows 95/98/ME"

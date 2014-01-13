@@ -3258,6 +3258,14 @@ on_tabline_menu(GtkWidget *widget, GdkEvent *event)
 		send_tabline_event(x < 50 ? -1 : 0);
 	    }
 	}
+	/* The following if is added by lilydjwg, to enable closing tab by
+	 * middle-clicking. */
+	else if (bevent->button == 2)
+	{
+	    send_tabline_menu_event(clicked_page, (int)(long)TABLINE_MENU_CLOSE);
+	    if (gtk_main_level() > 0)
+		gtk_main_quit();
+	}
     }
 
     // We didn't handle the event.
