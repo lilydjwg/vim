@@ -63,11 +63,7 @@ init_longVersion(void)
 #ifdef BUILD_DATE
 	char *date_time = BUILD_DATE;
 #else
-#ifdef BUILD_DATE
-	char *date_time = BUILD_DATE;
-#else
 	char *date_time = __DATE__ " " __TIME__;
-#endif
 #endif
 	char *msg = _("%s (%s, compiled %s)");
 	size_t len = strlen(msg)
@@ -758,6 +754,18 @@ static char *(features[]) =
 
 static int included_patches[] =
 {   /* Add new patch number below this line */
+/**/
+    915,
+/**/
+    914,
+/**/
+    913,
+/**/
+    912,
+/**/
+    911,
+/**/
+    910,
 /**/
     909,
 /**/
