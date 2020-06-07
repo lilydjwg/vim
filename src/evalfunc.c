@@ -94,6 +94,7 @@ static void f_getpid(typval_T *argvars, typval_T *rettv);
 static void f_getcurpos(typval_T *argvars, typval_T *rettv);
 static void f_getpos(typval_T *argvars, typval_T *rettv);
 static void f_getreg(typval_T *argvars, typval_T *rettv);
+static void f_getreginfo(typval_T *argvars, typval_T *rettv);
 static void f_getregtype(typval_T *argvars, typval_T *rettv);
 static void f_gettagstack(typval_T *argvars, typval_T *rettv);
 static void f_haslocaldir(typval_T *argvars, typval_T *rettv);
@@ -586,6 +587,7 @@ static funcentry_T global_functions[] =
     {"getpos",		1, 1, FEARG_1,	  ret_list_number,	f_getpos},
     {"getqflist",	0, 1, 0,	  ret_list_dict_any,	f_getqflist},
     {"getreg",		0, 3, FEARG_1,	  ret_string,	f_getreg},
+    {"getreginfo",	0, 1, FEARG_1,	  ret_dict_any,	f_getreginfo},
     {"getregtype",	0, 1, FEARG_1,	  ret_string,	f_getregtype},
     {"gettabinfo",	0, 1, FEARG_1,	  ret_list_dict_any,	f_gettabinfo},
     {"gettabvar",	2, 3, FEARG_1,	  ret_any,	f_gettabvar},
@@ -5519,7 +5521,7 @@ find_some_match(typval_T *argvars, typval_T *rettv, matchtype_T type)
 
 		vim_free(li1->li_tv.vval.v_string);
 		li1->li_tv.vval.v_string = vim_strnsave(regmatch.startp[0],
-				(int)(regmatch.endp[0] - regmatch.startp[0]));
+					regmatch.endp[0] - regmatch.startp[0]);
 		li3->li_tv.vval.v_number =
 				      (varnumber_T)(regmatch.startp[0] - expr);
 		li4->li_tv.vval.v_number =
@@ -5554,7 +5556,7 @@ find_some_match(typval_T *argvars, typval_T *rettv, matchtype_T type)
 		    copy_tv(&li->li_tv, rettv);
 		else
 		    rettv->vval.v_string = vim_strnsave(regmatch.startp[0],
-				(int)(regmatch.endp[0] - regmatch.startp[0]));
+					regmatch.endp[0] - regmatch.startp[0]);
 	    }
 	    else if (l != NULL)
 		rettv->vval.v_number = idx;
@@ -6227,6 +6229,72 @@ range_list_materialize(list_T *list)
 	    break;
 }
 
+/*
+ * "getreginfo()" function
+ */
+    static void
+f_getreginfo(typval_T *argvars, typval_T *rettv)
+{
+    char_u	*strregname;
+    int		regname;
+    char_u	buf[NUMBUFLEN + 2];
+    long	reglen = 0;
+    dict_T	*dict;
+    list_T	*list;
+
+    if (argvars[0].v_type != VAR_UNKNOWN)
+    {
+	strregname = tv_get_string_chk(&argvars[0]);
+	if (strregname == NULL)
+	    return;
+    }
+    else
+	strregname = get_vim_var_str(VV_REG);
+
+    regname = (strregname == NULL ? '"' : *strregname);
+    if (regname == 0 || regname == '@')
+	regname = '"';
+
+    if (rettv_dict_alloc(rettv) == FAIL)
+	return;
+    dict = rettv->vval.v_dict;
+
+    list = (list_T *)get_reg_contents(regname, GREG_EXPR_SRC | GREG_LIST);
+    if (list == NULL)
+	return;
+    dict_add_list(dict, "regcontents", list);
+
+    buf[0] = NUL;
+    buf[1] = NUL;
+    switch (get_reg_type(regname, &reglen))
+    {
+	case MLINE: buf[0] = 'V'; break;
+	case MCHAR: buf[0] = 'v'; break;
+	case MBLOCK:
+		    vim_snprintf((char *)buf, sizeof(buf), "%c%ld", Ctrl_V,
+			    reglen + 1);
+		    break;
+    }
+    dict_add_string(dict, (char *)"regtype", buf);
+
+    buf[0] = get_register_name(get_unname_register());
+    buf[1] = NUL;
+    if (regname == '"')
+	dict_add_string(dict, (char *)"points_to", buf);
+    else
+    {
+	dictitem_T	*item = dictitem_alloc((char_u *)"isunnamed");
+
+	if (item != NULL)
+	{
+	    item->di_tv.v_type = VAR_SPECIAL;
+	    item->di_tv.vval.v_number = regname == buf[0]
+		? VVAL_TRUE : VVAL_FALSE;
+	    dict_add(dict, item);
+	}
+    }
+}
+
     static void
 return_register(int regname, typval_T *rettv)
 {
@@ -6399,10 +6467,8 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
     int		options = SEARCH_KEEP;
     int		subpatnum;
     searchit_arg_T sia;
-    evalarg_T	skip;
+    int		use_skip = FALSE;
     pos_T	firstpos;
-
-    CLEAR_FIELD(skip);
 
     pat = tv_get_string(&argvars[0]);
     dir = get_search_arg(&argvars[1], flagsp);	// may set p_ws
@@ -6429,9 +6495,7 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
 	    if (time_limit < 0)
 		goto theend;
 #endif
-	    if (argvars[4].v_type != VAR_UNKNOWN
-		    && evalarg_get(&argvars[4], &skip) == FAIL)
-		goto theend;
+	    use_skip = eval_expr_valid_arg(&argvars[4]);
 	}
     }
 
@@ -6471,19 +6535,20 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
 	if (firstpos.lnum != 0 && EQUAL_POS(pos, firstpos))
 	    subpatnum = FAIL;
 
-	if (subpatnum == FAIL || !evalarg_valid(&skip))
+	if (subpatnum == FAIL || !use_skip)
 	    // didn't find it or no skip argument
 	    break;
 	firstpos = pos;
 
-	// If the skip pattern matches, ignore this match.
+	// If the skip expression matches, ignore this match.
 	{
 	    int	    do_skip;
 	    int	    err;
 	    pos_T   save_pos = curwin->w_cursor;
 
 	    curwin->w_cursor = pos;
-	    do_skip = evalarg_call_bool(&skip, &err);
+	    err = FALSE;
+	    do_skip = eval_expr_to_bool(&argvars[4], &err);
 	    curwin->w_cursor = save_pos;
 	    if (err)
 	    {
@@ -6523,7 +6588,6 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
 	curwin->w_set_curswant = TRUE;
 theend:
     p_ws = save_p_ws;
-    evalarg_clean(&skip);
 
     return retval;
 }
@@ -6791,14 +6855,9 @@ searchpair_cmn(typval_T *argvars, pos_T *match_pos)
 	skip = NULL;
     else
     {
+	// Type is checked later.
 	skip = &argvars[4];
-	if (skip->v_type != VAR_FUNC && skip->v_type != VAR_PARTIAL
-	    && skip->v_type != VAR_STRING)
-	{
-	    // Type error
-	    semsg(_(e_invarg2), tv_get_string(&argvars[4]));
-	    goto theend;
-	}
+
 	if (argvars[5].v_type != VAR_UNKNOWN)
 	{
 	    lnum_stop = (long)tv_get_number_chk(&argvars[5], NULL);
@@ -6922,12 +6981,7 @@ do_searchpair(
 	options |= SEARCH_START;
 
     if (skip != NULL)
-    {
-	// Empty string means to not use the skip expression.
-	if (skip->v_type == VAR_STRING || skip->v_type == VAR_FUNC)
-	    use_skip = skip->vval.v_string != NULL
-						&& *skip->vval.v_string != NUL;
-    }
+	use_skip = eval_expr_valid_arg(skip);
 
     save_cursor = curwin->w_cursor;
     pos = curwin->w_cursor;
@@ -7217,7 +7271,11 @@ f_setreg(typval_T *argvars, typval_T *rettv)
     int		append;
     char_u	yank_type;
     long	block_len;
+    typval_T	*regcontents;
+    int		pointreg;
 
+    pointreg = 0;
+    regcontents = NULL;
     block_len = -1;
     yank_type = MAUTO;
     append = FALSE;
@@ -7230,6 +7288,49 @@ f_setreg(typval_T *argvars, typval_T *rettv)
     regname = *strregname;
     if (regname == 0 || regname == '@')
 	regname = '"';
+
+    if (argvars[1].v_type == VAR_DICT)
+    {
+	dict_T	    *d = argvars[1].vval.v_dict;
+	dictitem_T  *di = dict_find(d, (char_u *)"regcontents", -1);
+	if (di != NULL)
+	    regcontents = &di->di_tv;
+
+	stropt = dict_get_string(d, (char_u *)"regtype", FALSE);
+	if (stropt != NULL)
+	    switch (*stropt)
+	    {
+		case 'v':		// character-wise selection
+		    yank_type = MCHAR;
+		    break;
+		case 'V':		// line-wise selection
+		    yank_type = MLINE;
+		    break;
+		case Ctrl_V:		// block-wise selection
+		    yank_type = MBLOCK;
+		    if (VIM_ISDIGIT(stropt[1]))
+		    {
+			++stropt;
+			block_len = getdigits(&stropt) - 1;
+			--stropt;
+		    }
+		    break;
+	    }
+
+	if (regname == '"')
+	{
+	    stropt = dict_get_string(d, (char_u *)"points_to", FALSE);
+	    if (stropt != NULL)
+	    {
+		pointreg = *stropt;
+		regname = pointreg;
+	    }
+	}
+	else if (dict_get_number(d, (char_u *)"isunnamed"))
+	    pointreg = regname;
+    }
+    else
+	regcontents = &argvars[1];
 
     if (argvars[2].v_type != VAR_UNKNOWN)
     {
@@ -7260,14 +7361,14 @@ f_setreg(typval_T *argvars, typval_T *rettv)
 	    }
     }
 
-    if (argvars[1].v_type == VAR_LIST)
+    if (regcontents && regcontents->v_type == VAR_LIST)
     {
 	char_u		**lstval;
 	char_u		**allocval;
 	char_u		buf[NUMBUFLEN];
 	char_u		**curval;
 	char_u		**curallocval;
-	list_T		*ll = argvars[1].vval.v_list;
+	list_T		*ll = regcontents->vval.v_list;
 	listitem_T	*li;
 	int		len;
 
@@ -7312,14 +7413,17 @@ free_lstval:
 	    vim_free(*--curallocval);
 	vim_free(lstval);
     }
-    else
+    else if (regcontents)
     {
-	strval = tv_get_string_chk(&argvars[1]);
+	strval = tv_get_string_chk(regcontents);
 	if (strval == NULL)
 	    return;
 	write_reg_contents_ex(regname, strval, -1,
 						append, yank_type, block_len);
     }
+    if (pointreg != 0)
+	get_yank_register(pointreg, TRUE);
+
     rettv->vval.v_number = 0;
 }
 
@@ -8757,7 +8861,7 @@ f_trim(typval_T *argvars, typval_T *rettv)
 	    }
 	}
     }
-    rettv->vval.v_string = vim_strnsave(head, (int)(tail - head));
+    rettv->vval.v_string = vim_strnsave(head, tail - head);
 }
 
 #ifdef FEAT_FLOAT
