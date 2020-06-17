@@ -778,9 +778,14 @@ def Test_vim9script_fails()
   assert_fails('export something', 'E1043')
 enddef
 
-def Test_import_fails_without_script()
+func Test_import_fails_without_script()
   CheckRunVimInTerminal
 
+  " call indirectly to avoid compilation error for missing functions
+  call Run_Test_import_fails_without_script()
+endfunc
+
+def Run_Test_import_fails_without_script()
   let export =<< trim END
     vim9script
     export def Foo(): number
