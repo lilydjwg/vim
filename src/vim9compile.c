@@ -27,7 +27,7 @@
 typedef enum {
     SKIP_NOT,		// condition is a constant, produce code
     SKIP_YES,		// condition is a constant, do NOT produce code
-    SKIP_UNKNONW	// condition is not a constant, produce code
+    SKIP_UNKNOWN	// condition is not a constant, produce code
 } skip_T;
 
 /*
@@ -1493,7 +1493,7 @@ generate_CALL(cctx_T *cctx, ufunc_T *ufunc, int pushed_argcount)
 	return FAIL;
     }
 
-    if (ufunc->uf_dfunc_idx != UF_NOT_COMPILED)
+    if (ufunc->uf_def_status != UF_NOT_COMPILED)
     {
 	int		i;
 
@@ -1517,16 +1517,16 @@ generate_CALL(cctx_T *cctx, ufunc_T *ufunc, int pushed_argcount)
 		return FAIL;
 	    }
 	}
-	if (ufunc->uf_dfunc_idx == UF_TO_BE_COMPILED)
+	if (ufunc->uf_def_status == UF_TO_BE_COMPILED)
 	    if (compile_def_function(ufunc, TRUE, NULL) == FAIL)
 		return FAIL;
     }
 
     if ((isn = generate_instr(cctx,
-		    ufunc->uf_dfunc_idx != UF_NOT_COMPILED ? ISN_DCALL
+		    ufunc->uf_def_status != UF_NOT_COMPILED ? ISN_DCALL
 							 : ISN_UCALL)) == NULL)
 	return FAIL;
-    if (ufunc->uf_dfunc_idx != UF_NOT_COMPILED)
+    if (ufunc->uf_def_status != UF_NOT_COMPILED)
     {
 	isn->isn_arg.dfunc.cdf_idx = ufunc->uf_dfunc_idx;
 	isn->isn_arg.dfunc.cdf_argcount = argcount;
@@ -3042,7 +3042,7 @@ compile_lambda(char_u **arg, cctx_T *cctx)
     // Compile it into instructions.
     compile_def_function(ufunc, TRUE, cctx);
 
-    if (ufunc->uf_dfunc_idx >= 0)
+    if (ufunc->uf_def_status == UF_COMPILED)
 	return generate_FUNCREF(cctx, ufunc->uf_dfunc_idx);
     return FAIL;
 }
@@ -4539,7 +4539,7 @@ compile_nested_function(exarg_T *eap, cctx_T *cctx)
 
     if (ufunc == NULL)
 	return NULL;
-    if (ufunc->uf_dfunc_idx == UF_TO_BE_COMPILED
+    if (ufunc->uf_def_status == UF_TO_BE_COMPILED
 	    && compile_def_function(ufunc, TRUE, cctx) == FAIL)
 	return NULL;
 
@@ -5688,7 +5688,7 @@ compile_if(char_u *arg, cctx_T *cctx)
     else
     {
 	// Not a constant, generate instructions for the expression.
-	cctx->ctx_skip = SKIP_UNKNONW;
+	cctx->ctx_skip = SKIP_UNKNOWN;
 	if (generate_ppconst(cctx, &ppconst) == FAIL)
 	    return NULL;
     }
@@ -5700,7 +5700,7 @@ compile_if(char_u *arg, cctx_T *cctx)
     // "is_had_return" will be reset if any block does not end in :return
     scope->se_u.se_if.is_had_return = TRUE;
 
-    if (cctx->ctx_skip == SKIP_UNKNONW)
+    if (cctx->ctx_skip == SKIP_UNKNOWN)
     {
 	// "where" is set when ":elseif", "else" or ":endif" is found
 	scope->se_u.se_if.is_if_label = instr->ga_len;
@@ -5731,7 +5731,7 @@ compile_elseif(char_u *arg, cctx_T *cctx)
     if (!cctx->ctx_had_return)
 	scope->se_u.se_if.is_had_return = FALSE;
 
-    if (cctx->ctx_skip == SKIP_UNKNONW)
+    if (cctx->ctx_skip == SKIP_UNKNOWN)
     {
 	if (compile_jump_to_end(&scope->se_u.se_if.is_end_label,
 						    JUMP_ALWAYS, cctx) == FAIL)
@@ -5761,7 +5761,7 @@ compile_elseif(char_u *arg, cctx_T *cctx)
     else
     {
 	// Not a constant, generate instructions for the expression.
-	cctx->ctx_skip = SKIP_UNKNONW;
+	cctx->ctx_skip = SKIP_UNKNOWN;
 	if (generate_ppconst(cctx, &ppconst) == FAIL)
 	    return NULL;
 
@@ -5794,7 +5794,7 @@ compile_else(char_u *arg, cctx_T *cctx)
     if (scope->se_skip_save != SKIP_YES)
     {
 	// jump from previous block to the end, unless the else block is empty
-	if (cctx->ctx_skip == SKIP_UNKNONW)
+	if (cctx->ctx_skip == SKIP_UNKNOWN)
 	{
 	    if (!cctx->ctx_had_return
 		    && compile_jump_to_end(&scope->se_u.se_if.is_end_label,
@@ -5802,7 +5802,7 @@ compile_else(char_u *arg, cctx_T *cctx)
 		return NULL;
 	}
 
-	if (cctx->ctx_skip == SKIP_UNKNONW)
+	if (cctx->ctx_skip == SKIP_UNKNOWN)
 	{
 	    if (scope->se_u.se_if.is_if_label >= 0)
 	    {
@@ -5813,7 +5813,7 @@ compile_else(char_u *arg, cctx_T *cctx)
 	    }
 	}
 
-	if (cctx->ctx_skip != SKIP_UNKNONW)
+	if (cctx->ctx_skip != SKIP_UNKNOWN)
 	    cctx->ctx_skip = cctx->ctx_skip == SKIP_YES ? SKIP_NOT : SKIP_YES;
     }
 
@@ -6517,12 +6517,21 @@ theend:
 
 /*
  * Add a function to the list of :def functions.
- * This "sets ufunc->uf_dfunc_idx" but the function isn't compiled yet.
+ * This sets "ufunc->uf_dfunc_idx" but the function isn't compiled yet.
  */
     static int
 add_def_function(ufunc_T *ufunc)
 {
     dfunc_T *dfunc;
+
+    if (def_functions.ga_len == 0)
+    {
+	// The first position is not used, so that a zero uf_dfunc_idx means it
+	// wasn't set.
+	if (ga_grow(&def_functions, 1) == FAIL)
+	    return FAIL;
+	++def_functions.ga_len;
+    }
 
     // Add the function to "def_functions".
     if (ga_grow(&def_functions, 1) == FAIL)
@@ -6563,7 +6572,7 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 
     // When using a function that was compiled before: Free old instructions.
     // Otherwise add a new entry in "def_functions".
-    if (ufunc->uf_dfunc_idx >= 0)
+    if (ufunc->uf_dfunc_idx > 0)
     {
 	dfunc_T *dfunc = ((dfunc_T *)def_functions.ga_data)
 							 + ufunc->uf_dfunc_idx;
@@ -7014,6 +7023,7 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 	dfunc->df_closure_count = cctx.ctx_closure_count;
 	if (cctx.ctx_outer_used)
 	    ufunc->uf_flags |= FC_CLOSURE;
+	ufunc->uf_def_status = UF_COMPILED;
     }
 
     ret = OK;
@@ -7033,7 +7043,7 @@ erret:
 	if (!dfunc->df_deleted
 			    && ufunc->uf_dfunc_idx == def_functions.ga_len - 1)
 	    --def_functions.ga_len;
-	ufunc->uf_dfunc_idx = UF_NOT_COMPILED;
+	ufunc->uf_def_status = UF_NOT_COMPILED;
 
 	while (cctx.ctx_scope != NULL)
 	    drop_scope(&cctx);
@@ -7261,17 +7271,19 @@ delete_def_function_contents(dfunc_T *dfunc)
 }
 
 /*
- * When a user function is deleted, delete any associated def function.
+ * When a user function is deleted, clear the contents of any associated def
+ * function.  The position in def_functions can be re-used.
  */
     void
-delete_def_function(ufunc_T *ufunc)
+clear_def_function(ufunc_T *ufunc)
 {
-    if (ufunc->uf_dfunc_idx >= 0)
+    if (ufunc->uf_dfunc_idx > 0)
     {
 	dfunc_T *dfunc = ((dfunc_T *)def_functions.ga_data)
 							 + ufunc->uf_dfunc_idx;
 
 	delete_def_function_contents(dfunc);
+	ufunc->uf_def_status = UF_NOT_COMPILED;
     }
 }
 
