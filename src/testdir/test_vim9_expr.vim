@@ -45,6 +45,27 @@ def Test_expr1()
   assert_equal(function('len'), RetThat)
 enddef
 
+def Test_expr1_vimscript()
+  " only checks line continuation
+  let lines =<< trim END
+      vim9script
+      let var = 1
+      		? 'yes'
+		: 'no'
+      assert_equal('yes', var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let var = v:false
+      		? 'yes'
+		: 'no'
+      assert_equal('no', var)
+  END
+  CheckScriptSuccess(lines)
+enddef
+
 func Test_expr1_fails()
   call CheckDefFailure(["let x = 1 ? 'one'"], "Missing ':' after '?'")
   call CheckDefFailure(["let x = 1 ? 'one' : xxx"], "E1001:")
@@ -96,6 +117,26 @@ def Test_expr2()
   assert_equal([[], '', 0], g:vals)
 enddef
 
+def Test_expr2_vimscript()
+  " only checks line continuation
+  let lines =<< trim END
+      vim9script
+      let var = 0
+      		|| 1
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let var = v:false
+      		|| v:true
+      		|| v:false
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
+enddef
+
 func Test_expr2_fails()
   let msg = "white space required before and after '||'"
   call CheckDefFailure(["let x = 1||2"], msg)
@@ -137,6 +178,26 @@ def Test_expr3()
   g:vals = []
   assert_equal(0, Record([1]) && Record('z') && Record(0))
   assert_equal([[1], 'z', 0], g:vals)
+enddef
+
+def Test_expr3_vimscript()
+  " only checks line continuation
+  let lines =<< trim END
+      vim9script
+      let var = 0
+      		&& 1
+      assert_equal(0, var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let var = v:true
+      		&& v:true
+      		&& v:true
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
 enddef
 
 func Test_expr3_fails()
@@ -466,6 +527,43 @@ enddef
 
 def RetVoid()
   let x = 1
+enddef
+
+def Test_expr4_vimscript()
+  " only checks line continuation
+  let lines =<< trim END
+      vim9script
+      let var = 0
+      		< 1
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let var = 123
+      		!= 123
+      assert_equal(0, var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let list = [1, 2, 3]
+      let var = list
+      		is list
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let myblob = 0z1234
+      let var = myblob
+      		isnot 0z11
+      assert_equal(1, var)
+  END
+  CheckScriptSuccess(lines)
 enddef
 
 func Test_expr4_fails()
@@ -876,7 +974,7 @@ def Test_expr7_list()
   " list
   assert_equal(g:list_empty, [])
   assert_equal(g:list_empty, [  ])
-  assert_equal(g:list_mixed, [1, 'b', false])
+  assert_equal(g:list_mixed, [1, 'b', false,])
   assert_equal('b', g:list_mixed[1])
 
   call CheckDefExecFailure(["let x = g:anint[3]"], 'E714:')
@@ -884,6 +982,26 @@ def Test_expr7_list()
   call CheckDefExecFailure(["let x = g:list_mixed['xx']"], 'E39:')
   call CheckDefFailure(["let x = g:list_mixed[0"], 'E111:')
   call CheckDefExecFailure(["let x = g:list_empty[3]"], 'E684:')
+enddef
+
+def Test_expr7_list_vim9script()
+  let lines =<< trim END
+      vim9script
+      let l = [
+		11,
+		22,
+		]
+      assert_equal([11, 22], l)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let l = [11,
+		22]
+      assert_equal([11, 22], l)
+  END
+  CheckScriptSuccess(lines)
 enddef
 
 def Test_expr7_lambda()

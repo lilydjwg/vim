@@ -1771,7 +1771,7 @@ eval_func(
  * Otherwise just return "arg" unmodified and set "getnext" to FALSE.
  * "arg" must point somewhere inside a line, not at the start.
  */
-    static char_u *
+    char_u *
 eval_next_non_blank(char_u *arg, evalarg_T *evalarg, int *getnext)
 {
     *getnext = FALSE;
@@ -1796,7 +1796,7 @@ eval_next_non_blank(char_u *arg, evalarg_T *evalarg, int *getnext)
 /*
  * To be called when eval_next_non_blank() sets "getnext" to TRUE.
  */
-    static char_u *
+    char_u *
 eval_next_line(evalarg_T *evalarg)
 {
     vim_free(evalarg->eval_tofree);
@@ -1892,19 +1892,26 @@ eval0(
     int
 eval1(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 {
+    char_u  *p;
+    int	    getnext;
+
     /*
      * Get the first variable.
      */
     if (eval2(arg, rettv, evalarg) == FAIL)
 	return FAIL;
 
-    if ((*arg)[0] == '?')
+    p = eval_next_non_blank(*arg, evalarg, &getnext);
+    if (*p == '?')
     {
 	int		result;
 	typval_T	var2;
 	evalarg_T	nested_evalarg;
 	int		orig_flags;
 	int		evaluate;
+
+	if (getnext)
+	    *arg = eval_next_line(evalarg);
 
 	if (evalarg == NULL)
 	{
@@ -1942,13 +1949,16 @@ eval1(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Check for the ":".
 	 */
-	if ((*arg)[0] != ':')
+	p = eval_next_non_blank(*arg, evalarg, &getnext);
+	if (*p != ':')
 	{
 	    emsg(_(e_missing_colon));
 	    if (evaluate && result)
 		clear_tv(rettv);
 	    return FAIL;
 	}
+	if (getnext)
+	    *arg = eval_next_line(evalarg);
 
 	/*
 	 * Get the third variable.  Recursive!
@@ -1981,6 +1991,8 @@ eval1(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
     static int
 eval2(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 {
+    char_u	*p;
+    int		getnext;
     typval_T	var2;
     long	result;
     int		first;
@@ -1997,11 +2009,15 @@ eval2(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
      */
     first = TRUE;
     result = FALSE;
-    while ((*arg)[0] == '|' && (*arg)[1] == '|')
+    p = eval_next_non_blank(*arg, evalarg, &getnext);
+    while (p[0] == '|' && p[1] == '|')
     {
 	evalarg_T   nested_evalarg;
 	int	    evaluate;
 	int	    orig_flags;
+
+	if (getnext)
+	    *arg = eval_next_line(evalarg);
 
 	if (evalarg == NULL)
 	{
@@ -2051,6 +2067,8 @@ eval2(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	    rettv->v_type = VAR_NUMBER;
 	    rettv->vval.v_number = result;
 	}
+
+	p = eval_next_non_blank(*arg, evalarg, &getnext);
     }
 
     return OK;
@@ -2068,6 +2086,8 @@ eval2(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
     static int
 eval3(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 {
+    char_u	*p;
+    int		getnext;
     typval_T	var2;
     long	result;
     int		first;
@@ -2084,11 +2104,15 @@ eval3(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
      */
     first = TRUE;
     result = TRUE;
-    while ((*arg)[0] == '&' && (*arg)[1] == '&')
+    p = eval_next_non_blank(*arg, evalarg, &getnext);
+    while (p[0] == '&' && p[1] == '&')
     {
 	evalarg_T   nested_evalarg;
 	int	    orig_flags;
 	int	    evaluate;
+
+	if (getnext)
+	    *arg = eval_next_line(evalarg);
 
 	if (evalarg == NULL)
 	{
@@ -2137,6 +2161,8 @@ eval3(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	    rettv->v_type = VAR_NUMBER;
 	    rettv->vval.v_number = result;
 	}
+
+	p = eval_next_non_blank(*arg, evalarg, &getnext);
     }
 
     return OK;
@@ -2165,6 +2191,7 @@ eval4(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 {
     typval_T	var2;
     char_u	*p;
+    int		getnext;
     int		i;
     exptype_T	type = EXPR_UNKNOWN;
     int		len = 2;
@@ -2176,7 +2203,7 @@ eval4(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
     if (eval5(arg, rettv, evalarg) == FAIL)
 	return FAIL;
 
-    p = *arg;
+    p = eval_next_non_blank(*arg, evalarg, &getnext);
     switch (p[0])
     {
 	case '=':   if (p[1] == '=')
@@ -2221,6 +2248,9 @@ eval4(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
      */
     if (type != EXPR_UNKNOWN)
     {
+	if (getnext)
+	    *arg = eval_next_line(evalarg);
+
 	// extra question mark appended: ignore case
 	if (p[len] == '?')
 	{
@@ -2743,7 +2773,7 @@ eval7(
     /*
      * List: [expr, expr]
      */
-    case '[':	ret = get_list_tv(arg, rettv, flags, TRUE);
+    case '[':	ret = get_list_tv(arg, rettv, evalarg, TRUE);
 		break;
 
     /*
