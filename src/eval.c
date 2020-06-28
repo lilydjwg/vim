@@ -166,10 +166,16 @@ eval_to_bool(
 {
     typval_T	tv;
     varnumber_T	retval = FALSE;
+    evalarg_T	evalarg;
+
+    CLEAR_FIELD(evalarg);
+    evalarg.eval_flags = skip ? 0 : EVAL_EVALUATE;
+    evalarg.eval_cookie = eap != NULL && eap->getline == getsourceline
+							  ? eap->cookie : NULL;
 
     if (skip)
 	++emsg_skip;
-    if (eval0(arg, &tv, eap, skip ? NULL : &EVALARG_EVALUATE) == FAIL)
+    if (eval0(arg, &tv, eap, &evalarg) == FAIL)
 	*error = TRUE;
     else
     {
@@ -182,6 +188,7 @@ eval_to_bool(
     }
     if (skip)
 	--emsg_skip;
+    clear_evalarg(&evalarg, eap);
 
     return (int)retval;
 }
@@ -1871,6 +1878,36 @@ eval_next_line(evalarg_T *evalarg)
     return skipwhite(line);
 }
 
+    char_u *
+skipwhite_and_linebreak(char_u *arg, evalarg_T *evalarg)
+{
+    int	    getnext;
+    char_u  *p = skipwhite(arg);
+
+    eval_next_non_blank(p, evalarg, &getnext);
+    if (getnext)
+	return eval_next_line(evalarg);
+    return p;
+}
+
+/*
+ * After using "evalarg" filled from "eap" free the memory.
+ */
+    void
+clear_evalarg(evalarg_T *evalarg, exarg_T *eap)
+{
+    if (evalarg != NULL && eap != NULL && evalarg->eval_tofree != NULL)
+    {
+	// We may need to keep the original command line, e.g. for
+	// ":let" it has the variable names.  But we may also need the
+	// new one, "nextcmd" points into it.  Keep both.
+	vim_free(eap->cmdline_tofree);
+	eap->cmdline_tofree = *eap->cmdlinep;
+	*eap->cmdlinep = evalarg->eval_tofree;
+	evalarg->eval_tofree = NULL;
+    }
+}
+
 /*
  * The "evaluate" argument: When FALSE, the argument is only parsed but not
  * executed.  The function may return OK, but the rettv will be of type
@@ -1922,16 +1959,7 @@ eval0(
     if (eap != NULL)
 	eap->nextcmd = check_nextcmd(p);
 
-    if (evalarg != NULL && eap != NULL && evalarg->eval_tofree != NULL)
-    {
-	// We may need to keep the original command line, e.g. for
-	// ":let" it has the variable names.  But we may also need the
-	// new one, "nextcmd" points into it.  Keep both.
-	vim_free(eap->cmdline_tofree);
-	eap->cmdline_tofree = *eap->cmdlinep;
-	*eap->cmdlinep = evalarg->eval_tofree;
-	evalarg->eval_tofree = NULL;
-    }
+    clear_evalarg(evalarg, eap);
 
     return ret;
 }
@@ -1998,7 +2026,7 @@ eval1(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Get the second variable.  Recursive!
 	 */
-	*arg = skipwhite(*arg + 1);
+	*arg = skipwhite_and_linebreak(*arg + 1, evalarg);
 	nested_evalarg.eval_flags = result ? orig_flags
 						 : orig_flags & ~EVAL_EVALUATE;
 	if (eval1(arg, rettv, &nested_evalarg) == FAIL)
@@ -2021,7 +2049,7 @@ eval1(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Get the third variable.  Recursive!
 	 */
-	*arg = skipwhite(*arg + 1);
+	*arg = skipwhite_and_linebreak(*arg + 1, evalarg);
 	nested_evalarg.eval_flags = !result ? orig_flags
 						 : orig_flags & ~EVAL_EVALUATE;
 	if (eval1(arg, &var2, &nested_evalarg) == FAIL)
@@ -2103,7 +2131,7 @@ eval2(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Get the second variable.
 	 */
-	*arg = skipwhite(*arg + 2);
+	*arg = skipwhite_and_linebreak(*arg + 2, evalarg);
 	nested_evalarg.eval_flags = !result ? orig_flags
 						 : orig_flags & ~EVAL_EVALUATE;
 	if (eval3(arg, &var2, &nested_evalarg) == FAIL)
@@ -2197,7 +2225,7 @@ eval3(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Get the second variable.
 	 */
-	*arg = skipwhite(*arg + 2);
+	*arg = skipwhite_and_linebreak(*arg + 2, evalarg);
 	nested_evalarg.eval_flags = result ? orig_flags
 						 : orig_flags & ~EVAL_EVALUATE;
 	if (eval4(arg, &var2, &nested_evalarg) == FAIL)
@@ -2328,7 +2356,7 @@ eval4(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	/*
 	 * Get the second variable.
 	 */
-	*arg = skipwhite(p + len);
+	*arg = skipwhite_and_linebreak(p + len, evalarg);
 	if (eval5(arg, &var2, evalarg) == FAIL)
 	{
 	    clear_tv(rettv);
@@ -2452,7 +2480,7 @@ eval5(char_u **arg, typval_T *rettv, evalarg_T *evalarg)
 	 */
 	if (op == '.' && *(*arg + 1) == '.')  // .. string concatenation
 	    ++*arg;
-	*arg = skipwhite(*arg + 1);
+	*arg = skipwhite_and_linebreak(*arg + 1, evalarg);
 	if (eval6(arg, &var2, evalarg, op == '.') == FAIL)
 	{
 	    clear_tv(rettv);
@@ -2890,8 +2918,10 @@ eval7(
      * nested expression: (expression).
      */
     case '(':	{
-		    *arg = skipwhite(*arg + 1);
+		    *arg = skipwhite_and_linebreak(*arg + 1, evalarg);
 		    ret = eval1(arg, rettv, evalarg);	// recursive!
+
+		    *arg = skipwhite_and_linebreak(*arg, evalarg);
 		    if (**arg == ')')
 			++*arg;
 		    else if (ret == OK)
@@ -5176,6 +5206,7 @@ ex_echo(exarg_T *eap)
 
     CLEAR_FIELD(evalarg);
     evalarg.eval_flags = eap->skip ? 0 : EVAL_EVALUATE;
+    evalarg.eval_cookie = eap->getline == getsourceline ? eap->cookie : NULL;
 
     if (eap->skip)
 	++emsg_skip;
@@ -5208,6 +5239,7 @@ ex_echo(exarg_T *eap)
 	arg = skipwhite(arg);
     }
     eap->nextcmd = check_nextcmd(arg);
+    clear_evalarg(&evalarg, eap);
 
     if (eap->skip)
 	--emsg_skip;
