@@ -131,16 +131,64 @@ def Test_if_linebreak()
 enddef
 
 def Test_while_linebreak()
-  " TODO: line break in :while expression doesn't work yet
   let lines =<< trim END
       vim9script
       let nr = 0
-      while nr < 10 + 3
-            nr = nr + 4
+      while nr <
+              10 + 3
+            nr = nr
+                  + 4
+      endwhile
+      assert_equal(16, nr)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let nr = 0
+      while nr
+            <
+              10
+              +
+              3
+            nr = nr
+                  +
+                  4
       endwhile
       assert_equal(16, nr)
   END
   CheckScriptSuccess(lines)
 enddef
+
+def Test_for_linebreak()
+  let lines =<< trim END
+      vim9script
+      let nr = 0
+      for x
+            in
+              [1, 2, 3, 4]
+          nr = nr + x
+      endfor
+      assert_equal(10, nr)
+  END
+  CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      let nr = 0
+      for x
+            in
+              [1, 2,
+                  3, 4
+                  ]
+          nr = nr
+                 +
+                  x
+      endfor
+      assert_equal(10, nr)
+  END
+  CheckScriptSuccess(lines)
+enddef
+
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
