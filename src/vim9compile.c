@@ -6865,7 +6865,7 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 	    val_type = ((type_T **)stack->ga_data)[stack->ga_len - 1];
 	    if (ufunc->uf_arg_types[arg_idx] == &t_unknown)
 		ufunc->uf_arg_types[arg_idx] = val_type;
-	    else if (check_type(ufunc->uf_arg_types[i], val_type, FALSE)
+	    else if (check_type(ufunc->uf_arg_types[arg_idx], val_type, FALSE)
 								       == FAIL)
 	    {
 		arg_type_mismatch(ufunc->uf_arg_types[arg_idx], val_type,
@@ -7048,13 +7048,17 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 
 	/*
 	 * COMMAND after range
+	 * 'text'->func() should not be confused with 'a mark
 	 */
 	cmd = ea.cmd;
-	ea.cmd = skip_range(ea.cmd, NULL);
-	if (ea.cmd > cmd && !starts_with_colon)
+	if (*cmd != '\'')
 	{
-	    emsg(_(e_colon_required));
-	    goto erret;
+	    ea.cmd = skip_range(ea.cmd, NULL);
+	    if (ea.cmd > cmd && !starts_with_colon)
+	    {
+		emsg(_(e_colon_required));
+		goto erret;
+	    }
 	}
 	p = find_ex_command(&ea, NULL, starts_with_colon ? NULL
 		   : (void *(*)(char_u *, size_t, cctx_T *))lookup_local,
