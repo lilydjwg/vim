@@ -1241,7 +1241,7 @@ call_def_function(
 		    if (msg != NULL)
 		    {
 			emsg(_(msg));
-			goto failed;
+			goto on_error;
 		    }
 		}
 		break;
@@ -1272,7 +1272,8 @@ call_def_function(
 		--ectx.ec_stack.ga_len;
 		if (set_vim_var_tv(iptr->isn_arg.number, STACK_TV_BOT(0))
 								       == FAIL)
-		    goto failed;
+		    // should not happen, type is checked when compiling
+		    goto on_error;
 		break;
 
 	    // store g:/b:/w:/t: variable
@@ -1335,7 +1336,7 @@ call_def_function(
 		    if (lidx < 0 || lidx > list->lv_len)
 		    {
 			semsg(_(e_listidx), lidx);
-			goto failed;
+			goto on_error;
 		    }
 		    tv = STACK_TV_BOT(-3);
 		    if (lidx < list->lv_len)
@@ -1348,7 +1349,7 @@ call_def_function(
 		    }
 		    else
 		    {
-			// append to list
+			// append to list, only fails when out of memory
 			if (list_append_tv(list, tv) == FAIL)
 			    goto failed;
 			clear_tv(tv);
@@ -1371,18 +1372,19 @@ call_def_function(
 		    if (key == NULL || *key == NUL)
 		    {
 			emsg(_(e_emptykey));
-			goto failed;
+			goto on_error;
 		    }
 		    tv = STACK_TV_BOT(-3);
 		    di = dict_find(dict, key, -1);
 		    if (di != NULL)
 		    {
+			// overwrite existing value
 			clear_tv(&di->di_tv);
 			di->di_tv = *tv;
 		    }
 		    else
 		    {
-			// add to dict
+			// add to dict, only fails when out of memory
 			if (dict_add_tv(dict, (char *)key, tv) == FAIL)
 			    goto failed;
 			clear_tv(tv);
@@ -1465,7 +1467,7 @@ call_def_function(
 	    case ISN_UNLET:
 		if (do_unlet(iptr->isn_arg.unlet.ul_name,
 				       iptr->isn_arg.unlet.ul_forceit) == FAIL)
-		    goto failed;
+		    goto on_error;
 		break;
 	    case ISN_UNLETENV:
 		vim_unsetenv(iptr->isn_arg.unlet.ul_name);
@@ -1481,24 +1483,39 @@ call_def_function(
 	    // create a dict from items on the stack
 	    case ISN_NEWDICT:
 		{
-		    int	    count = iptr->isn_arg.number;
-		    dict_T  *dict = dict_alloc();
-		    dictitem_T *item;
+		    int		count = iptr->isn_arg.number;
+		    dict_T	*dict = dict_alloc();
+		    dictitem_T	*item;
 
 		    if (dict == NULL)
 			goto failed;
 		    for (idx = 0; idx < count; ++idx)
 		    {
-			// check key type is VAR_STRING
+			// have already checked key type is VAR_STRING
 			tv = STACK_TV_BOT(2 * (idx - count));
+			// check key is unique
+			item = dict_find(dict, tv->vval.v_string, -1);
+			if (item != NULL)
+			{
+			    semsg(_(e_duplicate_key), tv->vval.v_string);
+			    dict_unref(dict);
+			    goto on_error;
+			}
 			item = dictitem_alloc(tv->vval.v_string);
 			clear_tv(tv);
 			if (item == NULL)
+			{
+			    dict_unref(dict);
 			    goto failed;
+			}
 			item->di_tv = *STACK_TV_BOT(2 * (idx - count) + 1);
 			item->di_tv.v_lock = 0;
 			if (dict_add(dict, item) == FAIL)
+			{
+			    // can this ever happen?
+			    dict_unref(dict);
 			    goto failed;
+			}
 		    }
 
 		    if (count > 0)
@@ -1519,7 +1536,7 @@ call_def_function(
 		if (call_dfunc(iptr->isn_arg.dfunc.cdf_idx,
 			      iptr->isn_arg.dfunc.cdf_argcount,
 			      &ectx) == FAIL)
-		    goto failed;
+		    goto on_error;
 		break;
 
 	    // call a builtin function
@@ -1528,7 +1545,7 @@ call_def_function(
 		if (call_bfunc(iptr->isn_arg.bfunc.cbf_idx,
 			      iptr->isn_arg.bfunc.cbf_argcount,
 			      &ectx) == FAIL)
-		    goto failed;
+		    goto on_error;
 		break;
 
 	    // call a funcref or partial
@@ -1555,7 +1572,7 @@ call_def_function(
 		    if (tv == &partial_tv)
 			clear_tv(&partial_tv);
 		    if (r == FAIL)
-			goto failed;
+			goto on_error;
 		}
 		break;
 
@@ -1576,7 +1593,7 @@ call_def_function(
 		    SOURCING_LNUM = iptr->isn_lnum;
 		    if (call_eval_func(cufunc->cuf_name,
 				    cufunc->cuf_argcount, &ectx, iptr) == FAIL)
-			goto failed;
+			goto on_error;
 		}
 		break;
 
@@ -1598,19 +1615,7 @@ call_def_function(
 			trycmd->tcd_return = TRUE;
 		    }
 		    else
-		    {
-			// Restore previous function. If the frame pointer
-			// is zero then there is none and we are done.
-			if (ectx.ec_frame_idx == initial_frame_idx)
-			{
-			    if (handle_closure_in_use(&ectx, FALSE) == FAIL)
-				goto failed;
-			    goto done;
-			}
-
-			if (func_return(&ectx) == FAIL)
-			    goto failed;
-		    }
+			goto func_return;
 		}
 		break;
 
@@ -1719,8 +1724,6 @@ call_def_function(
 		    {
 			listitem_T *li = list_find(list, idxtv->vval.v_number);
 
-			if (li == NULL)
-			    goto failed;
 			copy_tv(&li->li_tv, STACK_TV_BOT(0));
 			++ectx.ec_stack.ga_len;
 		    }
@@ -1798,19 +1801,7 @@ call_def_function(
 			}
 
 			if (trycmd->tcd_return)
-			{
-			    // Restore previous function. If the frame pointer
-			    // is zero then there is none and we are done.
-			    if (ectx.ec_frame_idx == initial_frame_idx)
-			    {
-				if (handle_closure_in_use(&ectx, FALSE) == FAIL)
-				    goto failed;
-				goto done;
-			    }
-
-			    if (func_return(&ectx) == FAIL)
-				goto failed;
-			}
+			    goto func_return;
 		    }
 		}
 		break;
@@ -2052,7 +2043,7 @@ call_def_function(
 		    {
 			n1 = tv_get_number_chk(tv1, &error);
 			if (error)
-			    goto failed;
+			    goto on_error;
 #ifdef FEAT_FLOAT
 			if (tv2->v_type == VAR_FLOAT)
 			    f1 = n1;
@@ -2069,7 +2060,7 @@ call_def_function(
 		    {
 			n2 = tv_get_number_chk(tv2, &error);
 			if (error)
-			    goto failed;
+			    goto on_error;
 #ifdef FEAT_FLOAT
 			if (tv1->v_type == VAR_FLOAT)
 			    f2 = n2;
@@ -2252,7 +2243,7 @@ call_def_function(
 		    if (tv->v_type != VAR_DICT || tv->vval.v_dict == NULL)
 		    {
 			emsg(_(e_dictreq));
-			goto failed;
+			goto on_error;
 		    }
 		    dict = tv->vval.v_dict;
 
@@ -2260,7 +2251,7 @@ call_def_function(
 								       == NULL)
 		    {
 			semsg(_(e_dictkey), iptr->isn_arg.string);
-			goto failed;
+			goto on_error;
 		    }
 		    // Clear the dict after getting the item, to avoid that it
 		    // make the item invalid.
@@ -2392,6 +2383,20 @@ call_def_function(
 		break;
 	}
 	continue;
+
+func_return:
+	// Restore previous function. If the frame pointer is zero then there
+	// is none and we are done.
+	if (ectx.ec_frame_idx == initial_frame_idx)
+	{
+	    if (handle_closure_in_use(&ectx, FALSE) == FAIL)
+		// only fails when out of memory
+		goto failed;
+	    goto done;
+	}
+	if (func_return(&ectx) == FAIL)
+	    // only fails when out of memory
+	    goto failed;
 
 on_error:
 	if (trylevel == 0)
