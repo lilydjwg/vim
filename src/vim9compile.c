@@ -599,6 +599,28 @@ check_argtype(type_T *expected, typval_T *actual_tv)
 	member.tt_member = &t_any;
 	actual.tt_member = &member;
     }
+    else if (actual_tv->v_type == VAR_FUNC || actual_tv->v_type == VAR_PARTIAL)
+    {
+	char_u	*name = NULL;
+	ufunc_T *ufunc = NULL;
+
+	if (actual_tv->v_type == VAR_PARTIAL)
+	{
+	    if (actual_tv->vval.v_partial->pt_func != NULL)
+		ufunc = actual_tv->vval.v_partial->pt_func;
+	    else
+		name = actual_tv->vval.v_partial->pt_name;
+	}
+	else
+	    name = actual_tv->vval.v_string;
+	if (name != NULL)
+	    // TODO: how about a builtin function?
+	    ufunc = find_func(name, FALSE, NULL);
+	if (ufunc != NULL && ufunc->uf_func_type != NULL)
+	    actual = *ufunc->uf_func_type;
+	else
+	    actual.tt_member = &t_any;
+    }
     else
 	actual.tt_member = &t_any;
     return check_type(expected, &actual, TRUE);
@@ -1881,26 +1903,35 @@ skip_type(char_u *start)
 	if (*p == '>')
 	    ++p;
     }
-    else if (*p == '(' && STRNCMP("func", start, 4) == 0)
+    else if ((*p == '(' || (*p == ':' && VIM_ISWHITE(p[1])))
+					     && STRNCMP("func", start, 4) == 0)
     {
-	// handle func(args): type
-	++p;
-	while (*p != ')' && *p != NUL)
+	if (*p == '(')
 	{
-	    char_u *sp = p;
+	    // handle func(args): type
+	    ++p;
+	    while (*p != ')' && *p != NUL)
+	    {
+		char_u *sp = p;
 
-	    p = skip_type(p);
-	    if (p == sp)
-		return p;  // syntax error
-	    if (*p == ',')
-		p = skipwhite(p + 1);
+		p = skip_type(p);
+		if (p == sp)
+		    return p;  // syntax error
+		if (*p == ',')
+		    p = skipwhite(p + 1);
+	    }
+	    if (*p == ')')
+	    {
+		if (p[1] == ':')
+		    p = skip_type(skipwhite(p + 2));
+		else
+		    p = skipwhite(p + 1);
+	    }
 	}
-	if (*p == ')')
+	else
 	{
-	    if (p[1] == ':')
-		p = skip_type(skipwhite(p + 2));
-	    else
-		p = skipwhite(p + 1);
+	    // handle func: return_type
+	    p = skip_type(skipwhite(p + 1));
 	}
     }
 
