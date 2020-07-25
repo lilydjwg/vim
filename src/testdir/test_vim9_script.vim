@@ -468,6 +468,54 @@ def Test_delfunction()
       'enddef',
       'DoThat()',
       ], 'E1084:')
+
+  # Check that global :def function can be replaced and deleted
+  let lines =<< trim END
+      vim9script
+      def g:Global(): string
+        return "yes"
+      enddef
+      assert_equal("yes", g:Global())
+      def! g:Global(): string
+        return "no"
+      enddef
+      assert_equal("no", g:Global())
+      delfunc g:Global
+      assert_false(exists('*g:Global'))
+  END
+  CheckScriptSuccess(lines)
+
+  # Check that global function can be replaced by a :def function and deleted
+  lines =<< trim END
+      vim9script
+      func g:Global()
+        return "yes"
+      endfunc
+      assert_equal("yes", g:Global())
+      def! g:Global(): string
+        return "no"
+      enddef
+      assert_equal("no", g:Global())
+      delfunc g:Global
+      assert_false(exists('*g:Global'))
+  END
+  CheckScriptSuccess(lines)
+
+  # Check that global :def function can be replaced by a function and deleted
+  lines =<< trim END
+      vim9script
+      def g:Global(): string
+        return "yes"
+      enddef
+      assert_equal("yes", g:Global())
+      func! g:Global()
+        return "no"
+      endfunc
+      assert_equal("no", g:Global())
+      delfunc g:Global
+      assert_false(exists('*g:Global'))
+  END
+  CheckScriptSuccess(lines)
 enddef
 
 func Test_wrong_type()
@@ -1660,6 +1708,10 @@ def Test_execute_cmd()
   assert_equal('execute-var-var', getline(1))
   bwipe!
 
+  let n = true
+  execute 'echomsg' (n ? '"true"' : '"no"')
+  assert_match('^true$', Screenline(&lines))
+
   call CheckDefFailure(['execute xxx'], 'E1001:')
   call CheckDefFailure(['execute "cmd"# comment'], 'E488:')
 enddef
@@ -2584,6 +2636,32 @@ def Test_vim9_copen()
   # this was giving an error for setting w:quickfix_title
   copen
   quit
+enddef
+
+" test using a vim9script that is auto-loaded from an autocmd
+def Test_vim9_autoload()
+  let lines =<< trim END
+     vim9script
+     def foo#test()
+         echomsg getreg('"')
+     enddef
+  END
+
+  mkdir('Xdir/autoload', 'p')
+  writefile(lines, 'Xdir/autoload/foo.vim')
+  let save_rtp = &rtp
+  exe 'set rtp^=' .. getcwd() .. '/Xdir'
+  augroup test
+    autocmd TextYankPost * call foo#test()
+  augroup END
+
+  normal Y
+
+  augroup test
+    autocmd!
+  augroup END
+  delete('Xdir', 'rf')
+  &rtp = save_rtp
 enddef
 
 " Keep this last, it messes up highlighting.
