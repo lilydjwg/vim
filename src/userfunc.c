@@ -789,9 +789,10 @@ find_func_even_dead(char_u *name, int is_global, cctx_T *cctx)
 
     if (!is_global)
     {
-	char_u *after_script = NULL;
+	int	vim9script = in_vim9script();
+	char_u	*after_script = NULL;
 
-	if (in_vim9script())
+	if (vim9script)
 	{
 	    // Find script-local function before global one.
 	    func = find_func_with_sid(name, current_sctx.sc_sid);
@@ -799,7 +800,7 @@ find_func_even_dead(char_u *name, int is_global, cctx_T *cctx)
 		return func;
 	}
 
-	if (!in_vim9script()
+	if (!vim9script
 		&& name[0] == K_SPECIAL
 		&& name[1] == KS_EXTRA
 		&& name[2] == KE_SNR)
@@ -815,7 +816,7 @@ find_func_even_dead(char_u *name, int is_global, cctx_T *cctx)
 	    else
 		after_script = NULL;
 	}
-	if (in_vim9script() || after_script != NULL)
+	if (vim9script || after_script != NULL)
 	{
 	    // Find imported function before global one.
 	    imported = find_imported(
@@ -2086,10 +2087,14 @@ call_func(
     if (error == FCERR_NONE && funcexe->evaluate)
     {
 	char_u *rfname = fname;
+	int	is_global = FALSE;
 
-	// Ignore "g:" before a function name.
+	// Skip "g:" before a function name.
 	if (fp == NULL && fname[0] == 'g' && fname[1] == ':')
+	{
+	    is_global = TRUE;
 	    rfname = fname + 2;
+	}
 
 	rettv->v_type = VAR_NUMBER;	// default rettv is number zero
 	rettv->vval.v_number = 0;
@@ -2101,7 +2106,7 @@ call_func(
 	     * User defined function.
 	     */
 	    if (fp == NULL)
-		fp = find_func(rfname, FALSE, NULL);
+		fp = find_func(rfname, is_global, NULL);
 
 	    // Trigger FuncUndefined event, may load the function.
 	    if (fp == NULL
@@ -2110,13 +2115,13 @@ call_func(
 		    && !aborting())
 	    {
 		// executed an autocommand, search for the function again
-		fp = find_func(rfname, FALSE, NULL);
+		fp = find_func(rfname, is_global, NULL);
 	    }
 	    // Try loading a package.
 	    if (fp == NULL && script_autoload(rfname, TRUE) && !aborting())
 	    {
 		// loaded a package, search for the function again
-		fp = find_func(rfname, FALSE, NULL);
+		fp = find_func(rfname, is_global, NULL);
 	    }
 	    if (fp == NULL)
 	    {
@@ -2125,7 +2130,7 @@ call_func(
 		// If using Vim9 script try not local to the script.
 		// TODO: should not do this if the name started with "s:".
 		if (p != NULL)
-		    fp = find_func(p, FALSE, NULL);
+		    fp = find_func(p, is_global, NULL);
 	    }
 
 	    if (fp != NULL && (fp->uf_flags & FC_DELETED))
@@ -2175,6 +2180,7 @@ call_func(
 	     */
 	    error = call_internal_func(fname, argcount, argvars, rettv);
 	}
+
 	/*
 	 * The function call (or "FuncUndefined" autocommand sequence) might
 	 * have been aborted by an error, an interrupt, or an explicitly thrown
@@ -2646,6 +2652,7 @@ def_function(exarg_T *eap, char_u *name_arg)
     char_u	*skip_until = NULL;
     char_u	*heredoc_trimmed = NULL;
     int		vim9script = in_vim9script();
+    imported_T	*import = NULL;
 
     /*
      * ":function" without argument: list functions.
@@ -3229,17 +3236,29 @@ def_function(exarg_T *eap, char_u *name_arg)
 	}
 
 	fp = find_func_even_dead(name, is_global, NULL);
-	if (fp != NULL)
+	if (vim9script)
 	{
-	    int dead = fp->uf_flags & FC_DEAD;
+	    char_u *uname = untrans_function_name(name);
+
+	    import = find_imported(uname == NULL ? name : uname, 0, NULL);
+	}
+
+	if (fp != NULL || import != NULL)
+	{
+	    int dead = fp != NULL && (fp->uf_flags & FC_DEAD);
 
 	    // Function can be replaced with "function!" and when sourcing the
 	    // same script again, but only once.
-	    if (!dead && !eap->forceit
+	    // A name that is used by an import can not be overruled.
+	    if (import != NULL
+		    || (!dead && !eap->forceit
 			&& (fp->uf_script_ctx.sc_sid != current_sctx.sc_sid
-			    || fp->uf_script_ctx.sc_seq == current_sctx.sc_seq))
+			  || fp->uf_script_ctx.sc_seq == current_sctx.sc_seq)))
 	    {
-		emsg_funcname(e_funcexts, name);
+		if (vim9script)
+		    emsg_funcname(e_already_defined, name);
+		else
+		    emsg_funcname(e_funcexts, name);
 		goto erret;
 	    }
 	    if (fp->uf_calls > 0)

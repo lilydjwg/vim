@@ -7276,6 +7276,10 @@ ex_copymove(exarg_T *eap)
 {
     long	n;
 
+#ifdef FEAT_EVAL
+    if (not_in_vim9(eap) == FAIL)
+	return;
+#endif
     n = get_address(eap, &eap->arg, eap->addr_type, FALSE, FALSE, FALSE, 1);
     if (eap->arg == NULL)	    // error detected
     {
@@ -8298,9 +8302,11 @@ find_cmdline_var(char_u *src, int *usedlen)
 #define SPEC_AMATCH (SPEC_ABUF + 1)
 		    "<sflnum>",		// script file line number
 #define SPEC_SFLNUM  (SPEC_AMATCH + 1)
+		    "<SID>",		// script ID: <SNR>123_
+#define SPEC_SID  (SPEC_SFLNUM + 1)
 #ifdef FEAT_CLIENTSERVER
 		    "<client>"
-# define SPEC_CLIENT (SPEC_SFLNUM + 1)
+# define SPEC_CLIENT (SPEC_SID + 1)
 #endif
     };
 
@@ -8573,6 +8579,16 @@ eval_vars(
 		}
 		sprintf((char *)strbuf, "%ld",
 				 (long)(current_sctx.sc_lnum + SOURCING_LNUM));
+		result = strbuf;
+		break;
+
+	case SPEC_SID:
+		if (current_sctx.sc_sid <= 0)
+		{
+		    *errormsg = _(e_usingsid);
+		    return NULL;
+		}
+		sprintf((char *)strbuf, "<SNR>%d_", current_sctx.sc_sid);
 		result = strbuf;
 		break;
 #endif

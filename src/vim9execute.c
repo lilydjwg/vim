@@ -1422,11 +1422,13 @@ call_def_function(
 		    dict_T	*dict = tv_dict->vval.v_dict;
 		    dictitem_T	*di;
 
-		    if (key == NULL || *key == NUL)
+		    if (dict == NULL)
 		    {
-			emsg(_(e_emptykey));
+			emsg(_(e_dictnull));
 			goto on_error;
 		    }
+		    if (key == NULL)
+			key = (char_u *)"";
 		    tv = STACK_TV_BOT(-3);
 		    di = dict_find(dict, key, -1);
 		    if (di != NULL)
