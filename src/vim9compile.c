@@ -3565,7 +3565,7 @@ compile_get_register(char_u **arg, cctx_T *cctx)
 	semsg(_(e_syntax_at), *arg - 1);
 	return FAIL;
     }
-    if (!valid_yank_reg(**arg, TRUE))
+    if (!valid_yank_reg(**arg, FALSE))
     {
 	emsg_invreg(**arg);
 	return FAIL;
@@ -5067,7 +5067,12 @@ vim9_declare_error(char_u *name)
 	case 'w': scope = _("window"); break;
 	case 't': scope = _("tab"); break;
 	case 'v': scope = "v:"; break;
-	case '$': semsg(_(e_declare_env_var), name); return;
+	case '$': semsg(_(e_declare_env_var), name);
+		  return;
+	case '&': semsg(_("E1052: Cannot declare an option: %s"), name);
+		  return;
+	case '@': semsg(_("E1066: Cannot declare a register: %s"), name);
+		  return;
 	default: return;
     }
     semsg(_(e_declare_var), scope, name);
@@ -5209,9 +5214,14 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 	int		has_index = FALSE;
 	int		instr_count = -1;
 
-	p = (*var_start == '&' || *var_start == '$'
-			     || *var_start == '@') ? var_start + 1 : var_start;
-	p = to_name_end(p, TRUE);
+	if (*var_start == '@')
+	    p = var_start + 2;
+	else
+	{
+	    p = (*var_start == '&' || *var_start == '$')
+						   ? var_start + 1 : var_start;
+	    p = to_name_end(p, TRUE);
+	}
 
 	// "a: type" is declaring variable "a" with a type, not "a:".
 	if (is_decl && var_end == var_start + 2 && var_end[-1] == ':')
@@ -5229,6 +5239,8 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 
 	if (cctx->ctx_skip != SKIP_YES)
 	{
+	    int	    declare_error = FALSE;
+
 	    if (*var_start == '&')
 	    {
 		int	    cc;
@@ -5240,11 +5252,7 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		    emsg(_(e_const_option));
 		    goto theend;
 		}
-		if (is_decl)
-		{
-		    semsg(_("E1052: Cannot declare an option: %s"), var_start);
-		    goto theend;
-		}
+		declare_error = is_decl;
 		p = var_start;
 		p = find_option_end(&p, &opt_flags);
 		if (p == NULL)
@@ -5272,62 +5280,38 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 	    {
 		dest = dest_env;
 		type = &t_string;
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (*var_start == '@')
 	    {
-		if (!valid_yank_reg(var_start[1], TRUE))
+		if (!valid_yank_reg(var_start[1], FALSE) || var_start[1] == '.')
 		{
 		    emsg_invreg(var_start[1]);
 		    goto theend;
 		}
 		dest = dest_reg;
 		type = &t_string;
-		if (is_decl)
-		{
-		    semsg(_("E1066: Cannot declare a register: %s"), name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (varlen > 1 && STRNCMP(var_start, "g:", 2) == 0)
 	    {
 		dest = dest_global;
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (varlen > 1 && STRNCMP(var_start, "b:", 2) == 0)
 	    {
 		dest = dest_buffer;
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (varlen > 1 && STRNCMP(var_start, "w:", 2) == 0)
 	    {
 		dest = dest_window;
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (varlen > 1 && STRNCMP(var_start, "t:", 2) == 0)
 	    {
 		dest = dest_tab;
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else if (varlen > 1 && STRNCMP(var_start, "v:", 2) == 0)
 	    {
@@ -5346,11 +5330,7 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		dest = dest_vimvar;
 		vtv = get_vim_var_tv(vimvaridx);
 		type = typval2type_vimvar(vtv, cctx->ctx_type_list);
-		if (is_decl)
-		{
-		    vim9_declare_error(name);
-		    goto theend;
-		}
+		declare_error = is_decl;
 	    }
 	    else
 	    {
@@ -5438,6 +5418,12 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		    semsg(_("E1089: unknown variable: %s"), name);
 		    goto theend;
 		}
+	    }
+
+	    if (declare_error)
+	    {
+		vim9_declare_error(name);
+		goto theend;
 	    }
 	}
 
@@ -7266,7 +7252,10 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 		int	oplen;
 		int	heredoc;
 
-		var_end = find_name_end(pskip, NULL, NULL,
+		if (ea.cmd[0] == '@')
+		    var_end = ea.cmd + 2;
+		else
+		    var_end = find_name_end(pskip, NULL, NULL,
 						FNE_CHECK_START | FNE_INCL_BR);
 		oplen = assignment_len(skipwhite(var_end), &heredoc);
 		if (oplen > 0)
