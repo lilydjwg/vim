@@ -375,9 +375,6 @@ CClink = $(CC)
 #CONF_OPT_GUI = --enable-gui=athena
 #CONF_OPT_GUI = --enable-gui=nextaw
 
-# Carbon GUI for Mac OS X
-#CONF_OPT_GUI = --enable-gui=carbon
-
 # Uncomment this line to run an individual test with gvim.
 #GUI_TESTARG = GUI_FLAG=-g 
 
@@ -2258,6 +2255,9 @@ scripttests:
 testgui:
 	cd testdir; $(MAKE) -f Makefile $(GUI_TESTTARGET) VIMPROG=../$(VIMTARGET) GUI_FLAG=-g $(GUI_TESTARG) SCRIPTSOURCE=../$(SCRIPTSOURCE)
 
+testtiny:
+	cd testdir; $(MAKE) -f Makefile tiny VIMPROG=../$(VIMTARGET) SCRIPTSOURCE=../$(SCRIPTSOURCE)
+
 benchmark:
 	cd testdir; $(MAKE) -f Makefile benchmark VIMPROG=../$(VIMTARGET) SCRIPTSOURCE=../$(SCRIPTSOURCE)
 
@@ -2291,9 +2291,9 @@ test_libvterm:
 			CC="$(CC)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)"; \
 	fi
 
-# Run test1, used to bootstrap tests.
-# This does not depend on the executable, compile first it when needed.
-test1:
+# Run individual OLD style test.
+# These do not depend on the executable, compile it when needed.
+$(SCRIPTS_TINY):
 	cd testdir; rm -f $@.out; $(MAKE) -f Makefile $@.out VIMPROG=../$(VIMTESTTARGET) $(GUI_TESTARG) SCRIPTSOURCE=../$(SCRIPTSOURCE)
 
 # Run individual NEW style test.
@@ -3303,9 +3303,6 @@ objects/gui_xim.o: gui_xim.c
 objects/gui_photon.o: gui_photon.c
 	$(CCC) -o $@ gui_photon.c
 
-objects/gui_mac.o: gui_mac.c
-	$(CCC) -o $@ gui_mac.c
-
 objects/highlight.o: highlight.c
 	$(CCC) -o $@ highlight.c
 
@@ -3689,13 +3686,6 @@ bundle-rsrc: os_mac.rsr.hqx
 	rm -f gui_mac.rsrc
 	mv gui_mac.rsrc.rsrcfork $(RESDIR)/$(VIMNAME).rsrc
 
-# po/Make_osx.pl says something about generating a Mac message file
-# for Ukrainian.  Would somebody using Mac OS X in Ukrainian
-# *really* be upset that Carbon Vim was not localised in
-# Ukrainian?
-#
-#bundle-language: bundle-dir po/Make_osx.pl
-#	cd po && perl Make_osx.pl --outdir ../$(RESDIR) $(MULTILANG)
 bundle-language: bundle-dir
 
 $(APPDIR)/Contents:
