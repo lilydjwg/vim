@@ -1361,6 +1361,9 @@ generate_CALL(cctx_T *cctx, ufunc_T *ufunc, int pushed_argcount)
 		    continue;
 		expected = ufunc->uf_arg_types[i];
 	    }
+	    else if (ufunc->uf_va_type == NULL)
+		// possibly a lambda
+		expected = &t_any;
 	    else
 		expected = ufunc->uf_va_type->tt_member;
 	    actual = ((type_T **)stack->ga_data)[stack->ga_len - argcount + i];
@@ -2394,17 +2397,6 @@ to_name_const_end(char_u *arg)
 	// Can be "#{a: 1}->Func()".
 	++p;
 	if (eval_dict(&p, &rettv, NULL, TRUE) == FAIL)
-	    p = arg;
-    }
-    else if (p == arg && *arg == '{')
-    {
-	int	    ret = get_lambda_tv(&p, &rettv, NULL);
-
-	// Can be "{x -> ret}()".
-	// Can be "{'a': 1}->Func()".
-	if (ret == NOTDONE)
-	    ret = eval_dict(&p, &rettv, NULL, FALSE);
-	if (ret != OK)
 	    p = arg;
     }
 
@@ -3509,11 +3501,12 @@ compile_expr7t(char_u **arg, cctx_T *cctx, ppconst_T *ppconst)
     if (want_type != NULL)
     {
 	garray_T    *stack = &cctx->ctx_type_stack;
-	type_T	    *actual = ((type_T **)stack->ga_data)[stack->ga_len - 1];
+	type_T	    *actual;
 
+	generate_ppconst(cctx, ppconst);
+	actual = ((type_T **)stack->ga_data)[stack->ga_len - 1];
 	if (check_type(want_type, actual, FALSE) == FAIL)
 	{
-	    generate_ppconst(cctx, ppconst);
 	    if (need_type(actual, want_type, -1, cctx, FALSE) == FAIL)
 		return FAIL;
 	}
@@ -5024,6 +5017,7 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		goto theend;
 	    if (*skipwhite(p) != ']')
 	    {
+		// this should not happen
 		emsg(_(e_missbrac));
 		goto theend;
 	    }

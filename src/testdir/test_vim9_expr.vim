@@ -1324,6 +1324,12 @@ let $TESTVAR = 'testvar'
 def Test_expr7t()
   let ls: list<string> = ['a', <string>g:string_empty]
   let ln: list<number> = [<number>g:anint, <number>g:alsoint]
+  let nr = <number>234
+  assert_equal(234, nr)
+
+  call CheckDefFailure(["let x = <nr>123"], 'E1010:')
+  call CheckDefFailure(["let x = <number >123"], 'E1068:')
+  call CheckDefFailure(["let x = <number 123"], 'E1104:')
 enddef
 
 " test low level expression
@@ -1498,6 +1504,27 @@ def Test_expr7_list_vim9script()
       let l = [11 , 22]
   END
   CheckScriptFailure(lines, 'E1068:')
+
+  lines =<< trim END
+    vim9script
+    let l: list<number> = [234, 'x']
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: list<number> = ['x', 234]
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: list<string> = ['x', 234]
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: list<string> = [234, 'x']
+  END
+  CheckScriptFailure(lines, 'E1013:')
 enddef
 
 def LambdaWithComments(): func
@@ -1562,6 +1589,15 @@ def Test_expr7_lambda()
   assert_equal(true, LambdaUsingArg(1)())
 
   call CheckDefFailure(["filter([1, 2], {k,v -> 1})"], 'E1069:')
+  call CheckDefFailure(["let L = {a -> a + b}"], 'E1001:')
+
+  assert_equal('xxxyyy', 'xxx'->{a, b -> a .. b}('yyy'))
+
+  CheckDefExecFailure(["let s = 'asdf'->{a -> a}('x')"],
+        'E1106: one argument too many')
+  CheckDefExecFailure(["let s = 'asdf'->{a -> a}('x', 'y')"],
+        'E1106: 2 arguments too many')
+  CheckDefFailure(["echo 'asdf'->{a -> a}(x)"], 'E1001:')
 enddef
 
 def Test_expr7_lambda_vim9script()
@@ -1679,6 +1715,27 @@ def Test_expr7_dict_vim9script()
       let d = #{one: 1 , two: 2}
   END
   CheckScriptFailure(lines, 'E1068:')
+
+  lines =<< trim END
+    vim9script
+    let l: dict<number> = #{a: 234, b: 'x'}
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: dict<number> = #{a: 'x', b: 234}
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: dict<string> = #{a: 'x', b: 234}
+  END
+  CheckScriptFailure(lines, 'E1013:')
+  lines =<< trim END
+    vim9script
+    let l: dict<string> = #{a: 234, b: 'x'}
+  END
+  CheckScriptFailure(lines, 'E1013:')
 enddef
 
 let g:oneString = 'one'
