@@ -2422,9 +2422,6 @@ compile_list(char_u **arg, cctx_T *cctx)
 	if (*p == ']')
 	{
 	    ++p;
-	    // Allow for following comment, after at least one space.
-	    if (VIM_ISWHITE(*p) && *skipwhite(p) == '#')
-		p += STRLEN(p);
 	    break;
 	}
 	if (compile_expr0(&p, cctx) == FAIL)
@@ -3067,6 +3064,7 @@ compile_subscript(
 	{
 	    garray_T	*stack = &cctx->ctx_type_stack;
 	    type_T	**typep;
+	    type_T	*valtype;
 	    vartype_T	vtype;
 	    int		is_slice = FALSE;
 
@@ -3127,13 +3125,22 @@ compile_subscript(
 	    typep = ((type_T **)stack->ga_data) + stack->ga_len
 							  - (is_slice ? 3 : 2);
 	    vtype = (*typep)->tt_type;
-	    if (*typep == &t_any)
+	    valtype = ((type_T **)stack->ga_data)[stack->ga_len - 1];
+	    // If the index is a string, the variable must be a Dict.
+	    if (*typep == &t_any && valtype == &t_string)
+		vtype = VAR_DICT;
+	    if (vtype == VAR_STRING || vtype == VAR_LIST || vtype == VAR_BLOB)
 	    {
-		type_T *valtype = ((type_T **)stack->ga_data)
-							   [stack->ga_len - 1];
-		if (valtype == &t_string)
-		    vtype = VAR_DICT;
+		if (need_type(valtype, &t_number, -1, cctx, FALSE) == FAIL)
+		    return FAIL;
+		if (is_slice)
+		{
+		    valtype = ((type_T **)stack->ga_data)[stack->ga_len - 2];
+		    if (need_type(valtype, &t_number, -2, cctx, FALSE) == FAIL)
+			return FAIL;
+		}
 	    }
+
 	    if (vtype == VAR_DICT)
 	    {
 		if (is_slice)
@@ -3171,20 +3178,24 @@ compile_subscript(
 	    {
 		if (is_slice)
 		{
-		    if (generate_instr_drop(cctx, ISN_LISTSLICE, 2) == FAIL)
+		    if (generate_instr_drop(cctx,
+			     vtype == VAR_LIST ?  ISN_LISTSLICE : ISN_ANYSLICE,
+								    2) == FAIL)
 			return FAIL;
 		}
 		else
 		{
 		    if ((*typep)->tt_type == VAR_LIST)
 			*typep = (*typep)->tt_member;
-		    if (generate_instr_drop(cctx, ISN_LISTINDEX, 1) == FAIL)
+		    if (generate_instr_drop(cctx,
+			     vtype == VAR_LIST ?  ISN_LISTINDEX : ISN_ANYINDEX,
+								    1) == FAIL)
 			return FAIL;
 		}
 	    }
 	    else
 	    {
-		emsg(_(e_list_dict_or_blob_required));
+		emsg(_(e_string_list_dict_or_blob_required));
 		return FAIL;
 	    }
 	}
@@ -6192,6 +6203,7 @@ compile_throw(char_u *arg, cctx_T *cctx UNUSED)
 compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
 {
     char_u	*p = arg;
+    char_u	*prev;
     int		count = 0;
 
     for (;;)
@@ -6199,8 +6211,9 @@ compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
 	if (compile_expr0(&p, cctx) == FAIL)
 	    return NULL;
 	++count;
+	prev = p;
 	p = skipwhite(p);
-	if (ends_excmd(*p))
+	if (ends_excmd2(prev, p))
 	    break;
     }
 
@@ -7071,11 +7084,13 @@ delete_instr(isn_T *isn)
 	case ISN_2STRING_ANY:
 	case ISN_ADDBLOB:
 	case ISN_ADDLIST:
+	case ISN_ANYINDEX:
+	case ISN_ANYSLICE:
 	case ISN_BCALL:
 	case ISN_CATCH:
+	case ISN_CHECKLEN:
 	case ISN_CHECKNR:
 	case ISN_CHECKTYPE:
-	case ISN_CHECKLEN:
 	case ISN_COMPAREANY:
 	case ISN_COMPAREBLOB:
 	case ISN_COMPAREBOOL:
@@ -7088,7 +7103,6 @@ delete_instr(isn_T *isn)
 	case ISN_COMPARESTRING:
 	case ISN_CONCAT:
 	case ISN_DCALL:
-	case ISN_SHUFFLE:
 	case ISN_DROP:
 	case ISN_ECHO:
 	case ISN_ECHOERR:
@@ -7097,14 +7111,10 @@ delete_instr(isn_T *isn)
 	case ISN_EXECCONCAT:
 	case ISN_EXECUTE:
 	case ISN_FOR:
+	case ISN_GETITEM:
+	case ISN_JUMP:
 	case ISN_LISTINDEX:
 	case ISN_LISTSLICE:
-	case ISN_STRINDEX:
-	case ISN_STRSLICE:
-	case ISN_GETITEM:
-	case ISN_SLICE:
-	case ISN_MEMBER:
-	case ISN_JUMP:
 	case ISN_LOAD:
 	case ISN_LOADBDICT:
 	case ISN_LOADGDICT:
@@ -7114,27 +7124,32 @@ delete_instr(isn_T *isn)
 	case ISN_LOADTDICT:
 	case ISN_LOADV:
 	case ISN_LOADWDICT:
+	case ISN_MEMBER:
 	case ISN_NEGATENR:
 	case ISN_NEWDICT:
 	case ISN_NEWLIST:
-	case ISN_OPNR:
-	case ISN_OPFLOAT:
 	case ISN_OPANY:
+	case ISN_OPFLOAT:
+	case ISN_OPNR:
 	case ISN_PCALL:
 	case ISN_PCALL_END:
+	case ISN_PUSHBOOL:
 	case ISN_PUSHF:
 	case ISN_PUSHNR:
-	case ISN_PUSHBOOL:
 	case ISN_PUSHSPEC:
 	case ISN_RETURN:
+	case ISN_SHUFFLE:
+	case ISN_SLICE:
 	case ISN_STORE:
-	case ISN_STOREOUTER:
-	case ISN_STOREV:
-	case ISN_STORENR:
-	case ISN_STOREREG:
-	case ISN_STORESCRIPT:
 	case ISN_STOREDICT:
 	case ISN_STORELIST:
+	case ISN_STORENR:
+	case ISN_STOREOUTER:
+	case ISN_STOREREG:
+	case ISN_STORESCRIPT:
+	case ISN_STOREV:
+	case ISN_STRINDEX:
+	case ISN_STRSLICE:
 	case ISN_THROW:
 	case ISN_TRY:
 	    // nothing allocated

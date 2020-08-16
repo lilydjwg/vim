@@ -1028,14 +1028,20 @@ call_def_function(
 		    for (idx = 0; idx < count; ++idx)
 		    {
 			tv = STACK_TV_BOT(idx - count);
-			if (tv->v_type == VAR_CHANNEL || tv->v_type == VAR_JOB)
+			if (iptr->isn_type == ISN_EXECUTE)
 			{
-			    SOURCING_LNUM = iptr->isn_lnum;
-			    emsg(_(e_inval_string));
-			    break;
+			    if (tv->v_type == VAR_CHANNEL
+						      || tv->v_type == VAR_JOB)
+			    {
+				SOURCING_LNUM = iptr->isn_lnum;
+				emsg(_(e_inval_string));
+				break;
+			    }
+			    else
+				p = tv_get_string_buf(tv, buf);
 			}
 			else
-			    p = tv_get_string_buf(tv, buf);
+			    p = tv_stringify(tv, buf);
 
 			len = (int)STRLEN(p);
 			if (ga_grow(&ga, len + 2) == FAIL)
@@ -1050,8 +1056,10 @@ call_def_function(
 			clear_tv(tv);
 		    }
 		    ectx.ec_stack.ga_len -= count;
+		    if (failed)
+			goto on_error;
 
-		    if (!failed && ga.ga_data != NULL)
+		    if (ga.ga_data != NULL)
 		    {
 			if (iptr->isn_type == ISN_EXECUTE)
 			    do_cmdline_cmd((char_u *)ga.ga_data);
@@ -2241,33 +2249,13 @@ call_def_function(
 		    // string index: string is at stack-2, index at stack-1
 		    // string slice: string is at stack-3, first index at
 		    // stack-2, second index at stack-1
-		    tv = is_slice ? STACK_TV_BOT(-3) : STACK_TV_BOT(-2);
-		    if (tv->v_type != VAR_STRING)
-		    {
-			SOURCING_LNUM = iptr->isn_lnum;
-			emsg(_(e_stringreq));
-			goto on_error;
-		    }
-
 		    if (is_slice)
 		    {
 			tv = STACK_TV_BOT(-2);
-			if (tv->v_type != VAR_NUMBER)
-			{
-			    SOURCING_LNUM = iptr->isn_lnum;
-			    emsg(_(e_number_exp));
-			    goto on_error;
-			}
 			n1 = tv->vval.v_number;
 		    }
 
 		    tv = STACK_TV_BOT(-1);
-		    if (tv->v_type != VAR_NUMBER)
-		    {
-			SOURCING_LNUM = iptr->isn_lnum;
-			emsg(_(e_number_exp));
-			goto on_error;
-		    }
 		    n2 = tv->vval.v_number;
 
 		    ectx.ec_stack.ga_len -= is_slice ? 2 : 1;
@@ -2296,33 +2284,15 @@ call_def_function(
 		    // list slice: list is at stack-3, indexes at stack-2 and
 		    // stack-1
 		    tv = is_slice ? STACK_TV_BOT(-3) : STACK_TV_BOT(-2);
-		    if (tv->v_type != VAR_LIST)
-		    {
-			SOURCING_LNUM = iptr->isn_lnum;
-			emsg(_(e_listreq));
-			goto on_error;
-		    }
 		    list = tv->vval.v_list;
 
 		    tv = STACK_TV_BOT(-1);
-		    if (tv->v_type != VAR_NUMBER)
-		    {
-			SOURCING_LNUM = iptr->isn_lnum;
-			emsg(_(e_number_exp));
-			goto on_error;
-		    }
 		    n1 = n2 = tv->vval.v_number;
 		    clear_tv(tv);
 
 		    if (is_slice)
 		    {
 			tv = STACK_TV_BOT(-2);
-			if (tv->v_type != VAR_NUMBER)
-			{
-			    SOURCING_LNUM = iptr->isn_lnum;
-			    emsg(_(e_number_exp));
-			    goto on_error;
-			}
 			n1 = tv->vval.v_number;
 			clear_tv(tv);
 		    }
@@ -2331,6 +2301,32 @@ call_def_function(
 		    tv = STACK_TV_BOT(-1);
 		    if (list_slice_or_index(list, is_slice, n1, n2, tv, TRUE)
 								       == FAIL)
+			goto on_error;
+		}
+		break;
+
+	    case ISN_ANYINDEX:
+	    case ISN_ANYSLICE:
+		{
+		    int		is_slice = iptr->isn_type == ISN_ANYSLICE;
+		    typval_T	*var1, *var2;
+		    int		res;
+
+		    // index: composite is at stack-2, index at stack-1
+		    // slice: composite is at stack-3, indexes at stack-2 and
+		    // stack-1
+		    tv = is_slice ? STACK_TV_BOT(-3) : STACK_TV_BOT(-2);
+		    if (check_can_index(tv, TRUE, TRUE) == FAIL)
+			goto on_error;
+		    var1 = is_slice ? STACK_TV_BOT(-2) : STACK_TV_BOT(-1);
+		    var2 = is_slice ? STACK_TV_BOT(-1) : NULL;
+		    res = eval_index_inner(tv, is_slice,
+						   var1, var2, NULL, -1, TRUE);
+		    clear_tv(var1);
+		    if (is_slice)
+			clear_tv(var2);
+		    ectx.ec_stack.ga_len -= is_slice ? 2 : 1;
+		    if (res == FAIL)
 			goto on_error;
 		}
 		break;
@@ -3171,6 +3167,8 @@ ex_disassemble(exarg_T *eap)
 	    case ISN_STRSLICE: smsg("%4d STRSLICE", current); break;
 	    case ISN_LISTINDEX: smsg("%4d LISTINDEX", current); break;
 	    case ISN_LISTSLICE: smsg("%4d LISTSLICE", current); break;
+	    case ISN_ANYINDEX: smsg("%4d ANYINDEX", current); break;
+	    case ISN_ANYSLICE: smsg("%4d ANYSLICE", current); break;
 	    case ISN_SLICE: smsg("%4d SLICE %lld",
 					 current, iptr->isn_arg.number); break;
 	    case ISN_GETITEM: smsg("%4d ITEM %lld",

@@ -794,18 +794,19 @@ def Test_try_catch()
   assert_equal(99, n)
 
   try
+    # string slice returns a string, not a number
     n = g:astring[3]
-  catch /E714:/
+  catch /E1029:/
     n = 77
   endtry
   assert_equal(77, n)
 
   try
     n = l[g:astring]
-  catch /E39:/
-    n = 77
+  catch /E1029:/
+    n = 88
   endtry
-  assert_equal(77, n)
+  assert_equal(88, n)
 
   try
     n = s:does_not_exist
@@ -2100,6 +2101,9 @@ def Test_execute_cmd()
   let n = true
   execute 'echomsg' (n ? '"true"' : '"no"')
   assert_match('^true$', Screenline(&lines))
+
+  echomsg [1, 2, 3] #{a: 1, b: 2}
+  assert_match('^\[1, 2, 3\] {''a'': 1, ''b'': 2}$', Screenline(&lines))
 
   call CheckDefFailure(['execute xxx'], 'E1001:')
   call CheckDefFailure(['execute "cmd"# comment'], 'E488:')
