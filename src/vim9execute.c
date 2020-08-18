@@ -2299,6 +2299,7 @@ call_def_function(
 
 		    ectx.ec_stack.ga_len -= is_slice ? 2 : 1;
 		    tv = STACK_TV_BOT(-1);
+		    SOURCING_LNUM = iptr->isn_lnum;
 		    if (list_slice_or_index(list, is_slice, n1, n2, tv, TRUE)
 								       == FAIL)
 			goto on_error;
@@ -2316,6 +2317,7 @@ call_def_function(
 		    // slice: composite is at stack-3, indexes at stack-2 and
 		    // stack-1
 		    tv = is_slice ? STACK_TV_BOT(-3) : STACK_TV_BOT(-2);
+		    SOURCING_LNUM = iptr->isn_lnum;
 		    if (check_can_index(tv, TRUE, TRUE) == FAIL)
 			goto on_error;
 		    var1 = is_slice ? STACK_TV_BOT(-2) : STACK_TV_BOT(-1);
@@ -2462,6 +2464,7 @@ call_def_function(
 		    int		error = FALSE;
 
 		    tv = STACK_TV_BOT(-1);
+		    SOURCING_LNUM = iptr->isn_lnum;
 		    if (check_not_string(tv) == FAIL)
 			goto on_error;
 		    (void)tv_get_number_chk(tv, &error);
