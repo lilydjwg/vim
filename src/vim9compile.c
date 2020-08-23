@@ -259,6 +259,15 @@ lookup_arg(
 }
 
 /*
+ * Returnd TRUE if the script context is Vim9 script.
+ */
+    static int
+script_is_vim9()
+{
+    return SCRIPT_ITEM(current_sctx.sc_sid)->sn_version == SCRIPT_VERSION_VIM9;
+}
+
+/*
  * Lookup a variable in the current script.
  * If "vim9script" is TRUE the script must be Vim9 script.  Used for "var"
  * without "s:".
@@ -271,8 +280,7 @@ lookup_script(char_u *name, size_t len, int vim9script)
     hashtab_T	    *ht = &SCRIPT_VARS(current_sctx.sc_sid);
     dictitem_T	    *di;
 
-    if (vim9script && SCRIPT_ITEM(current_sctx.sc_sid)->sn_version
-							!= SCRIPT_VERSION_VIM9)
+    if (vim9script && !script_is_vim9())
 	return FAIL;
     cc = name[len];
     name[len] = NUL;
@@ -4542,8 +4550,8 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 	    p = var_start + 2;
 	else
 	{
-	    p = (*var_start == '&' || *var_start == '$')
-						   ? var_start + 1 : var_start;
+	    // skip over the leading "&", "&l:", "&g:" and "$"
+	    p = skip_option_env_lead(var_start);
 	    p = to_name_end(p, TRUE);
 	}
 
@@ -4587,8 +4595,8 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		}
 		cc = *p;
 		*p = NUL;
-		opt_type = get_option_value(var_start + 1, &numval,
-							      NULL, opt_flags);
+		opt_type = get_option_value(skip_option_env_lead(var_start),
+						     &numval, NULL, opt_flags);
 		*p = cc;
 		if (opt_type == -3)
 		{
@@ -5123,7 +5131,8 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 	    switch (dest)
 	    {
 		case dest_option:
-		    generate_STOREOPT(cctx, name + 1, opt_flags);
+		    generate_STOREOPT(cctx, skip_option_env_lead(name),
+								    opt_flags);
 		    break;
 		case dest_global:
 		    // include g: with the name, easier to execute that way
@@ -5234,6 +5243,9 @@ check_vim9_unlet(char_u *name)
 {
     if (name[1] != ':' || vim_strchr((char_u *)"gwtb", *name) == NULL)
     {
+	// "unlet s:var" is allowed in legacy script.
+	if (*name == 's' && !script_is_vim9())
+	    return OK;
 	semsg(_(e_cannot_unlet_str), name);
 	return FAIL;
     }
