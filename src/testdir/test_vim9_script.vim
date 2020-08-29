@@ -4,6 +4,7 @@ source check.vim
 source term_util.vim
 source view_util.vim
 source vim9.vim
+source shared.vim
 
 def Test_syntax()
   let var = 234
@@ -1651,6 +1652,10 @@ def Test_vim9script_reload_import()
   delete('Ximport.vim')
 enddef
 
+def s:RetSome(): string
+  return 'some'
+enddef
+
 " Not exported function that is referenced needs to be accessed by the
 " script-local name.
 def Test_vim9script_funcref()
@@ -1682,6 +1687,9 @@ def Test_vim9script_funcref()
   unlet g:result
   delete('Xsort.vim')
   delete('Xscript.vim')
+
+  let Funcref = function('s:RetSome')
+  assert_equal('some', Funcref())
 enddef
 
 " Check that when searching for "FilterFunc" it finds the import in the
@@ -3250,6 +3258,14 @@ def Test_cmdline_win()
   augroup END
   &rtp = save_rtp
   delete('rtp', 'rf')
+enddef
+
+def Test_invalid_sid()
+  assert_fails('func <SNR>1234_func', 'E123:')
+  if RunVim([], ['wq Xdidit'], '+"func <SNR>1_func"')
+    call assert_equal([], readfile('Xdidit'))
+  endif
+  delete('Xdidit')
 enddef
 
 " Keep this last, it messes up highlighting.
