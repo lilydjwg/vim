@@ -1327,12 +1327,20 @@ enddef
 def Test_bufnr()
   let buf = bufnr()
   assert_equal(buf, bufnr('%'))
+
+  buf = bufnr('Xdummy', true)
+  assert_notequal(-1, buf)
+  exe 'bwipe! ' .. buf
 enddef
 
 def Test_col()
   new
   setline(1, 'asdf')
   assert_equal(5, col([1, '$']))
+enddef
+
+def Test_char2nr()
+  assert_equal(12354, char2nr('あ', true))
 enddef
 
 def Test_getreg_return_type()
