@@ -1272,6 +1272,8 @@ def Test_copy_return_type()
     res += n
   endfor
   assert_equal(6, res)
+
+  dl = deepcopy([1, 2, 3], true)
 enddef
 
 def Test_extend_return_type()
@@ -1281,6 +1283,10 @@ def Test_extend_return_type()
     res += n
   endfor
   assert_equal(6, res)
+enddef
+
+def Test_garbagecollect()
+  garbagecollect(true)
 enddef
 
 def Test_insert_return_type()
@@ -1487,9 +1493,69 @@ def Test_bufname()
   close
 enddef
 
-def Test_gebufinfo()
+def Test_getbufinfo()
   let bufinfo = getbufinfo(bufnr())
   assert_equal(bufinfo, getbufinfo('%'))
+
+  edit Xtestfile1
+  hide edit Xtestfile2
+  hide enew
+  getbufinfo(#{bufloaded: true, buflisted: true, bufmodified: false})
+      ->len()->assert_equal(3)
+  bwipe Xtestfile1 Xtestfile2
+enddef
+
+def Test_getchar()
+  while getchar(0)
+  endwhile
+  assert_equal(0, getchar(true))
+enddef
+
+def Test_getcompletion()
+  set wildignore=*.vim,*~
+  let l = getcompletion('run', 'file', true)
+  assert_equal([], l)
+  set wildignore&
+enddef
+
+def Test_has()
+  assert_equal(1, has('eval', true))
+enddef
+
+def Test_list2str_str2list_utf8()
+  let s = "\u3042\u3044"
+  let l = [0x3042, 0x3044]
+  assert_equal(l, str2list(s, true))
+  assert_equal(s, list2str(l, true))
+enddef
+
+def Test_nr2char()
+  assert_equal('a', nr2char(97, true))
+enddef
+
+def Test_searchcount()
+  new
+  setline(1, "foo bar")
+  :/foo
+  assert_equal(#{
+      exact_match: 1,
+      current: 1,
+      total: 1,
+      maxcount: 99,
+      incomplete: 0,
+    }, searchcount(#{recompute: true}))
+  bwipe!
+enddef
+
+def Test_searchdecl()
+  assert_equal(1, searchdecl('blah', true, true))
+enddef
+
+def Test_synID()
+  new
+  setline(1, "text")
+  assert_equal(0, synID(1, 1, true))
+  bwipe!
 enddef
 
 def Fibonacci(n: number): number
