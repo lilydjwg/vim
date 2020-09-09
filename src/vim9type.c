@@ -24,7 +24,7 @@
  * Allocate memory for a type_T and add the pointer to type_gap, so that it can
  * be freed later.
  */
-    static type_T *
+    type_T *
 alloc_type(garray_T *type_gap)
 {
     type_T *type;
@@ -202,11 +202,23 @@ func_type_add_arg_types(
     type_T *
 typval2type(typval_T *tv, garray_T *type_gap)
 {
-    type_T  *actual;
+    type_T  *type;
     type_T  *member_type;
 
     if (tv->v_type == VAR_NUMBER)
+    {
+	if (tv->vval.v_number == 0 || tv->vval.v_number == 1)
+	{
+	    // number 0 and 1 can also be used for bool
+	    type = alloc_type(type_gap);
+	    if (type == NULL)
+		return NULL;
+	    type->tt_type = VAR_NUMBER;
+	    type->tt_flags = TTFLAG_BOOL_OK;
+	    return type;
+	}
 	return &t_number;
+    }
     if (tv->v_type == VAR_BOOL)
 	return &t_bool;  // not used
     if (tv->v_type == VAR_STRING)
@@ -276,13 +288,13 @@ typval2type(typval_T *tv, garray_T *type_gap)
 	}
     }
 
-    actual = alloc_type(type_gap);
-    if (actual == NULL)
+    type = alloc_type(type_gap);
+    if (type == NULL)
 	return NULL;
-    actual->tt_type = tv->v_type;
-    actual->tt_member = &t_any;
+    type->tt_type = tv->v_type;
+    type->tt_member = &t_any;
 
-    return actual;
+    return type;
 }
 
 /*
@@ -359,6 +371,10 @@ check_type(type_T *expected, type_T *actual, int give_msg, int argidx)
     {
 	if (expected->tt_type != actual->tt_type)
 	{
+	    if (expected->tt_type == VAR_BOOL && actual->tt_type == VAR_NUMBER
+					&& (actual->tt_flags & TTFLAG_BOOL_OK))
+		// Using number 0 or 1 for bool is OK.
+		return OK;
 	    if (give_msg)
 		arg_type_mismatch(expected, actual, argidx);
 	    return FAIL;
