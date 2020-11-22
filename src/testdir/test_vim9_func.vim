@@ -37,7 +37,7 @@ def TestCompilingError()
     for i in range(1, 9)
       text ..= term_getline(buf, i)
     endfor
-    if text =~ 'Error detected'
+    if text =~ 'Variable not found: nothing'
       break
     endif
     sleep 20m
@@ -286,6 +286,33 @@ def Test_nested_global_function()
       defcompile
   END
   CheckScriptFailure(lines, "E1073:")
+enddef
+
+def DefListAll()
+  def
+enddef
+
+def DefListOne()
+  def DefListOne
+enddef
+
+def DefListMatches()
+  def /DefList
+enddef
+
+def Test_nested_def_list()
+  var funcs = split(execute('call DefListAll()'), "\n")
+  assert_true(len(funcs) > 10)
+  assert_true(funcs->index('def DefListAll()') >= 0)
+
+  funcs = split(execute('call DefListOne()'), "\n")
+  assert_equal(['   def DefListOne()', '1    def DefListOne', '   enddef'], funcs)
+
+  funcs = split(execute('call DefListMatches()'), "\n")
+  assert_true(len(funcs) >= 3)
+  assert_true(funcs->index('def DefListAll()') >= 0)
+  assert_true(funcs->index('def DefListOne()') >= 0)
+  assert_true(funcs->index('def DefListMatches()') >= 0)
 enddef
 
 def Test_global_local_function()
