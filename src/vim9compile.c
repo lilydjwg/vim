@@ -3975,7 +3975,10 @@ compile_expr7(
 
 	if (!eval_isnamec1(**arg))
 	{
-	    semsg(_(e_name_expected), *arg);
+	    if (ends_excmd(*skipwhite(*arg)))
+		semsg(_(e_empty_expression_str), *arg);
+	    else
+		semsg(_(e_name_expected_str), *arg);
 	    return FAIL;
 	}
 
@@ -5853,8 +5856,6 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 	    int r;
 
 	    // Compile the "idx" in "var[idx]" or "key" in "var.key".
-	    if (new_local)
-		--cctx->ctx_locals.ga_len;
 	    p = var_start + varlen;
 	    if (*p == '[')
 	    {
@@ -5874,8 +5875,6 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 
 		r = generate_PUSHS(cctx, key);
 	    }
-	    if (new_local)
-		++cctx->ctx_locals.ga_len;
 	    if (r == FAIL)
 		goto theend;
 
@@ -7101,28 +7100,31 @@ compile_throw(char_u *arg, cctx_T *cctx UNUSED)
 compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
 {
     char_u	*p = arg;
-    char_u	*prev;
+    char_u	*prev = arg;
     int		count = 0;
 
     for (;;)
     {
+	if (ends_excmd2(prev, p))
+	    break;
 	if (compile_expr0(&p, cctx) == FAIL)
 	    return NULL;
 	++count;
 	prev = p;
 	p = skipwhite(p);
-	if (ends_excmd2(prev, p))
-	    break;
     }
 
-    if (cmdidx == CMD_echo || cmdidx == CMD_echon)
-	generate_ECHO(cctx, cmdidx == CMD_echo, count);
-    else if (cmdidx == CMD_execute)
-	generate_MULT_EXPR(cctx, ISN_EXECUTE, count);
-    else if (cmdidx == CMD_echomsg)
-	generate_MULT_EXPR(cctx, ISN_ECHOMSG, count);
-    else
-	generate_MULT_EXPR(cctx, ISN_ECHOERR, count);
+    if (count > 0)
+    {
+	if (cmdidx == CMD_echo || cmdidx == CMD_echon)
+	    generate_ECHO(cctx, cmdidx == CMD_echo, count);
+	else if (cmdidx == CMD_execute)
+	    generate_MULT_EXPR(cctx, ISN_EXECUTE, count);
+	else if (cmdidx == CMD_echomsg)
+	    generate_MULT_EXPR(cctx, ISN_ECHOMSG, count);
+	else
+	    generate_MULT_EXPR(cctx, ISN_ECHOERR, count);
+    }
     return p;
 }
 

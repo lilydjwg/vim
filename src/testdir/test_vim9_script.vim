@@ -620,7 +620,7 @@ def Test_try_catch_fails()
   CheckDefFailure(['if 1', 'endtry'], 'E171:')
   CheckDefFailure(['try', 'echo 1', 'endtry'], 'E1032:')
 
-  CheckDefFailure(['throw'], 'E1015:')
+  CheckDefFailure(['throw'], 'E1143:')
   CheckDefFailure(['throw xxx'], 'E1001:')
 enddef
 
@@ -1719,6 +1719,10 @@ def Test_nested_if()
 enddef
 
 def Test_execute_cmd()
+  # missing argument is ignored
+  execute
+  execute # comment
+
   new
   setline(1, 'default')
   execute 'setline(1, "execute-string")'
@@ -2137,9 +2141,6 @@ def Test_vim9_comment()
       'vim9script',
       'exe "echo"# something',
       ], 'E121:')
-  CheckDefFailure([
-      'exe # comment',
-      ], 'E1015:')
   CheckScriptFailure([
       'vim9script',
       'exe# something',
@@ -2164,7 +2165,7 @@ def Test_vim9_comment()
       '  throw#comment',
       'catch',
       'endtry',
-      ], 'E1015:')
+      ], 'E1143:')
   CheckDefFailure([
       'try',
       '  throw "yes"#comment',
@@ -3057,7 +3058,7 @@ def Test_put_with_linebreak()
   new
   var lines =<< trim END
     vim9script
-    pu=split('abc', '\zs')
+    pu =split('abc', '\zs')
             ->join()
   END
   CheckScriptSuccess(lines)
@@ -3076,6 +3077,13 @@ def Test_invoke_normal_in_visual_mode()
   feedkeys("V\<F3>", 'xt')
   assert_equal(['bbb', 'aaa'], getline(1, 2))
   xunmap <F3>
+enddef
+
+def Test_white_space_after_command()
+  var lines =<< trim END
+    exit_cb: Func})
+  END
+  CheckDefAndScriptFailure(lines, 'E1144:', 1)
 enddef
 
 " Keep this last, it messes up highlighting.
