@@ -931,17 +931,8 @@ generate_PUSHNR(cctx_T *cctx, varnumber_T number)
     isn->isn_arg.number = number;
 
     if (number == 0 || number == 1)
-    {
-	type_T	*type = get_type_ptr(cctx->ctx_type_list);
-
 	// A 0 or 1 number can also be used as a bool.
-	if (type != NULL)
-	{
-	    type->tt_type = VAR_NUMBER;
-	    type->tt_flags = TTFLAG_BOOL_OK;
-	    ((type_T **)stack->ga_data)[stack->ga_len - 1] = type;
-	}
-    }
+	((type_T **)stack->ga_data)[stack->ga_len - 1] = &t_number_bool;
     return OK;
 }
 
@@ -4118,11 +4109,9 @@ compile_expr7t(char_u **arg, cctx_T *cctx, ppconst_T *ppconst)
     // Recognize <type>
     if (**arg == '<' && eval_isnamec1((*arg)[1]))
     {
-	int		called_emsg_before = called_emsg;
-
 	++*arg;
-	want_type = parse_type(arg, cctx->ctx_type_list);
-	if (called_emsg != called_emsg_before)
+	want_type = parse_type(arg, cctx->ctx_type_list, TRUE);
+	if (want_type == NULL)
 	    return FAIL;
 
 	if (**arg != '>')
@@ -4809,7 +4798,7 @@ compile_expr0(char_u **arg,  cctx_T *cctx)
  * compile "return [expr]"
  */
     static char_u *
-compile_return(char_u *arg, int set_return_type, cctx_T *cctx)
+compile_return(char_u *arg, int check_return_type, cctx_T *cctx)
 {
     char_u	*p = arg;
     garray_T	*stack = &cctx->ctx_type_stack;
@@ -4824,8 +4813,10 @@ compile_return(char_u *arg, int set_return_type, cctx_T *cctx)
 	if (cctx->ctx_skip != SKIP_YES)
 	{
 	    stack_type = ((type_T **)stack->ga_data)[stack->ga_len - 1];
-	    if (set_return_type)
+	    if (check_return_type && cctx->ctx_ufunc->uf_ret_type == NULL)
+	    {
 		cctx->ctx_ufunc->uf_ret_type = stack_type;
+	    }
 	    else
 	    {
 		if (cctx->ctx_ufunc->uf_ret_type->tt_type == VAR_VOID
@@ -4843,7 +4834,7 @@ compile_return(char_u *arg, int set_return_type, cctx_T *cctx)
     }
     else
     {
-	// "set_return_type" cannot be TRUE, only used for a lambda which
+	// "check_return_type" cannot be TRUE, only used for a lambda which
 	// always has an argument.
 	if (cctx->ctx_ufunc->uf_ret_type->tt_type != VAR_VOID
 		&& cctx->ctx_ufunc->uf_ret_type->tt_type != VAR_UNKNOWN)
@@ -5636,7 +5627,9 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		    goto theend;
 		}
 		p = skipwhite(var_end + 1);
-		type = parse_type(&p, cctx->ctx_type_list);
+		type = parse_type(&p, cctx->ctx_type_list, TRUE);
+		if (type == NULL)
+		    goto theend;
 		has_type = TRUE;
 	    }
 	    else if (lvar != NULL)
@@ -7417,15 +7410,16 @@ add_def_function(ufunc_T *ufunc)
  * After ex_function() has collected all the function lines: parse and compile
  * the lines into instructions.
  * Adds the function to "def_functions".
- * When "set_return_type" is set then set ufunc->uf_ret_type to the type of the
- * return statement (used for lambda).
+ * When "check_return_type" is set then set ufunc->uf_ret_type to the type of
+ * the return statement (used for lambda).  When uf_ret_type is already set
+ * then check that it matches.
  * "outer_cctx" is set for a nested function.
  * This can be used recursively through compile_lambda(), which may reallocate
  * "def_functions".
  * Returns OK or FAIL.
  */
     int
-compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
+compile_def_function(ufunc_T *ufunc, int check_return_type, cctx_T *outer_cctx)
 {
     char_u	*line = NULL;
     char_u	*p;
@@ -7797,7 +7791,7 @@ compile_def_function(ufunc_T *ufunc, int set_return_type, cctx_T *outer_cctx)
 		    goto erret;
 
 	    case CMD_return:
-		    line = compile_return(p, set_return_type, &cctx);
+		    line = compile_return(p, check_return_type, &cctx);
 		    cctx.ctx_had_return = TRUE;
 		    break;
 
