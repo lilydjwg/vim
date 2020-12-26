@@ -1158,6 +1158,46 @@ def Run_Test_import_fails_on_command_line()
   StopVimInTerminal(buf)
 enddef
 
+def Test_vim9script_reload_noclear()
+  var lines =<< trim END
+    vim9script noclear
+    g:loadCount += 1
+    var s:reloaded = 'init'
+
+    def Again(): string
+      return 'again'
+    enddef
+
+    if exists('s:loaded') | finish | endif
+    var s:loaded = true
+
+    var s:notReloaded = 'yes'
+    s:reloaded = 'first'
+    def g:Values(): list<string>
+      return [s:reloaded, s:notReloaded, Again(), Once()]
+    enddef
+
+    def Once(): string
+      return 'once'
+    enddef
+  END
+  writefile(lines, 'XReloaded')
+  g:loadCount = 0
+  source XReloaded
+  assert_equal(1, g:loadCount)
+  assert_equal(['first', 'yes', 'again', 'once'], g:Values())
+  source XReloaded
+  assert_equal(2, g:loadCount)
+  assert_equal(['init', 'yes', 'again', 'once'], g:Values())
+  source XReloaded
+  assert_equal(3, g:loadCount)
+  assert_equal(['init', 'yes', 'again', 'once'], g:Values())
+
+  delete('Xreloaded')
+  delfunc g:Values
+  unlet g:loadCount
+enddef
+
 def Test_vim9script_reload_import()
   var lines =<< trim END
     vim9script
@@ -1205,6 +1245,32 @@ def Test_vim9script_reload_import()
 
   delete('Xreload.vim')
   delete('Ximport.vim')
+enddef
+
+" if a script is reloaded with a script-local variable that changed its type, a
+" compiled function using that variable must fail.
+def Test_script_reload_change_type()
+  var lines =<< trim END
+    vim9script noclear
+    var str = 'string'
+    def g:GetStr(): string
+      return str .. 'xxx'
+    enddef
+  END
+  writefile(lines, 'Xreload.vim')
+  source Xreload.vim
+  echo g:GetStr()
+
+  lines =<< trim END
+    vim9script noclear
+    var str = 1234
+  END
+  writefile(lines, 'Xreload.vim')
+  source Xreload.vim
+  assert_fails('echo g:GetStr()', 'E1150:')
+
+  delfunc g:GetStr
+  delete('Xreload.vim')
 enddef
 
 def s:RetSome(): string
