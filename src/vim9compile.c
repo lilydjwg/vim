@@ -3172,8 +3172,9 @@ compile_get_option(char_u **arg, cctx_T *cctx)
     if (ret == OK)
     {
 	// include the '&' in the name, eval_option() expects it.
-	char_u *name = vim_strnsave(start, *arg - start);
-	type_T	*type = rettv.v_type == VAR_NUMBER ? &t_number : &t_string;
+	char_u	*name = vim_strnsave(start, *arg - start);
+	type_T	*type = rettv.v_type == VAR_BOOL ? &t_bool
+			  : rettv.v_type == VAR_NUMBER ? &t_number : &t_string;
 
 	ret = generate_LOAD(cctx, ISN_LOADOPT, 0, name, type);
 	vim_free(name);
@@ -3655,7 +3656,8 @@ compile_subscript(
 		    return FAIL;
 		if (**arg == ':')
 		{
-		    semsg(_(e_white_space_required_before_and_after_str), ":");
+		    semsg(_(e_white_space_required_before_and_after_str_at_str),
+								    ":", *arg);
 		    return FAIL;
 		}
 		if (may_get_next_line_error(p, arg, cctx) == FAIL)
@@ -3668,7 +3670,8 @@ compile_subscript(
 		++*arg;
 		if (!IS_WHITE_OR_NUL(**arg) && **arg != ']')
 		{
-		    semsg(_(e_white_space_required_before_and_after_str), ":");
+		    semsg(_(e_white_space_required_before_and_after_str_at_str),
+								    ":", *arg);
 		    return FAIL;
 		}
 		*arg = skipwhite(*arg);
@@ -4066,7 +4069,7 @@ error_white_both(char_u *op, int len)
     char_u	buf[10];
 
     vim_strncpy(buf, op, len);
-    semsg(_(e_white_space_required_before_and_after_str), buf);
+    semsg(_(e_white_space_required_before_and_after_str_at_str), buf, op);
 }
 
 /*
@@ -4433,7 +4436,8 @@ compile_and_or(
 
 	    if (!IS_WHITE_OR_NUL(**arg) || !IS_WHITE_OR_NUL(p[2]))
 	    {
-		semsg(_(e_white_space_required_before_and_after_str), op);
+		semsg(_(e_white_space_required_before_and_after_str_at_str),
+								     op, *arg);
 		return FAIL;
 	    }
 
@@ -4607,8 +4611,8 @@ compile_expr1(char_u **arg, cctx_T *cctx, ppconst_T *ppconst)
 
 	if (!IS_WHITE_OR_NUL(**arg) || !IS_WHITE_OR_NUL(p[1 + op_falsy]))
 	{
-	    semsg(_(e_white_space_required_before_and_after_str),
-							op_falsy ? "??" : "?");
+	    semsg(_(e_white_space_required_before_and_after_str_at_str),
+						  op_falsy ? "??" : "?", *arg);
 	    return FAIL;
 	}
 
@@ -4694,7 +4698,8 @@ compile_expr1(char_u **arg, cctx_T *cctx, ppconst_T *ppconst)
 
 	    if (!IS_WHITE_OR_NUL(**arg) || !IS_WHITE_OR_NUL(p[1]))
 	    {
-		semsg(_(e_white_space_required_before_and_after_str), ":");
+		semsg(_(e_white_space_required_before_and_after_str_at_str),
+								       ":", p);
 		return FAIL;
 	    }
 
@@ -5629,6 +5634,11 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		semsg(_(e_cannot_use_operator_on_new_variable), name);
 		goto theend;
 	    }
+	    if (!is_decl)
+	    {
+		semsg(_(e_unknown_variable_str), name);
+		goto theend;
+	    }
 
 	    // new local variable
 	    if ((type->tt_type == VAR_FUNC || type->tt_type == VAR_PARTIAL)
@@ -6135,6 +6145,7 @@ compile_unletlock(char_u *arg, exarg_T *eap, cctx_T *cctx)
 	return NULL;
     }
 
+    // TODO: this doesn't work for local variables
     ex_unletlock(eap, p, 0, GLV_NO_AUTOLOAD, compile_unlet, cctx);
     return eap->nextcmd == NULL ? (char_u *)"" : eap->nextcmd;
 }
@@ -6915,11 +6926,14 @@ compile_try(char_u *arg, cctx_T *cctx)
     if (try_scope == NULL)
 	return NULL;
 
-    // "catch" is set when the first ":catch" is found.
-    // "finally" is set when ":finally" or ":endtry" is found
-    try_scope->se_u.se_try.ts_try_label = instr->ga_len;
-    if (generate_instr(cctx, ISN_TRY) == NULL)
-	return NULL;
+    if (cctx->ctx_skip != SKIP_YES)
+    {
+	// "catch" is set when the first ":catch" is found.
+	// "finally" is set when ":finally" or ":endtry" is found
+	try_scope->se_u.se_try.ts_try_label = instr->ga_len;
+	if (generate_instr(cctx, ISN_TRY) == NULL)
+	    return NULL;
+    }
 
     // scope for the try block itself
     scope = new_scope(cctx, BLOCK_SCOPE);
@@ -6958,20 +6972,23 @@ compile_catch(char_u *arg, cctx_T *cctx UNUSED)
 	return NULL;
     }
 
-    // Jump from end of previous block to :finally or :endtry
-    if (compile_jump_to_end(&scope->se_u.se_try.ts_end_label,
-						    JUMP_ALWAYS, cctx) == FAIL)
-	return NULL;
-
-    // End :try or :catch scope: set value in ISN_TRY instruction
-    isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_try_label;
-    if (isn->isn_arg.try.try_catch == 0)
-	isn->isn_arg.try.try_catch = instr->ga_len;
-    if (scope->se_u.se_try.ts_catch_label != 0)
+    if (cctx->ctx_skip != SKIP_YES)
     {
-	// Previous catch without match jumps here
-	isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_catch_label;
-	isn->isn_arg.jump.jump_where = instr->ga_len;
+	// Jump from end of previous block to :finally or :endtry
+	if (compile_jump_to_end(&scope->se_u.se_try.ts_end_label,
+						    JUMP_ALWAYS, cctx) == FAIL)
+	    return NULL;
+
+	// End :try or :catch scope: set value in ISN_TRY instruction
+	isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_try_label;
+	if (isn->isn_arg.try.try_catch == 0)
+	    isn->isn_arg.try.try_catch = instr->ga_len;
+	if (scope->se_u.se_try.ts_catch_label != 0)
+	{
+	    // Previous catch without match jumps here
+	    isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_catch_label;
+	    isn->isn_arg.jump.jump_where = instr->ga_len;
+	}
     }
 
     p = skipwhite(arg);
@@ -7018,7 +7035,7 @@ compile_catch(char_u *arg, cctx_T *cctx UNUSED)
 	    return NULL;
     }
 
-    if (generate_instr(cctx, ISN_CATCH) == NULL)
+    if (cctx->ctx_skip != SKIP_YES && generate_instr(cctx, ISN_CATCH) == NULL)
 	return NULL;
 
     if (new_scope(cctx, BLOCK_SCOPE) == NULL)
@@ -7096,33 +7113,37 @@ compile_endtry(char_u *arg, cctx_T *cctx)
 	return NULL;
     }
 
-    isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_try_label;
-    if (isn->isn_arg.try.try_catch == 0 && isn->isn_arg.try.try_finally == 0)
+    if (cctx->ctx_skip != SKIP_YES)
     {
-	emsg(_(e_missing_catch_or_finally));
-	return NULL;
-    }
+	isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_try_label;
+	if (isn->isn_arg.try.try_catch == 0
+					  && isn->isn_arg.try.try_finally == 0)
+	{
+	    emsg(_(e_missing_catch_or_finally));
+	    return NULL;
+	}
 
-    // Fill in the "end" label in jumps at the end of the blocks, if not done
-    // by ":finally".
-    compile_fill_jump_to_end(&scope->se_u.se_try.ts_end_label, cctx);
+	// Fill in the "end" label in jumps at the end of the blocks, if not
+	// done by ":finally".
+	compile_fill_jump_to_end(&scope->se_u.se_try.ts_end_label, cctx);
 
-    // End :catch or :finally scope: set value in ISN_TRY instruction
-    if (isn->isn_arg.try.try_catch == 0)
-	isn->isn_arg.try.try_catch = instr->ga_len;
-    if (isn->isn_arg.try.try_finally == 0)
-	isn->isn_arg.try.try_finally = instr->ga_len;
+	// End :catch or :finally scope: set value in ISN_TRY instruction
+	if (isn->isn_arg.try.try_catch == 0)
+	    isn->isn_arg.try.try_catch = instr->ga_len;
+	if (isn->isn_arg.try.try_finally == 0)
+	    isn->isn_arg.try.try_finally = instr->ga_len;
 
-    if (scope->se_u.se_try.ts_catch_label != 0)
-    {
-	// Last catch without match jumps here
-	isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_catch_label;
-	isn->isn_arg.jump.jump_where = instr->ga_len;
+	if (scope->se_u.se_try.ts_catch_label != 0)
+	{
+	    // Last catch without match jumps here
+	    isn = ((isn_T *)instr->ga_data) + scope->se_u.se_try.ts_catch_label;
+	    isn->isn_arg.jump.jump_where = instr->ga_len;
+	}
     }
 
     compile_endblock(cctx);
 
-    if (generate_instr(cctx, ISN_ENDTRY) == NULL)
+    if (cctx->ctx_skip != SKIP_YES && generate_instr(cctx, ISN_ENDTRY) == NULL)
 	return NULL;
     return arg;
 }
