@@ -831,6 +831,20 @@ generate_TYPECHECK(
     return OK;
 }
 
+    static int
+generate_SETTYPE(
+	cctx_T	    *cctx,
+	type_T	    *expected)
+{
+    isn_T	*isn;
+
+    RETURN_OK_IF_SKIP(cctx);
+    if ((isn = generate_instr(cctx, ISN_SETTYPE)) == NULL)
+	return FAIL;
+    isn->isn_arg.type.ct_type = alloc_type(expected);
+    return OK;
+}
+
 /*
  * Return TRUE if "actual" could be "expected" and a runtime typecheck is to be
  * used.  Return FALSE if the types will never match.
@@ -995,7 +1009,11 @@ generate_PUSHS(cctx_T *cctx, char_u *str)
 {
     isn_T	*isn;
 
-    RETURN_OK_IF_SKIP(cctx);
+    if (cctx->ctx_skip == SKIP_YES)
+    {
+	vim_free(str);
+	return OK;
+    }
     if ((isn = generate_instr_type(cctx, ISN_PUSHS, &t_string)) == NULL)
 	return FAIL;
     isn->isn_arg.string = str;
@@ -6025,6 +6043,15 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 		// ":const var": lock the value, but not referenced variables
 		generate_LOCKCONST(cctx);
 
+	    if (is_decl
+		    && (type->tt_type == VAR_DICT || type->tt_type == VAR_LIST)
+		    && type->tt_member != NULL
+		    && type->tt_member != &t_any
+		    && type->tt_member != &t_unknown)
+		// Set the type in the list or dict, so that it can be checked,
+		// also in legacy script.
+		generate_SETTYPE(cctx, type);
+
 	    if (dest != dest_local)
 	    {
 		if (generate_store_var(cctx, dest, opt_flags, vimvaridx,
@@ -7302,6 +7329,20 @@ compile_exec(char_u *line, exarg_T *eap, cctx_T *cctx)
 	    if (eap->nextcmd != NULL)
 		nextcmd = eap->nextcmd;
 	}
+	else if (eap->cmdidx == CMD_wincmd)
+	{
+	    p = eap->arg;
+	    if (*p != NUL)
+		++p;
+	    if (*p == 'g' || *p == Ctrl_G)
+		++p;
+	    p = skipwhite(p);
+	    if (*p == '|')
+	    {
+		*p = NUL;
+		nextcmd = p + 1;
+	    }
+	}
     }
 
     if (eap->cmdidx == CMD_syntax && STRNCMP(eap->arg, "include ", 8) == 0)
@@ -8193,6 +8234,7 @@ delete_instr(isn_T *isn)
 	    break;
 
 	case ISN_CHECKTYPE:
+	case ISN_SETTYPE:
 	    free_type(isn->isn_arg.type.ct_type);
 	    break;
 
