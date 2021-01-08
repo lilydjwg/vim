@@ -2205,6 +2205,16 @@ call_def_function(
 		break;
 
 	    // return from a :def function call
+	    case ISN_RETURN_ZERO:
+		if (GA_GROW(&ectx.ec_stack, 1) == FAIL)
+		    goto failed;
+		tv = STACK_TV_BOT(0);
+		++ectx.ec_stack.ga_len;
+		tv->v_type = VAR_NUMBER;
+		tv->vval.v_number = 0;
+		tv->v_lock = 0;
+		// FALLTHROUGH
+
 	    case ISN_RETURN:
 		{
 		    garray_T	*trystack = &ectx.ec_trystack;
@@ -3148,11 +3158,13 @@ call_def_function(
 			goto failed;
 		    ++ectx.ec_stack.ga_len;
 		    tv = STACK_TV_BOT(-1);
+		    ea.line2 = 0;
 		    ea.addr_count = 0;
 		    ea.addr_type = ADDR_LINES;
 		    ea.cmd = iptr->isn_arg.string;
+		    ea.skip = FALSE;
 		    if (parse_cmd_address(&ea, &errormsg, FALSE) == FAIL)
-			goto failed;
+			goto on_error;
 		    if (ea.addr_count == 0)
 			tv->vval.v_number = curwin->w_cursor.lnum;
 		    else
@@ -3801,6 +3813,9 @@ ex_disassemble(exarg_T *eap)
 		break;
 	    case ISN_RETURN:
 		smsg("%4d RETURN", current);
+		break;
+	    case ISN_RETURN_ZERO:
+		smsg("%4d RETURN 0", current);
 		break;
 	    case ISN_FUNCREF:
 		{
