@@ -1935,8 +1935,8 @@ call_def_function(
 
 		    if (status == OK && dest_type == VAR_LIST)
 		    {
-			varnumber_T	lidx = tv_idx->vval.v_number;
-			list_T		*list = tv_dest->vval.v_list;
+			long	    lidx = (long)tv_idx->vval.v_number;
+			list_T	    *list = tv_dest->vval.v_list;
 
 			if (list == NULL)
 			{
@@ -2121,7 +2121,7 @@ call_def_function(
 			else
 			{
 			    list_T	*l = tv_dest->vval.v_list;
-			    varnumber_T	n = tv_idx->vval.v_number;
+			    long	n = (long)tv_idx->vval.v_number;
 			    listitem_T	*li = NULL;
 
 			    li = list_find(l, n);
@@ -2572,6 +2572,7 @@ call_def_function(
 			trycmd->tcd_caught = TRUE;
 		    }
 		    did_emsg = got_int = did_throw = FALSE;
+		    force_abort = need_rethrow = FALSE;
 		    catch_exception(current_exception);
 		}
 		break;
