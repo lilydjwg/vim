@@ -751,6 +751,18 @@ static char *(features[]) =
 static int included_patches[] =
 {   /* Add new patch number below this line */
 /**/
+    2444,
+/**/
+    2443,
+/**/
+    2442,
+/**/
+    2441,
+/**/
+    2440,
+/**/
+    2439,
+/**/
     2438,
 /**/
     2437,
