@@ -2595,8 +2595,12 @@ do_one_cmd(
 
 #ifdef FEAT_EVAL
     // Set flag that any command was executed, used by ex_vim9script().
+    // Not if this was a command that wasn't executed or :endif.
     if (getline_equal(ea.getline, ea.cookie, getsourceline)
-						    && current_sctx.sc_sid > 0)
+	    && current_sctx.sc_sid > 0
+	    && ea.cmdidx != CMD_endif
+	    && (cstack->cs_idx < 0
+		    || (cstack->cs_flags[cstack->cs_idx] & CSF_ACTIVE)))
 	SCRIPT_ITEM(current_sctx.sc_sid)->sn_state = SN_STATE_HAD_COMMAND;
 
     /*
@@ -3307,7 +3311,7 @@ skip_option_env_lead(char_u *start)
 find_ex_command(
 	exarg_T *eap,
 	int	*full UNUSED,
-	int	(*lookup)(char_u *, size_t, void *, cctx_T *) UNUSED,
+	int	(*lookup)(char_u *, size_t, cctx_T *) UNUSED,
 	cctx_T	*cctx UNUSED)
 {
     int		len;
@@ -3416,7 +3420,7 @@ find_ex_command(
 
 	    // Recognize an assignment if we recognize the variable name:
 	    // "g:var = expr"
-	    // "var = expr"  where "var" is a local var name.
+	    // "var = expr"  where "var" is a variable name.
 	    if (*eap->cmd == '@')
 		p = eap->cmd + 2;
 	    oplen = assignment_len(skipwhite(p), &heredoc);
@@ -3426,7 +3430,7 @@ find_ex_command(
 			|| *eap->cmd == '&'
 			|| *eap->cmd == '$'
 			|| *eap->cmd == '@'
-			|| lookup(eap->cmd, p - eap->cmd, NULL, cctx) == OK)
+			|| lookup(eap->cmd, p - eap->cmd, cctx) == OK)
 		{
 		    eap->cmdidx = CMD_var;
 		    return eap->cmd;
@@ -3445,7 +3449,7 @@ find_ex_command(
 	// If it is an ID it might be a variable with an operator on the next
 	// line, if the variable exists it can't be an Ex command.
 	if (p > eap->cmd && ends_excmd(*skipwhite(p))
-		&& (lookup(eap->cmd, p - eap->cmd, NULL, cctx) == OK
+		&& (lookup(eap->cmd, p - eap->cmd, cctx) == OK
 		    || (ASCII_ISALPHA(eap->cmd[0]) && eap->cmd[1] == ':')))
 	{
 	    eap->cmdidx = CMD_eval;
