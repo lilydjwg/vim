@@ -315,6 +315,14 @@ def Test_assign_linebreak()
   assert_equal(34, n2)
 
   CheckDefFailure(["var x = #"], 'E1097:', 3)
+
+  var lines =<< trim END
+      var x: list<string> = ['a']
+      var y: list<number> = x
+          ->copy()
+          ->copy()
+  END
+  CheckDefFailure(lines, 'E1012:', 2)
 enddef
 
 def Test_assign_index()
@@ -1323,6 +1331,7 @@ def Test_var_declaration()
   unlet g:var_test
   unlet g:var_prefixed
   unlet g:other_var
+  unlet g:globConst
   unlet g:FOO
   unlet g:FOOS
   unlet g:FLIST
@@ -1375,7 +1384,7 @@ def Test_var_declaration_fails()
     SetGlobalConst()
     g:globConst = 234
   END
-  CheckScriptFailure(lines, 'E741: Value is locked: globConst', 1)
+  CheckScriptFailure(lines, 'E741: Value is locked: g:globConst', 6)
   unlet g:globConst
 
   lines =<< trim END
