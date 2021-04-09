@@ -791,10 +791,20 @@ def Test_call_funcref_wrong_args()
 enddef
 
 def Test_call_lambda_args()
+  var lines =<< trim END
+    var Callback = (..._) => 'anything'
+    assert_equal('anything', Callback())
+    assert_equal('anything', Callback(1))
+    assert_equal('anything', Callback('a', 2))
+
+    assert_equal('xyz', ((a: string): string => a)('xyz'))
+  END
+  CheckDefAndScriptSuccess(lines)
+
   CheckDefFailure(['echo ((i) => 0)()'],
                   'E119: Not enough arguments for function: ((i) => 0)()')
 
-  var lines =<< trim END
+  lines =<< trim END
       var Ref = (x: number, y: number) => x + y
       echo Ref(1, 'x')
   END
@@ -836,6 +846,11 @@ def Test_call_lambda_args()
       enddef
   END
   CheckDefFailure(lines, 'E1167:')
+
+  lines =<< trim END
+    echo ((a) => a)('aa', 'bb')
+  END
+  CheckDefAndScriptFailure(lines, 'E118:', 1)
 enddef
 
 def FilterWithCond(x: string, Cond: func(string): bool): bool
@@ -918,12 +933,21 @@ def Test_call_def_varargs()
 
   lines =<< trim END
       vim9script
-      def Func(...l: any)
+      def Func(...l: list<any>)
         echo l
       enddef
       Func(0)
   END
   CheckScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      def Func(...l: any)
+        echo l
+      enddef
+      Func(0)
+  END
+  CheckScriptFailure(lines, 'E1180:', 2)
 
   lines =<< trim END
       vim9script
@@ -2114,7 +2138,7 @@ def Test_list_lambda()
          ->substitute("('", ' ', '')
          ->substitute("')", '', '')
          ->substitute('function\zs', ' ', ''))
-  assert_match('def <lambda>\d\+(_: any, ...): number\n1  return 0\n   enddef', body)
+  assert_match('def <lambda>\d\+(_: any): number\n1  return 0\n   enddef', body)
 enddef
 
 def DoFilterThis(a: string): list<string>
@@ -2363,7 +2387,7 @@ def Test_did_emsg_reset()
       vim9script
       au BufWinLeave * #
       def Func()
-          popup_menu('', {callback: () => popup_create('', {})->popup_close()})
+          popup_menu('', {callback: (a, b) => popup_create('', {})->popup_close()})
           eval [][0]
       enddef
       nno <F3> <cmd>call <sid>Func()<cr>
