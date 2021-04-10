@@ -1791,8 +1791,9 @@ func_needs_compiling(ufunc_T *ufunc, int profile UNUSED)
 {
     switch (ufunc->uf_def_status)
     {
-	case UF_NOT_COMPILED: break;
-	case UF_TO_BE_COMPILED: return TRUE;
+	case UF_TO_BE_COMPILED:
+	    return TRUE;
+
 	case UF_COMPILED:
 	{
 #ifdef FEAT_PROFILE
@@ -1805,7 +1806,11 @@ func_needs_compiling(ufunc_T *ufunc, int profile UNUSED)
 	    break;
 #endif
 	}
-	case UF_COMPILING: break;
+
+	case UF_NOT_COMPILED:
+	case UF_COMPILE_ERROR:
+	case UF_COMPILING:
+	    break;
     }
     return FALSE;
 }
@@ -1834,7 +1839,8 @@ generate_CALL(cctx_T *cctx, ufunc_T *ufunc, int pushed_argcount)
 	return FAIL;
     }
 
-    if (ufunc->uf_def_status != UF_NOT_COMPILED)
+    if (ufunc->uf_def_status != UF_NOT_COMPILED
+	    && ufunc->uf_def_status != UF_COMPILE_ERROR)
     {
 	int		i;
 
@@ -4410,6 +4416,12 @@ compile_expr7(
 
 	// "name" or "name()"
 	p = to_name_end(*arg, TRUE);
+	if (p - *arg == (size_t)1 && **arg == '_')
+	{
+	    emsg(_(e_cannot_use_underscore_here));
+	    return FAIL;
+	}
+
 	if (*p == '(')
 	{
 	    r = compile_call(arg, p - *arg, cctx, ppconst, 0);
@@ -6370,6 +6382,11 @@ compile_assignment(char_u *arg, exarg_T *eap, cmdidx_T cmdidx, cctx_T *cctx)
 			       && lhs.lhs_lvar->lv_const && !lhs.lhs_has_index)
 	{
 	    semsg(_(e_cannot_assign_to_constant), lhs.lhs_name);
+	    goto theend;
+	}
+	if (is_decl && lhs.lhs_name[0] == '_' && lhs.lhs_name[1] == NUL)
+	{
+	    emsg(_(e_cannot_use_underscore_here));
 	    goto theend;
 	}
 
@@ -8423,6 +8440,7 @@ compile_def_function(
     cctx_T	cctx;
     garray_T	*instr;
     int		did_emsg_before = did_emsg;
+    int		did_emsg_silent_before = did_emsg_silent;
     int		ret = FAIL;
     sctx_T	save_current_sctx = current_sctx;
     int		save_estack_compiling = estack_compiling;
@@ -8961,6 +8979,9 @@ nextline:
 	generate_instr(&cctx, ISN_RETURN_ZERO);
     }
 
+    // When compiled with ":silent!" and there was an error don't consider the
+    // function compiled.
+    if (emsg_silent == 0 || did_emsg_silent == did_emsg_silent_before)
     {
 	dfunc_T	*dfunc = ((dfunc_T *)def_functions.ga_data)
 							 + ufunc->uf_dfunc_idx;
@@ -8988,7 +9009,7 @@ nextline:
     ret = OK;
 
 erret:
-    if (ret == FAIL)
+    if (ufunc->uf_def_status == UF_COMPILING)
     {
 	int idx;
 	dfunc_T	*dfunc = ((dfunc_T *)def_functions.ga_data)
@@ -9007,13 +9028,10 @@ erret:
 	    --def_functions.ga_len;
 	    ufunc->uf_dfunc_idx = 0;
 	}
-	ufunc->uf_def_status = UF_NOT_COMPILED;
+	ufunc->uf_def_status = UF_COMPILE_ERROR;
 
 	while (cctx.ctx_scope != NULL)
 	    drop_scope(&cctx);
-
-	// Don't execute this function body.
-	ga_clear_strings(&ufunc->uf_lines);
 
 	if (errormsg != NULL)
 	    emsg(errormsg);
