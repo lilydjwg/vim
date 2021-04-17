@@ -329,9 +329,9 @@ call_dfunc(
     if (entry != NULL)
     {
 	// Set the script context to the script where the function was defined.
-	// TODO: save more than the SID?
-	entry->es_save_sid = current_sctx.sc_sid;
-	current_sctx.sc_sid = ufunc->uf_script_ctx.sc_sid;
+	// Save the current context so it can be restored on return.
+	entry->es_save_sctx = current_sctx;
+	current_sctx = ufunc->uf_script_ctx;
     }
 
     // Start execution at the first instruction.
@@ -562,7 +562,7 @@ func_return(funclocal_T *funclocal, ectx_T *ectx)
     // execution context goes one level up
     entry = estack_pop();
     if (entry != NULL)
-	current_sctx.sc_sid = entry->es_save_sid;
+	current_sctx = entry->es_save_sctx;
 
     if (handle_closure_in_use(ectx, TRUE) == FAIL)
 	return FAIL;
@@ -2221,7 +2221,35 @@ call_def_function(
 		    }
 		    else if (status == OK && dest_type == VAR_BLOB)
 		    {
-			// TODO
+			long	    lidx = (long)tv_idx->vval.v_number;
+			blob_T	    *blob = tv_dest->vval.v_blob;
+			varnumber_T nr;
+			int	    error = FALSE;
+			int	    len;
+
+			if (blob == NULL)
+			{
+			    emsg(_(e_blob_not_set));
+			    goto on_error;
+			}
+			len = blob_len(blob);
+			if (lidx < 0 && len + lidx >= 0)
+			    // negative index is relative to the end
+			    lidx = len + lidx;
+
+			// Can add one byte at the end.
+			if (lidx < 0 || lidx > len)
+			{
+			    semsg(_(e_blobidx), lidx);
+			    goto on_error;
+			}
+			if (value_check_lock(blob->bv_lock,
+						      (char_u *)"blob", FALSE))
+			    goto on_error;
+			nr = tv_get_number_chk(tv, &error);
+			if (error)
+			    goto on_error;
+			blob_set_append(blob, lidx, nr);
 		    }
 		    else
 		    {
@@ -4415,19 +4443,8 @@ ex_disassemble(exarg_T *eap)
 		break;
 
 	    case ISN_STOREINDEX:
-		switch (iptr->isn_arg.vartype)
-		{
-		    case VAR_LIST:
-			    smsg("%4d STORELIST", current);
-			    break;
-		    case VAR_DICT:
-			    smsg("%4d STOREDICT", current);
-			    break;
-		    case VAR_ANY:
-			    smsg("%4d STOREINDEX", current);
-			    break;
-		    default: break;
-		}
+		smsg("%4d STOREINDEX %s", current,
+					  vartype_name(iptr->isn_arg.vartype));
 		break;
 
 	    case ISN_STORERANGE:

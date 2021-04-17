@@ -6209,14 +6209,21 @@ compile_assign_unlet(
 	}
 	if (dest_type == VAR_DICT && may_generate_2STRING(-1, cctx) == FAIL)
 	    return FAIL;
-	if (dest_type == VAR_LIST)
+	if (dest_type == VAR_LIST || dest_type == VAR_BLOB)
 	{
-	    if (range
-		  && need_type(((type_T **)stack->ga_data)[stack->ga_len - 2],
-				 &t_number, -1, 0, cctx, FALSE, FALSE) == FAIL)
+	    type_T *type;
+
+	    if (range)
+	    {
+		type = ((type_T **)stack->ga_data)[stack->ga_len - 2];
+		if (need_type(type, &t_number,
+					    -1, 0, cctx, FALSE, FALSE) == FAIL)
 		return FAIL;
-	    if (need_type(((type_T **)stack->ga_data)[stack->ga_len - 1],
-				 &t_number, -1, 0, cctx, FALSE, FALSE) == FAIL)
+	    }
+	    type = ((type_T **)stack->ga_data)[stack->ga_len - 1];
+	    if ((dest_type != VAR_BLOB || type != &t_special)
+		    && need_type(type, &t_number,
+					    -1, 0, cctx, FALSE, FALSE) == FAIL)
 		return FAIL;
 	}
     }
@@ -8221,6 +8228,7 @@ compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
     char_u	*p = arg;
     char_u	*prev = arg;
     int		count = 0;
+    int		start_ctx_lnum = cctx->ctx_lnum;
 
     for (;;)
     {
@@ -8235,6 +8243,11 @@ compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
 
     if (count > 0)
     {
+	long save_lnum = cctx->ctx_lnum;
+
+	// Use the line number where the command started.
+	cctx->ctx_lnum = start_ctx_lnum;
+
 	if (cmdidx == CMD_echo || cmdidx == CMD_echon)
 	    generate_ECHO(cctx, cmdidx == CMD_echo, count);
 	else if (cmdidx == CMD_execute)
@@ -8243,6 +8256,8 @@ compile_mult_expr(char_u *arg, int cmdidx, cctx_T *cctx)
 	    generate_MULT_EXPR(cctx, ISN_ECHOMSG, count);
 	else
 	    generate_MULT_EXPR(cctx, ISN_ECHOERR, count);
+
+	cctx->ctx_lnum = save_lnum;
     }
     return p;
 }
