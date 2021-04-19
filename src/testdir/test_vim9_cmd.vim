@@ -1172,5 +1172,45 @@ def Test_lockvar()
   CheckDefFailure(lines, 'E1178', 2)
 enddef
 
+def Test_substitute_expr()
+  var to = 'repl'
+  new
+  setline(1, 'one from two')
+  s/from/\=to
+  assert_equal('one repl two', getline(1))
+
+  setline(1, 'one from two')
+  s/from/\=to .. '_x'
+  assert_equal('one repl_x two', getline(1))
+
+  setline(1, 'one from two from three')
+  var also = 'also'
+  s/from/\=to .. '_' .. also/g#e
+  assert_equal('one repl_also two repl_also three', getline(1))
+
+  CheckDefFailure(['s/from/\="x")/'], 'E488:')
+  CheckDefFailure(['s/from/\="x"/9'], 'E488:')
+
+  bwipe!
+enddef
+
+def Test_redir_to_var()
+  var result: string
+  redir => result
+    echo 'something'
+  redir END
+  assert_equal("\nsomething", result)
+
+  redir =>> result
+    echo 'more'
+  redir END
+  assert_equal("\nsomething\nmore", result)
+
+  var lines =<< trim END
+    redir => notexist
+  END
+  CheckDefFailure(lines, 'E1089:')
+enddef
+
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
