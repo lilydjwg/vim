@@ -999,15 +999,34 @@ do_2string(typval_T *tv, int is_2string_any, int tolerant)
 		case VAR_LIST:
 				if (tolerant)
 				{
-				    char_u *p;
+				    char_u	*s, *e, *p;
+				    garray_T	ga;
 
+				    ga_init2(&ga, sizeof(char_u *), 1);
+
+				    // Convert to NL separated items, then
+				    // escape the items and replace the NL with
+				    // a space.
 				    str = typval2string(tv, TRUE);
+				    if (str == NULL)
+					return FAIL;
+				    s = str;
+				    while ((e = vim_strchr(s, '\n')) != NULL)
+				    {
+					*e = NUL;
+					p = vim_strsave_fnameescape(s, FALSE);
+					if (p != NULL)
+					{
+					    ga_concat(&ga, p);
+					    ga_concat(&ga, (char_u *)" ");
+					    vim_free(p);
+					}
+					s = e + 1;
+				    }
+				    vim_free(str);
 				    clear_tv(tv);
 				    tv->v_type = VAR_STRING;
-				    tv->vval.v_string = str;
-				    // TODO: escaping
-				    while ((p = vim_strchr(str, '\n')) != NULL)
-					*p = ' ';
+				    tv->vval.v_string = ga.ga_data;
 				    return OK;
 				}
 				// FALLTHROUGH
@@ -4111,7 +4130,7 @@ exe_substitute_instr(void)
     {
 	typval_T *tv = STACK_TV_BOT(-1);
 
-	res = vim_strsave(tv_get_string(tv));
+	res = typval2string(tv, TRUE);
 	--ectx->ec_stack.ga_len;
 	clear_tv(tv);
     }
@@ -4213,6 +4232,15 @@ call_def_function(
 	    emsg(_(e_one_argument_too_many));
 	else
 	    semsg(_(e_nr_arguments_too_many), idx);
+	goto failed_early;
+    }
+    idx = argc - ufunc->uf_args.ga_len + ufunc->uf_def_args.ga_len;
+    if (idx < 0)
+    {
+	if (idx == -1)
+	    emsg(_(e_one_argument_too_few));
+	else
+	    semsg(_(e_nr_arguments_too_few), -idx);
 	goto failed_early;
     }
 
@@ -4803,10 +4831,11 @@ list_instructions(char *pfx, isn_T *instr, int instr_count, ufunc_T *ufunc)
 		{
 		    typval_T	tv;
 		    char_u	*name;
+		    char_u	buf[NUMBUFLEN];
 
 		    tv.v_type = VAR_JOB;
 		    tv.vval.v_job = iptr->isn_arg.job;
-		    name = tv_get_string(&tv);
+		    name = job_to_string_buf(&tv, buf);
 		    smsg("%s%4d PUSHJOB \"%s\"", pfx, current, name);
 		}
 #endif
