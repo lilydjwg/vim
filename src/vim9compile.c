@@ -454,7 +454,7 @@ item_exists(char_u *name, size_t len, int cmd UNUSED, cctx_T *cctx)
     if (name[len] == '(' || (p[0] == '-' && p[1] == '>'))
     {
 	// Do not check for an internal function, since it might also be a
-	// valid command, such as ":split" versuse "split()".
+	// valid command, such as ":split" versus "split()".
 	// Skip "g:" before a function name.
 	is_global = (name[0] == 'g' && name[1] == ':');
 	return find_func(is_global ? name + 2 : name, is_global, cctx) != NULL;
@@ -10044,6 +10044,13 @@ delete_def_function_contents(dfunc_T *dfunc, int mark_deleted)
 	    delete_instr(dfunc->df_instr + idx);
 	VIM_CLEAR(dfunc->df_instr);
 	dfunc->df_instr = NULL;
+    }
+    if (dfunc->df_instr_debug != NULL)
+    {
+	for (idx = 0; idx < dfunc->df_instr_debug_count; ++idx)
+	    delete_instr(dfunc->df_instr_debug + idx);
+	VIM_CLEAR(dfunc->df_instr_debug);
+	dfunc->df_instr_debug = NULL;
     }
 #ifdef FEAT_PROFILE
     if (dfunc->df_instr_prof != NULL)
