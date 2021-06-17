@@ -1461,9 +1461,17 @@ handle_debug(isn_T *iptr, ectx_T *ectx)
     {
 	ga_init2(&ga, sizeof(char_u *), 10);
 	for (lnum = iptr->isn_lnum; lnum < end_lnum; ++lnum)
+	{
+	    char_u *p = skipwhite(
+			       ((char_u **)ufunc->uf_lines.ga_data)[lnum - 1]);
+
+	    if (*p == '#')
+		break;
 	    if (ga_grow(&ga, 1) == OK)
-		((char_u **)(ga.ga_data))[ga.ga_len++] =
-		     skipwhite(((char_u **)ufunc->uf_lines.ga_data)[lnum - 1]);
+		((char_u **)(ga.ga_data))[ga.ga_len++] = p;
+	    if (STRNCMP(p, "def ", 4) == 0)
+		break;
+	}
 	line = ga_concat_strings(&ga, "  ");
 	vim_free(ga.ga_data);
     }
@@ -2182,8 +2190,7 @@ exec_instructions(ectx_T *ectx)
 
 		    --ectx->ec_stack.ga_len;
 		    tv = STACK_TV_BOT(0);
-		    write_reg_contents(reg == '@' ? '"' : reg,
-						 tv_get_string(tv), -1, FALSE);
+		    write_reg_contents(reg, tv_get_string(tv), -1, FALSE);
 		    clear_tv(tv);
 		}
 		break;
