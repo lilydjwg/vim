@@ -932,6 +932,53 @@ func Test_Backtrace_DefFunction()
   call delete('Xtest2.vim')
 endfunc
 
+func Test_debug_DefFunction()
+  CheckCWD
+  let file =<< trim END
+    vim9script
+    def g:SomeFunc()
+      echo "here"
+      echo "and"
+      echo "there"
+      breakadd func 2 LocalFunc
+      LocalFunc()
+    enddef
+
+    def LocalFunc()
+      echo "first"
+      echo "second"
+      breakadd func 1 LegacyFunc
+      LegacyFunc()
+    enddef
+
+    func LegacyFunc()
+      echo "legone"
+      echo "legtwo"
+    endfunc
+
+    breakadd func 2 g:SomeFunc
+  END
+  call writefile(file, 'XtestDebug.vim')
+
+  let buf = RunVimInTerminal('-S XtestDebug.vim', {})
+
+  call RunDbgCmd(buf,':call SomeFunc()', ['line 2: echo "and"'])
+  call RunDbgCmd(buf,'next', ['line 3: echo "there"'])
+  call RunDbgCmd(buf,'next', ['line 4: breakadd func 2 LocalFunc'])
+
+  " continue, next breakpoint is in LocalFunc()
+  call RunDbgCmd(buf,'cont', ['line 2: echo "second"'])
+
+  " continue, next breakpoint is in LegacyFunc()
+  call RunDbgCmd(buf,'cont', ['line 1: echo "legone"'])
+
+  call RunDbgCmd(buf, 'cont')
+
+  call StopVimInTerminal(buf)
+  call delete('Xtest1.vim')
+  call delete('Xtest2.vim')
+endfunc
+
 func Test_debug_def_function()
   CheckCWD
   let file =<< trim END
