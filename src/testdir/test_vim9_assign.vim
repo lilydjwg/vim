@@ -650,6 +650,27 @@ def Test_assignment_list()
     d.dd[0] = 0
   END
   CheckDefExecFailure(lines, 'E1147:', 2)
+
+  lines =<< trim END
+      def OneArg(x: bool)
+      enddef
+      def TwoArgs(x: bool, y: bool)
+      enddef
+      var fl: list<func(bool, bool, bool)> = [OneArg, TwoArgs]
+  END
+  CheckDefExecAndScriptFailure(lines, 'E1012:', 5)
+enddef
+
+def PartFuncBool(b: bool): string
+  return 'done'
+enddef
+
+def Test_assignment_partial()
+  var lines =<< trim END
+      var Partial: func(): string = function(PartFuncBool, [true])
+      assert_equal('done', Partial())
+  END
+  CheckDefAndScriptSuccess(lines)
 enddef
 
 def Test_assignment_list_any_index()
