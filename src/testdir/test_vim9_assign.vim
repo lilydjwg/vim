@@ -388,6 +388,16 @@ def Test_assign_linebreak()
           ->copy()
   END
   CheckDefFailure(lines, 'E1012:', 2)
+
+  lines =<< trim END
+      var x: any
+      x.key = 1
+          + 2
+          + 3
+          + 4
+          + 5
+  END
+  CheckDefExecAndScriptFailure2(lines, 'E1148:', 'E1203:', 2)
 enddef
 
 def Test_assign_index()
@@ -671,6 +681,16 @@ def Test_assignment_partial()
       assert_equal('done', Partial())
   END
   CheckDefAndScriptSuccess(lines)
+
+  lines =<< trim END
+      vim9script
+      def Func(b: bool)
+      enddef
+      var Ref: func = function(Func, [true])
+      assert_equal('func()', typename(Ref))
+      Ref()
+  END
+  CheckScriptSuccess(lines)
 enddef
 
 def Test_assignment_list_any_index()
