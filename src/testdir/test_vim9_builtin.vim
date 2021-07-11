@@ -213,12 +213,19 @@ def Test_assert_notmatch()
   CheckDefFailure(['assert_notmatch("a", "b", null)'], 'E1013: Argument 3: type mismatch, expected string but got special')
 enddef
 
+def Test_assert_report()
+  CheckDefAndScriptFailure2(['assert_report([1, 2])'], 'E1013: Argument 1: type mismatch, expected string but got list<number>', 'E1174: String required for argument 1')
+enddef
+
 def Test_balloon_show()
   CheckGui
   CheckFeature balloon_eval
 
   assert_fails('balloon_show(10)', 'E1174:')
   assert_fails('balloon_show(true)', 'E1174:')
+
+  CheckDefAndScriptFailure2(['balloon_show(1.2)'], 'E1013: Argument 1: type mismatch, expected string but got float', 'E1174: String required for argument 1')
+  CheckDefAndScriptFailure2(['balloon_show({"a": 10})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E1174: String required for argument 1')
 enddef
 
 def Test_balloon_split()
@@ -387,6 +394,13 @@ enddef
 def Test_charcol()
   CheckDefFailure(['charcol(10)'], 'E1013: Argument 1: type mismatch, expected string but got number')
   CheckDefFailure(['charcol({a: 10})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>')
+  new
+  setline(1, ['abcdefgh'])
+  cursor(1, 4)
+  assert_equal(4, charcol('.'))
+  assert_equal(9, charcol([1, '$']))
+  assert_equal(0, charcol([10, '$']))
+  bw!
 enddef
 
 def Test_charidx()
@@ -412,8 +426,11 @@ enddef
 
 def Test_col()
   new
-  setline(1, 'asdf')
-  col([1, '$'])->assert_equal(5)
+  setline(1, 'abcdefgh')
+  cursor(1, 4)
+  assert_equal(4, col('.'))
+  col([1, '$'])->assert_equal(9)
+  assert_equal(0, col([10, '$']))
 
   assert_fails('col(true)', 'E1174:')
 
@@ -474,7 +491,7 @@ def Test_cursor()
   var lines =<< trim END
     cursor('2', 1)
   END
-  CheckDefExecAndScriptFailure(lines, 'E475:')
+  CheckDefExecAndScriptFailure(lines, 'E1209:')
 enddef
 
 def Test_debugbreak()
@@ -1036,6 +1053,25 @@ def Test_getjumplist()
   CheckDefFailure(['getjumplist(1, "x")'], 'E1013: Argument 2: type mismatch, expected number but got string')
 enddef
 
+def Test_getline()
+  var lines =<< trim END
+      new
+      setline(1, ['hello', 'there', 'again'])
+      assert_equal('hello', getline(1))
+      assert_equal('hello', getline('.'))
+
+      normal 2Gvjv
+      assert_equal('there', getline("'<"))
+      assert_equal('again', getline("'>"))
+  END
+  CheckDefAndScriptSuccess(lines)
+
+  lines =<< trim END
+      echo getline('1')
+  END
+  CheckDefExecAndScriptFailure(lines, 'E1209:')
+enddef
+
 def Test_getmarklist()
   CheckDefFailure(['getmarklist([])'], 'E1013: Argument 1: type mismatch, expected string but got list<unknown>')
   assert_equal([], getmarklist(10000))
@@ -1049,7 +1085,7 @@ enddef
 def Test_getpos()
   CheckDefFailure(['getpos(10)'], 'E1013: Argument 1: type mismatch, expected string but got number')
   assert_equal([0, 1, 1, 0], getpos('.'))
-  assert_equal([0, 0, 0, 0], getpos('a'))
+  CheckDefExecFailure(['getpos("a")'], 'E1209:')
 enddef
 
 def Test_getqflist()
@@ -1131,6 +1167,12 @@ def Test_has()
 enddef
 
 def Test_has_key()
+  var d = {123: 'xx'}
+  assert_true(has_key(d, '123'))
+  assert_true(has_key(d, 123))
+  assert_false(has_key(d, 'x'))
+  assert_false(has_key(d, 99))
+
   CheckDefAndScriptFailure2(['has_key([1, 2], "k")'], 'E1013: Argument 1: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
   CheckDefAndScriptFailure2(['has_key({"a": 10}, ["a"])'], 'E1013: Argument 2: type mismatch, expected string but got list<string>', 'E730: Using a List as a String')
 enddef
@@ -1478,9 +1520,48 @@ def Test_or()
   CheckDefFailure(['or(0x1, "x")'], 'E1013: Argument 2: type mismatch, expected number but got string')
 enddef
 
+def Test_popup_atcursor()
+  CheckDefAndScriptFailure2(['popup_atcursor({"a": 10}, {})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E450: buffer number, text or a list required')
+  CheckDefAndScriptFailure2(['popup_atcursor("a", [1, 2])'], 'E1013: Argument 2: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
+
+  # Pass variable of type 'any' to popup_atcursor()
+  var what: any = 'Hello'
+  var popupID = what->popup_atcursor({moved: 'any'})
+  assert_equal(0, popupID->popup_getoptions().tabpage)
+  popupID->popup_close()
+enddef
+
+def Test_popup_beval()
+  CheckDefAndScriptFailure2(['popup_beval({"a": 10}, {})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E450: buffer number, text or a list required')
+  CheckDefAndScriptFailure2(['popup_beval("a", [1, 2])'], 'E1013: Argument 2: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
+enddef
+
+def Test_popup_create()
+  # Pass variable of type 'any' to popup_create()
+  var what: any = 'Hello'
+  var popupID = what->popup_create({})
+  assert_equal(0, popupID->popup_getoptions().tabpage)
+  popupID->popup_close()
+enddef
+
+def Test_popup_dialog()
+  CheckDefAndScriptFailure2(['popup_dialog({"a": 10}, {})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E450: buffer number, text or a list required')
+  CheckDefAndScriptFailure2(['popup_dialog("a", [1, 2])'], 'E1013: Argument 2: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
+enddef
+
 def Test_popup_locate()
   CheckDefAndScriptFailure2(['popup_locate("a", 20)'], 'E1013: Argument 1: type mismatch, expected number but got string', 'E1030: Using a String as a Number')
   CheckDefAndScriptFailure2(['popup_locate(10, "b")'], 'E1013: Argument 2: type mismatch, expected number but got string', 'E1030: Using a String as a Number')
+enddef
+
+def Test_popup_menu()
+  CheckDefAndScriptFailure2(['popup_menu({"a": 10}, {})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E450: buffer number, text or a list required')
+  CheckDefAndScriptFailure2(['popup_menu("a", [1, 2])'], 'E1013: Argument 2: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
+enddef
+
+def Test_popup_notification()
+  CheckDefAndScriptFailure2(['popup_notification({"a": 10}, {})'], 'E1013: Argument 1: type mismatch, expected string but got dict<number>', 'E450: buffer number, text or a list required')
+  CheckDefAndScriptFailure2(['popup_notification("a", [1, 2])'], 'E1013: Argument 2: type mismatch, expected dict<any> but got list<number>', 'E715: Dictionary required')
 enddef
 
 def Test_prevnonblank()
@@ -1860,6 +1941,17 @@ enddef
 def Test_setfperm()
   CheckDefFailure(['setfperm(1, "b")'], 'E1013: Argument 1: type mismatch, expected string but got number')
   CheckDefFailure(['setfperm("a", 0z10)'], 'E1013: Argument 2: type mismatch, expected string but got blob')
+enddef
+
+def Test_setline()
+  new
+  setline(1, range(1, 4))
+  assert_equal(['1', '2', '3', '4'], getline(1, '$'))
+  setline(1, ['a', 'b', 'c', 'd'])
+  assert_equal(['a', 'b', 'c', 'd'], getline(1, '$'))
+  setline(1, 'one')
+  assert_equal(['one', 'b', 'c', 'd'], getline(1, '$'))
+  bw!
 enddef
 
 def Test_setloclist()
@@ -2276,10 +2368,20 @@ enddef
 
 def Test_virtcol()
   CheckDefAndScriptFailure2(['virtcol(1.1)'], 'E1013: Argument 1: type mismatch, expected string but got float', 'E1174: String required for argument 1')
+  new
+  setline(1, ['abcdefgh'])
+  cursor(1, 4)
+  assert_equal(4, virtcol('.'))
+  assert_equal(4, virtcol([1, 4]))
+  assert_equal(9, virtcol([1, '$']))
+  assert_equal(0, virtcol([10, '$']))
+  bw!
 enddef
 
 def Test_win_execute()
   assert_equal("\n" .. winnr(), win_execute(win_getid(), 'echo winnr()'))
+  assert_equal("\n" .. winnr(), 'echo winnr()'->win_execute(win_getid()))
+  assert_equal("\n" .. winnr(), win_execute(win_getid(), 'echo winnr()', 'silent'))
   assert_equal('', win_execute(342343, 'echo winnr()'))
 enddef
 
