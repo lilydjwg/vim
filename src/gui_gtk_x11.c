@@ -1659,11 +1659,12 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
     int
 gui_mch_early_init_check(int give_message)
 {
-    char_u *p;
+    char_u *p, *q;
 
     // Guess that when $DISPLAY isn't set the GUI can't start.
     p = mch_getenv((char_u *)"DISPLAY");
-    if (p == NULL || *p == NUL)
+    q = mch_getenv((char_u *)"WAYLAND_DISPLAY");
+    if ((p == NULL || *p == NUL) && (q == NULL || *q == NUL))
     {
 	gui.dying = TRUE;
 	if (give_message)
@@ -1691,12 +1692,6 @@ gui_mch_init_check(void)
 	res_registered = TRUE;
 	gui_gtk_register_resource();
     }
-#endif
-
-#if GTK_CHECK_VERSION(3,10,0)
-    // Vim currently assumes that Gtk means X11, so it cannot use native Gtk
-    // support for other backends such as Wayland.
-    gdk_set_allowed_backends ("x11");
 #endif
 
 #ifdef FEAT_GUI_GNOME
@@ -2501,10 +2496,12 @@ setup_save_yourself(void)
 	// Fall back to old method
 
 	// first get the existing value
-	GdkWindow * const mainwin_win = gtk_widget_get_window(gui.mainwin);
+	Display * dpy = gui_mch_get_display();
+	if (!dpy)
+	    return;
 
-	if (XGetWMProtocols(GDK_WINDOW_XDISPLAY(mainwin_win),
-		    GDK_WINDOW_XID(mainwin_win),
+	GdkWindow * const mainwin_win = gtk_widget_get_window(gui.mainwin);
+	if (XGetWMProtocols(dpy, GDK_WINDOW_XID(mainwin_win),
 		    &existing_atoms, &count))
 	{
 	    Atom	*new_atoms;
@@ -2647,27 +2644,29 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 	setup_save_yourself();
 
 #ifdef FEAT_CLIENTSERVER
-    if (serverName == NULL && serverDelayedStartName != NULL)
-    {
-	// This is a :gui command in a plain vim with no previous server
-	commWindow = GDK_WINDOW_XID(mainwin_win);
+    if (gui_mch_get_display()) {
+	if (serverName == NULL && serverDelayedStartName != NULL)
+	{
+	    // This is a :gui command in a plain vim with no previous server
+	    commWindow = GDK_WINDOW_XID(mainwin_win);
 
-	(void)serverRegisterName(GDK_WINDOW_XDISPLAY(mainwin_win),
-				 serverDelayedStartName);
+	    (void)serverRegisterName(GDK_WINDOW_XDISPLAY(mainwin_win),
+				    serverDelayedStartName);
+	}
+	else
+	{
+	    /*
+	    * Cannot handle "XLib-only" windows with gtk event routines, we'll
+	    * have to change the "server" registration to that of the main window
+	    * If we have not registered a name yet, remember the window.
+	    */
+	    serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(mainwin_win),
+					GDK_WINDOW_XID(mainwin_win));
+	}
+	gtk_widget_add_events(gui.mainwin, GDK_PROPERTY_CHANGE_MASK);
+	g_signal_connect(G_OBJECT(gui.mainwin), "property-notify-event",
+			G_CALLBACK(property_event), NULL);
     }
-    else
-    {
-	/*
-	 * Cannot handle "XLib-only" windows with gtk event routines, we'll
-	 * have to change the "server" registration to that of the main window
-	 * If we have not registered a name yet, remember the window.
-	 */
-	serverChangeRegisteredWindow(GDK_WINDOW_XDISPLAY(mainwin_win),
-				     GDK_WINDOW_XID(mainwin_win));
-    }
-    gtk_widget_add_events(gui.mainwin, GDK_PROPERTY_CHANGE_MASK);
-    g_signal_connect(G_OBJECT(gui.mainwin), "property-notify-event",
-		     G_CALLBACK(property_event), NULL);
 #endif
 }
 
@@ -4042,7 +4041,8 @@ gui_mch_init(void)
     g_signal_connect(G_OBJECT(gui.drawarea), "selection-received",
 		     G_CALLBACK(selection_received_cb), NULL);
 
-    gui_gtk_set_selection_targets();
+    /* FIXME */
+    /* gui_gtk_set_selection_targets(); */
 
     g_signal_connect(G_OBJECT(gui.drawarea), "selection-get",
 		     G_CALLBACK(selection_get_cb), NULL);
@@ -6183,7 +6183,8 @@ gui_get_x11_windis(Window *win, Display **dis)
     Display *
 gui_mch_get_display(void)
 {
-    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL)
+    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL &&
+	    GDK_IS_X11_DISPLAY(gtk_widget_get_display(gui.mainwin)))
 	return GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
     else
 	return NULL;
