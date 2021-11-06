@@ -4033,20 +4033,6 @@ gui_mch_init(void)
     g_signal_connect(G_OBJECT(gui.drawarea), "scroll-event",
 		     G_CALLBACK(&scroll_event), NULL);
 
-    /*
-     * Add selection handler functions.
-     */
-    g_signal_connect(G_OBJECT(gui.drawarea), "selection-clear-event",
-		     G_CALLBACK(selection_clear_event), NULL);
-    g_signal_connect(G_OBJECT(gui.drawarea), "selection-received",
-		     G_CALLBACK(selection_received_cb), NULL);
-
-    /* FIXME */
-    /* gui_gtk_set_selection_targets(); */
-
-    g_signal_connect(G_OBJECT(gui.drawarea), "selection-get",
-		     G_CALLBACK(selection_get_cb), NULL);
-
     // Pretend we don't have input focus, we will get an event if we do.
     gui.in_focus = FALSE;
 
@@ -4578,6 +4564,19 @@ gui_mch_open(void)
 # endif
 #endif
     }
+
+    /*
+     * Add selection handler functions.
+     */
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-clear-event",
+		     G_CALLBACK(selection_clear_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-received",
+		     G_CALLBACK(selection_received_cb), NULL);
+
+    gui_gtk_set_selection_targets();
+
+    g_signal_connect(G_OBJECT(gui.drawarea), "selection-get",
+		     G_CALLBACK(selection_get_cb), NULL);
 
     return OK;
 }
@@ -6935,10 +6934,34 @@ clip_mch_lose_selection(Clipboard_T *cbd UNUSED)
     int
 clip_mch_own_selection(Clipboard_T *cbd)
 {
+    // If we're blocking autocmds, we are filling the register to offer the
+    // selection (inside selection-get)
+    if (is_autocmd_blocked())
+	return OK;
+
     int success;
 
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
 				      gui.event_time);
+    // TODO: dedup with gui_gtk_set_selection_targets
+    int		    i, j = 0;
+    int		    n_targets = N_SELECTION_TARGETS;
+    GtkTargetEntry  targets[N_SELECTION_TARGETS];
+
+    for (i = 0; i < (int)N_SELECTION_TARGETS; ++i)
+    {
+	// OpenOffice tries to use TARGET_HTML and fails when we don't
+	// return something, instead of trying another target. Therefore only
+	// offer TARGET_HTML when it works.
+	if (!clip_html && selection_targets[i].info == TARGET_HTML)
+	    n_targets--;
+	else
+	    targets[j++] = selection_targets[i];
+    }
+    gtk_selection_add_targets(gui.drawarea,
+			      (GdkAtom)cbd->gtk_sel_atom,
+			      targets, n_targets);
+    printf("selection owned: %d\n", success);
     gui_mch_update();
     return (success) ? OK : FAIL;
 }
