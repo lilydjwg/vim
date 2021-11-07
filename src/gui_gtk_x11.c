@@ -3536,21 +3536,21 @@ gui_gtk_set_selection_targets(void)
 {
     int		    i, j = 0;
     int		    n_targets = N_SELECTION_TARGETS;
-    GtkTargetEntry  targets[N_SELECTION_TARGETS];
+    static GtkTargetEntry  targets[N_SELECTION_TARGETS];
 
-    for (i = 0; i < (int)N_SELECTION_TARGETS; ++i)
-    {
-	// OpenOffice tries to use TARGET_HTML and fails when we don't
-	// return something, instead of trying another target. Therefore only
-	// offer TARGET_HTML when it works.
-	if (!clip_html && selection_targets[i].info == TARGET_HTML)
-	    n_targets--;
-	else
-	    targets[j++] = selection_targets[i];
+    if (targets[0].target == NULL) {
+	for (i = 0; i < (int)N_SELECTION_TARGETS; ++i)
+	{
+	    // OpenOffice tries to use TARGET_HTML and fails when we don't
+	    // return something, instead of trying another target. Therefore only
+	    // offer TARGET_HTML when it works.
+	    if (!clip_html && selection_targets[i].info == TARGET_HTML)
+		n_targets--;
+	    else
+		targets[j++] = selection_targets[i];
+	}
     }
 
-    gtk_selection_clear_targets(gui.drawarea, (GdkAtom)GDK_SELECTION_PRIMARY);
-    gtk_selection_clear_targets(gui.drawarea, (GdkAtom)clip_plus.gtk_sel_atom);
     gtk_selection_add_targets(gui.drawarea,
 			      (GdkAtom)GDK_SELECTION_PRIMARY,
 			      targets, n_targets);
@@ -6943,24 +6943,7 @@ clip_mch_own_selection(Clipboard_T *cbd)
 
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
 				      gui.event_time);
-    // TODO: dedup with gui_gtk_set_selection_targets
-    int		    i, j = 0;
-    int		    n_targets = N_SELECTION_TARGETS;
-    GtkTargetEntry  targets[N_SELECTION_TARGETS];
-
-    for (i = 0; i < (int)N_SELECTION_TARGETS; ++i)
-    {
-	// OpenOffice tries to use TARGET_HTML and fails when we don't
-	// return something, instead of trying another target. Therefore only
-	// offer TARGET_HTML when it works.
-	if (!clip_html && selection_targets[i].info == TARGET_HTML)
-	    n_targets--;
-	else
-	    targets[j++] = selection_targets[i];
-    }
-    gtk_selection_add_targets(gui.drawarea,
-			      (GdkAtom)cbd->gtk_sel_atom,
-			      targets, n_targets);
+    gui_gtk_set_selection_targets();
     printf("selection owned: %d\n", success);
     gui_mch_update();
     return (success) ? OK : FAIL;
