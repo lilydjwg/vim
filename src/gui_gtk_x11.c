@@ -2609,7 +2609,11 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     // When started with "--echo-wid" argument, write window ID on stdout.
     if (echo_wid_arg)
     {
-	printf("WID: %ld\n", (long)GDK_WINDOW_XID(mainwin_win));
+	if (gui_mch_get_display()) {
+	    printf("WID: %ld\n", (long)GDK_WINDOW_XID(mainwin_win));
+	} else {
+	    printf("WID: 0\n");
+	}
 	fflush(stdout);
     }
 
@@ -3535,7 +3539,7 @@ gui_mch_set_curtab(int nr)
 gui_gtk_set_selection_targets(void)
 {
     int		    i, j = 0;
-    int		    n_targets = N_SELECTION_TARGETS;
+    static int	    n_targets = N_SELECTION_TARGETS;
     static GtkTargetEntry  targets[N_SELECTION_TARGETS];
 
     if (targets[0].target == NULL) {
@@ -6163,9 +6167,10 @@ gui_mch_haskey(char_u *name)
     int
 gui_get_x11_windis(Window *win, Display **dis)
 {
-    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL)
+    Display * dpy = gui_mch_get_display();
+    if (dpy)
     {
-	*dis = GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
+	*dis = dpy;
 	*win = GDK_WINDOW_XID(gtk_widget_get_window(gui.mainwin));
 	return OK;
     }
@@ -6850,9 +6855,11 @@ clip_mch_request_selection(Clipboard_T *cbd)
 	    return;
     }
 
-    // Final fallback position - use the X CUT_BUFFER0 store
-    yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
-	    cbd);
+    if (gui_mch_get_display()) {
+	// Final fallback position - use the X CUT_BUFFER0 store
+	yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
+		cbd);
+    }
 }
 
 /*
@@ -6884,7 +6891,6 @@ clip_mch_own_selection(Clipboard_T *cbd)
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
 				      gui.event_time);
     gui_gtk_set_selection_targets();
-    printf("selection owned: %d\n", success);
     gui_mch_update();
     return (success) ? OK : FAIL;
 }
@@ -7017,9 +7023,11 @@ gui_mch_setmouse(int x, int y)
     // Sorry for the Xlib call, but we can't avoid it, since there is no
     // internal GDK mechanism present to accomplish this.  (and for good
     // reason...)
-    XWarpPointer(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.drawarea)),
-		 (Window)0, GDK_WINDOW_XID(gtk_widget_get_window(gui.drawarea)),
-		 0, 0, 0U, 0U, x, y);
+    Display * dpy = gui_mch_get_display();
+    if (dpy) {
+	XWarpPointer(dpy, (Window)0, GDK_WINDOW_XID(gtk_widget_get_window(gui.drawarea)),
+		    0, 0, 0U, 0U, x, y);
+    }
 }
 
 
