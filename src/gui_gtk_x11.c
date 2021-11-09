@@ -6943,10 +6943,12 @@ clip_mch_own_selection(Clipboard_T *cbd)
 
     int success;
 
-    // TODO: don't call on every selection update
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
-				      gui.event_time);
-    gui_gtk_set_selection_targets(cbd->gtk_sel_atom);
+				    gui.event_time);
+    // don't update on every visual selection change
+    if (!(cbd->owned && VIsual_active)) {
+	gui_gtk_set_selection_targets(cbd->gtk_sel_atom);
+    }
     gui_mch_update();
     return (success) ? OK : FAIL;
 }
