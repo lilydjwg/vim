@@ -3536,7 +3536,7 @@ gui_mch_set_curtab(int nr)
  * Add selection targets for PRIMARY and CLIPBOARD selections.
  */
     void
-gui_gtk_set_selection_targets(void)
+gui_gtk_set_selection_targets(GdkAtom selection)
 {
     int		    i, j = 0;
     static int	    n_targets = N_SELECTION_TARGETS;
@@ -3555,11 +3555,8 @@ gui_gtk_set_selection_targets(void)
 	}
     }
 
-    gtk_selection_add_targets(gui.drawarea,
-			      (GdkAtom)GDK_SELECTION_PRIMARY,
-			      targets, n_targets);
-    gtk_selection_add_targets(gui.drawarea,
-			      (GdkAtom)clip_plus.gtk_sel_atom,
+    gtk_selection_clear_targets(gui.drawarea, selection);
+    gtk_selection_add_targets(gui.drawarea, selection,
 			      targets, n_targets);
 }
 
@@ -4576,8 +4573,6 @@ gui_mch_open(void)
 		     G_CALLBACK(selection_clear_event), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "selection-received",
 		     G_CALLBACK(selection_received_cb), NULL);
-
-    gui_gtk_set_selection_targets();
 
     g_signal_connect(G_OBJECT(gui.drawarea), "selection-get",
 		     G_CALLBACK(selection_get_cb), NULL);
@@ -6888,9 +6883,10 @@ clip_mch_own_selection(Clipboard_T *cbd)
 
     int success;
 
+    // TODO: don't call on every selection update
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
 				      gui.event_time);
-    gui_gtk_set_selection_targets();
+    gui_gtk_set_selection_targets(cbd->gtk_sel_atom);
     gui_mch_update();
     return (success) ? OK : FAIL;
 }
