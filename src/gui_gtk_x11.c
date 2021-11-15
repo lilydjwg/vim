@@ -116,6 +116,7 @@ enum
     TARGET_TEXT,
     TARGET_TEXT_URI_LIST,
     TARGET_TEXT_PLAIN,
+    TARGET_TEXT_PLAIN_UTF8,
     TARGET_VIM,
     TARGET_VIMENC
 };
@@ -129,11 +130,12 @@ static const GtkTargetEntry selection_targets[] =
     {VIMENC_ATOM_NAME,	0, TARGET_VIMENC},
     {VIM_ATOM_NAME,	0, TARGET_VIM},
     {"text/html",	0, TARGET_HTML},
-    {"text/plain",	0, TARGET_TEXT_PLAIN},
     {"UTF8_STRING",	0, TARGET_UTF8_STRING},
     {"COMPOUND_TEXT",	0, TARGET_COMPOUND_TEXT},
     {"TEXT",		0, TARGET_TEXT},
-    {"STRING",		0, TARGET_STRING}
+    {"STRING",		0, TARGET_STRING},
+    {"text/plain;charset=utf-8", 0, TARGET_TEXT_PLAIN_UTF8},
+    {"text/plain",	0, TARGET_TEXT_PLAIN}
 };
 #define N_SELECTION_TARGETS ARRAY_LENGTH(selection_targets)
 
@@ -1525,11 +1527,12 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 
     if (info != (guint)TARGET_STRING
 	    && (!clip_html || info != (guint)TARGET_HTML)
-	    && info != (guint)TARGET_TEXT_PLAIN
 	    && info != (guint)TARGET_UTF8_STRING
 	    && info != (guint)TARGET_VIMENC
 	    && info != (guint)TARGET_VIM
 	    && info != (guint)TARGET_COMPOUND_TEXT
+	    && info != (guint)TARGET_TEXT_PLAIN
+	    && info != (guint)TARGET_TEXT_PLAIN_UTF8
 	    && info != (guint)TARGET_TEXT)
 	return;
 
