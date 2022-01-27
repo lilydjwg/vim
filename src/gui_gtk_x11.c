@@ -6190,9 +6190,6 @@ gui_get_x11_windis(Window *win, Display **dis)
 }
 #endif
 
-#if defined(FEAT_CLIENTSERVER) \
-	|| (defined(FEAT_X11) && defined(FEAT_CLIPBOARD)) || defined(PROTO)
-
     Display *
 gui_mch_get_display(void)
 {
@@ -6202,7 +6199,6 @@ gui_mch_get_display(void)
     else
 	return NULL;
 }
-#endif
 
     void
 gui_mch_beep(void)
