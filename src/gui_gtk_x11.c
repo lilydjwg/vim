@@ -6193,8 +6193,11 @@ gui_get_x11_windis(Window *win, Display **dis)
     Display *
 gui_mch_get_display(void)
 {
-    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL &&
-	    GDK_IS_X11_DISPLAY(gtk_widget_get_display(gui.mainwin)))
+    if (gui.mainwin != NULL && gtk_widget_get_window(gui.mainwin) != NULL
+#if GTK_CHECK_VERSION(3,0,0)
+	    && GDK_IS_X11_DISPLAY(gtk_widget_get_display(gui.mainwin)
+#endif
+	))
 	return GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin));
     else
 	return NULL;
