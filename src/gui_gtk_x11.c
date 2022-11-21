@@ -2055,6 +2055,10 @@ scroll_event(GtkWidget *widget,
 {
     int	    button;
     int_u   vim_modifiers;
+#if GTK_CHECK_VERSION(3,4,0)
+    static double  acc_x, acc_y;
+    static guint32 last_smooth_event_time;
+#endif
 
     if (gtk_socket_id != 0 && !gtk_widget_has_focus(widget))
 	gtk_widget_grab_focus(widget);
@@ -2073,6 +2077,17 @@ scroll_event(GtkWidget *widget,
 	case GDK_SCROLL_RIGHT:
 	    button = MOUSE_6;
 	    break;
+#if GTK_CHECK_VERSION(3,4,0)
+	case GDK_SCROLL_SMOOTH:
+	    if (event->time - last_smooth_event_time > 50) {
+		// reset our accumulations after 50ms of silence
+		acc_x = acc_y = 0;
+	    }
+	    acc_x += event->delta_x;
+	    acc_y += event->delta_y;
+	    last_smooth_event_time = event->time;
+	    break;
+#endif
 	default: // This shouldn't happen
 	    return FALSE;
     }
@@ -2085,8 +2100,35 @@ scroll_event(GtkWidget *widget,
 
     vim_modifiers = modifiers_gdk2mouse(event->state);
 
-    gui_send_mouse_event(button, (int)event->x, (int)event->y,
-							FALSE, vim_modifiers);
+#if GTK_CHECK_VERSION(3,4,0)
+    if (event->direction == GDK_SCROLL_SMOOTH) {
+	while (acc_x > 1.0) { // right
+	    acc_x = MAX(0.0, acc_x - 1.0);
+	    gui_send_mouse_event(MOUSE_6, (int)event->x, (int)event->y,
+		    FALSE, vim_modifiers);
+	}
+	while (acc_x < -1.0) { // left
+	    acc_x = MIN(0.0, acc_x + 1.0);
+	    gui_send_mouse_event(MOUSE_7, (int)event->x, (int)event->y,
+		    FALSE, vim_modifiers);
+	}
+	while (acc_y > 1.0) { // down
+	    acc_y = MAX(0.0, acc_y - 1.0);
+	    gui_send_mouse_event(MOUSE_5, (int)event->x, (int)event->y,
+		    FALSE, vim_modifiers);
+	}
+	while (acc_y < -1.0) { // up
+	    acc_y = MIN(0.0, acc_y + 1.0);
+	    gui_send_mouse_event(MOUSE_4, (int)event->x, (int)event->y,
+		    FALSE, vim_modifiers);
+	}
+    } else {
+#endif
+	gui_send_mouse_event(button, (int)event->x, (int)event->y,
+		FALSE, vim_modifiers);
+#if GTK_CHECK_VERSION(3,4,0)
+    }
+#endif
 
     return TRUE;
 }
@@ -3957,6 +3999,9 @@ gui_mch_init(void)
 			  GDK_BUTTON_PRESS_MASK |
 			  GDK_BUTTON_RELEASE_MASK |
 			  GDK_SCROLL_MASK |
+#if GTK_CHECK_VERSION(3,4,0)
+			  GDK_SMOOTH_SCROLL_MASK |
+#endif
 			  GDK_KEY_PRESS_MASK |
 			  GDK_KEY_RELEASE_MASK |
 			  GDK_POINTER_MOTION_MASK |
@@ -4076,7 +4121,7 @@ gui_mch_init(void)
     g_signal_connect(G_OBJECT(gui.drawarea), "button-release-event",
 		     G_CALLBACK(button_release_event), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "scroll-event",
-		     G_CALLBACK(&scroll_event), NULL);
+		     G_CALLBACK(scroll_event), NULL);
 
     // Pretend we don't have input focus, we will get an event if we do.
     gui.in_focus = FALSE;
