@@ -793,6 +793,36 @@ draw_event(GtkWidget *widget UNUSED,
 
     return FALSE;
 }
+
+# if GTK_CHECK_VERSION(3,10,0)
+    static gboolean
+scale_factor_event(GtkWidget *widget,
+	           GParamSpec* pspec UNUSED,
+	           gpointer   user_data UNUSED)
+{
+    if (gui.surface != NULL)
+	cairo_surface_destroy(gui.surface);
+
+    int	    w, h;
+    gtk_window_get_size(GTK_WINDOW(gui.mainwin), &w, &h);
+    gui.surface = gdk_window_create_similar_surface(
+	    gtk_widget_get_window(widget),
+	    CAIRO_CONTENT_COLOR_ALPHA,
+	    w, h);
+
+    int	    usable_height = h;
+    if (gtk_socket_id != 0)
+	usable_height -= (gui.char_height - (gui.char_height/2)); // sic.
+
+    gui_gtk_form_freeze(GTK_FORM(gui.formwin));
+    gui.force_redraw = 1;
+    gui_resize_shell(w, usable_height);
+    gui_gtk_form_thaw(GTK_FORM(gui.formwin));
+
+    return TRUE;
+}
+# endif // GTK_CHECK_VERSION(3,10,0)
+
 #else // !GTK_CHECK_VERSION(3,0,0)
     static gint
 expose_event(GtkWidget *widget UNUSED,
@@ -4528,6 +4558,10 @@ gui_mch_open(void)
 #endif
     g_signal_connect(G_OBJECT(gui.formwin), "configure-event",
 				       G_CALLBACK(form_configure_event), NULL);
+#if GTK_CHECK_VERSION(3,10,0)
+    g_signal_connect(G_OBJECT(gui.formwin), "notify::scale-factor",
+		     G_CALLBACK(scale_factor_event), NULL);
+#endif
 
 #ifdef FEAT_DND
     // Set up for receiving DND items.
