@@ -1802,7 +1802,8 @@ EXTERN char e_funcref_variable_name_must_start_with_capital_str[]
 	INIT(= N_("E704: Funcref variable name must start with a capital: %s"));
 EXTERN char e_variable_name_conflicts_with_existing_function_str[]
 	INIT(= N_("E705: Variable name conflicts with existing function: %s"));
-// E706 unused
+EXTERN char e_argument_of_str_must_be_list_string_or_dictionary[]
+	INIT(= N_("E706: Argument of %s must be a List, String or Dictionary"));
 EXTERN char e_function_name_conflicts_with_variable_str[]
 	INIT(= N_("E707: Function name conflicts with variable: %s"));
 EXTERN char e_slice_must_come_last[]
@@ -3489,5 +3490,9 @@ EXTERN char e_positional_arg_num_type_inconsistent_str_str[]
 	INIT(= N_("E1404: Positional argument %d type used inconsistently: %s/%s"));
 EXTERN char e_invalid_format_specifier_str[]
 	INIT(= N_("E1405: Invalid format specifier: %s"));
+EXTERN char e_member_str_type_mismatch_expected_str_but_got_str[]
+	INIT(= N_("E1406: Member \"%s\": type mismatch, expected %s but got %s"));
+EXTERN char e_method_str_type_mismatch_expected_str_but_got_str[]
+	INIT(= N_("E1407: Member \"%s\": type mismatch, expected %s but got %s"));
 
 // E1365 - E1399 unused
