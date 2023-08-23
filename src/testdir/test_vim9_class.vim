@@ -210,6 +210,17 @@ def Test_class_basic()
     var v = a.Foo(,)
   END
   v9.CheckScriptFailure(lines, 'E15:')
+
+  lines =<< trim END
+  vim9script
+  class A
+    this.y = {
+      X: 1
+    }
+  endclass
+  var a = A.new()
+  END
+  v9.CheckScriptSuccess(lines)
 enddef
 
 def Test_class_defined_twice()
@@ -668,14 +679,28 @@ def Test_class_object_member_inits()
   END
   v9.CheckScriptFailure(lines, 'E1022:')
 
+  # If the type is not specified for a member, then it should be set during
+  # object creation and not when defining the class.
   lines =<< trim END
       vim9script
-      class TextPosition
-        this.lnum = v:none
+
+      var init_count = 0
+      def Init(): string
+        init_count += 1
+        return 'foo'
+      enddef
+
+      class A
+        this.str1 = Init()
+        this.str2: string = Init()
         this.col = 1
       endclass
+
+      assert_equal(init_count, 0)
+      var a = A.new()
+      assert_equal(init_count, 2)
   END
-  v9.CheckScriptFailure(lines, 'E1330:')
+  v9.CheckScriptSuccess(lines)
 
   # Test for initializing an object member with an unknown variable/type
   lines =<< trim END
@@ -683,8 +708,9 @@ def Test_class_object_member_inits()
     class A
        this.value = init_val
     endclass
+    var a = A.new()
   END
-  v9.CheckScriptFailureList(lines, ['E121:', 'E1329:'])
+  v9.CheckScriptFailure(lines, 'E1001:')
 enddef
 
 def Test_class_object_member_access()
@@ -1576,6 +1602,16 @@ def Test_class_implements_interface()
     endclass
   END
   v9.CheckScriptFailure(lines, 'E1349:')
+
+  # implements should be followed by a white space
+  lines =<< trim END
+    vim9script
+    interface A
+    endinterface
+    class B implements A;
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1315:')
 
   lines =<< trim END
       vim9script
@@ -2488,6 +2524,192 @@ def Test_multi_level_member_access()
     assert_equal(3, cobj.val1)
     assert_equal(3, cobj.val2)
     assert_equal(3, cobj.val3)
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Test expansion of <stack> with class methods.
+def Test_stack_expansion_with_methods()
+  var lines =<< trim END
+    vim9script
+
+    class C
+        def M1()
+            F0()
+        enddef
+    endclass
+
+    def F0()
+      assert_match('<SNR>\d\+_F\[1\]\.\.C\.M1\[1\]\.\.<SNR>\d\+_F0\[1\]$', expand('<stack>'))
+    enddef
+
+    def F()
+        C.new().M1()
+    enddef
+
+    F()
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Test the return type of the new() constructor
+def Test_new_return_type()
+  # new() uses the default return type and there is no return statement
+  var lines =<< trim END
+    vim9script
+
+    class C
+      this._bufnr: number
+
+      def new(this._bufnr)
+        if !bufexists(this._bufnr)
+          this._bufnr = -1
+        endif
+      enddef
+    endclass
+
+    var c = C.new(12345)
+    assert_equal('object<C>', typename(c))
+
+    var v1: C
+    v1 = C.new(12345)
+    assert_equal('object<C>', typename(v1))
+
+    def F()
+      var v2: C
+      v2 = C.new(12345)
+      assert_equal('object<C>', typename(v2))
+    enddef
+    F()
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # new() uses the default return type and an empty 'return' statement
+  lines =<< trim END
+    vim9script
+
+    class C
+      this._bufnr: number
+
+      def new(this._bufnr)
+        if !bufexists(this._bufnr)
+          this._bufnr = -1
+          return
+        endif
+      enddef
+    endclass
+
+    var c = C.new(12345)
+    assert_equal('object<C>', typename(c))
+
+    var v1: C
+    v1 = C.new(12345)
+    assert_equal('object<C>', typename(v1))
+
+    def F()
+      var v2: C
+      v2 = C.new(12345)
+      assert_equal('object<C>', typename(v2))
+    enddef
+    F()
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # new() uses "any" return type and returns "this"
+  lines =<< trim END
+    vim9script
+
+    class C
+      this._bufnr: number
+
+      def new(this._bufnr): any
+        if !bufexists(this._bufnr)
+          this._bufnr = -1
+          return this
+        endif
+      enddef
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1365:')
+
+  # new() uses 'Dict' return type and returns a Dict
+  lines =<< trim END
+    vim9script
+
+    class C
+      this._state: dict<any>
+
+      def new(): dict<any>
+        this._state = {}
+        return this._state
+      enddef
+    endclass
+
+    var c = C.new()
+    assert_equal('object<C>', typename(c))
+  END
+  v9.CheckScriptFailure(lines, 'E1365:')
+enddef
+
+" Test for checking a member initialization type at run time.
+def Test_runtime_type_check_for_member_init()
+  var lines =<< trim END
+    vim9script
+
+    var retnum: bool = false
+
+    def F(): any
+        retnum = !retnum
+        if retnum
+            return 1
+        else
+            return "hello"
+        endif
+    enddef
+
+    class C
+        this._foo: bool = F()
+    endclass
+
+    var c1 = C.new()
+    var c2 = C.new()
+  END
+  v9.CheckScriptFailure(lines, 'E1012:')
+enddef
+
+" Test for locking a variable referring to an object and reassigning to another
+" object.
+def Test_object_lockvar()
+  var lines =<< trim END
+    vim9script
+
+    class C
+      this.val: number
+      def new(this.val)
+      enddef
+    endclass
+
+    var some_dict: dict<C> = { a: C.new(1), b: C.new(2), c: C.new(3), }
+    lockvar 2 some_dict
+
+    var current: C
+    current = some_dict['c']
+    assert_equal(3, current.val)
+    current = some_dict['b']
+    assert_equal(2, current.val)
+
+    def F()
+      current = some_dict['c']
+    enddef
+
+    def G()
+      current = some_dict['b']
+    enddef
+
+    F()
+    assert_equal(3, current.val)
+    G()
+    assert_equal(2, current.val)
   END
   v9.CheckScriptSuccess(lines)
 enddef

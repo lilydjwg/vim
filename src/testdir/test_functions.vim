@@ -1818,6 +1818,10 @@ func Test_Executable()
     let [pathext, $PATHEXT] = [$PATHEXT, '.com;.exe;.bat;.cmd']
     call assert_equal(notepadbat, exepath('notepad'))
     let $PATHEXT = pathext
+    " check for symbolic link
+    execute 'silent !mklink np.bat "' .. notepadbat .. '"'
+    call assert_equal(1, executable('./np.bat'))
+    call assert_equal(1, executable('./np'))
     bwipe
     eval 'Xnotedir'->delete('rf')
   elseif has('unix')
@@ -2896,6 +2900,20 @@ func Test_state()
   call term_sendkeys(buf, ";")
   call term_sendkeys(buf, getstate)
   call WaitForAssert({-> assert_match('state: mSc; mode: n', term_getline(buf, 6))}, 1000)
+
+  " A operator is pending
+  call term_sendkeys(buf, ":call RunTimer()\<CR>y")
+  call TermWait(buf, 25)
+  call term_sendkeys(buf, "y")
+  call term_sendkeys(buf, getstate)
+  call WaitForAssert({-> assert_match('state: oSc; mode: n', term_getline(buf, 6))}, 1000)
+
+  " A register was specified
+  call term_sendkeys(buf, ":call RunTimer()\<CR>\"r")
+  call TermWait(buf, 25)
+  call term_sendkeys(buf, "yy")
+  call term_sendkeys(buf, getstate)
+  call WaitForAssert({-> assert_match('state: oSc; mode: n', term_getline(buf, 6))}, 1000)
 
   " Insert mode completion (bit slower on Mac)
   call term_sendkeys(buf, ":call RunTimer()\<CR>Got\<C-N>")
