@@ -4,7 +4,8 @@ dnl Process this file with autoconf 2.69 to produce "configure".
 dnl This should also work with other versions of autoconf, but 2.70 and later
 dnl generate lots of hard to fix "obsolete" warnings.
 
-AC_INIT(vim.h)
+AC_INIT
+AC_CONFIG_SRCDIR([vim.h])
 AC_CONFIG_HEADERS(auto/config.h:config.h.in)
 
 dnl Being able to run configure means the system is Unix (compatible).
@@ -14,9 +15,8 @@ AC_PROG_MAKE_SET
 dnl Checks for programs.
 AC_PROG_CC_C99		dnl required by almost everything
 AC_PROG_CPP		dnl required by header file checks
-AC_PROGRAM_EGREP	dnl required by AC_EGREP_CPP
+AC_PROG_EGREP		dnl required by AC_EGREP_CPP
 AC_PROG_FGREP		dnl finds working grep -F
-AC_ISC_POSIX		dnl required by AC_C_CROSS
 AC_PROG_AWK		dnl required for "make html" in ../doc
 
 dnl Don't strip if we don't have it
@@ -1543,6 +1543,18 @@ if test "$enable_python3interp" = "yes" -o "$enable_python3interp" = "dynamic"; 
        ${vi_cv_path_python3} -c \
        "import sys; print(sys.exec_prefix)"` ])
 
+      dnl -- python3's include path
+      AC_CACHE_CHECK(Python's include path,vi_cv_path_python3_include,
+      [ vi_cv_path_python3_include=`
+       ${vi_cv_path_python3} -c \
+       "import sysconfig; print(sysconfig.get_path(\"include\"))"` ])
+
+      dnl -- python3's platform include path
+      AC_CACHE_CHECK(Python's include path,vi_cv_path_python3_platinclude,
+      [ vi_cv_path_python3_platinclude=`
+       ${vi_cv_path_python3} -c \
+       "import sysconfig; print(sysconfig.get_path(\"platinclude\"))"` ])
+
       dnl -- python3's internal library path
 
       AC_CACHE_VAL(vi_cv_path_python3path,
@@ -1621,10 +1633,10 @@ eof
 	])
 
         PYTHON3_LIBS="${vi_cv_path_python3_plibs}"
-        if test "${vi_cv_path_python3_pfx}" = "${vi_cv_path_python3_epfx}"; then
-          PYTHON3_CFLAGS="-I${vi_cv_path_python3_pfx}/include/python${vi_cv_var_python3_version}${vi_cv_var_python3_abiflags}"
+        if test "${vi_cv_path_python3_include}" = "${vi_cv_path_python3_platinclude}"; then
+          PYTHON3_CFLAGS="-I${vi_cv_path_python3_include}"
         else
-          PYTHON3_CFLAGS="-I${vi_cv_path_python3_pfx}/include/python${vi_cv_var_python3_version}${vi_cv_var_python3_abiflags} -I${vi_cv_path_python3_epfx}/include/python${vi_cv_var_python3_version}${vi_cv_var_python3_abiflags}"
+          PYTHON3_CFLAGS="-I${vi_cv_path_python3_include} -I${vi_cv_path_python3_platinclude}"
         fi
         if test "X$have_python3_config_dir" = "X1" -a "$enable_python3interp" = "dynamic"; then
           dnl Define PYTHON3_HOME if --with-python-config-dir was used
@@ -3354,7 +3366,8 @@ AC_TYPE_SIZE_T
 AC_TYPE_UID_T
 AC_TYPE_UINT32_T
 
-AC_HEADER_TIME
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+
 AC_CHECK_TYPE(ino_t, long)
 AC_CHECK_TYPE(dev_t, unsigned)
 AC_C_BIGENDIAN(,,,)
@@ -3604,8 +3617,6 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
 	  AC_MSG_RESULT(yes)
 			AC_DEFINE(SYS_SELECT_WITH_SYS_TIME),
 	  AC_MSG_RESULT(no))
-
-dnl AC_DECL_SYS_SIGLIST
 
 dnl Checks for pty.c (copied from screen) ==========================
 AC_MSG_CHECKING(for /dev/ptc)

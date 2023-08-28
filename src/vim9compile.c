@@ -2075,7 +2075,7 @@ compile_load_lhs_with_index(lhs_T *lhs, char_u *var_start, cctx_T *cctx)
 	// Also for "obj.value".
        char_u *dot = vim_strchr(var_start, '.');
        if (dot == NULL)
-           return FAIL;
+	   return FAIL;
 
 	class_T *cl = lhs->lhs_type->tt_class;
 	type_T *type = class_member_type(cl, dot + 1,
@@ -2299,6 +2299,9 @@ push_default_value(
 	case VAR_CHANNEL:
 	    r = generate_PUSHCHANNEL(cctx);
 	    break;
+	case VAR_OBJECT:
+	    r = generate_PUSHOBJ(cctx);
+	    break;
 	case VAR_NUMBER:
 	case VAR_UNKNOWN:
 	case VAR_ANY:
@@ -2306,7 +2309,6 @@ push_default_value(
 	case VAR_VOID:
 	case VAR_INSTR:
 	case VAR_CLASS:
-	case VAR_OBJECT:
 	case VAR_SPECIAL:  // cannot happen
 	    // This is skipped for local variables, they are always
 	    // initialized to zero.  But in a "for" or "while" loop

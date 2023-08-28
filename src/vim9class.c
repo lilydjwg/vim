@@ -96,8 +96,8 @@ parse_member(
 	fill_evalarg_from_eap(&evalarg, eap, FALSE);
 	(void)skip_expr_concatenate(&init_arg, &expr_start, &expr_end, &evalarg);
 
-	// No type specified for the member.  Set it to "any" and the correct type will be
-	// set when the object is instantiated.
+	// No type specified for the member.  Set it to "any" and the correct
+	// type will be set when the object is instantiated.
 	if (type == NULL)
 	    type = &t_any;
 
@@ -357,6 +357,13 @@ validate_interface_methods(
 		    if (check_type_maybe(if_fp[if_i]->uf_func_type,
 				cl_fp[cl_i]->uf_func_type, TRUE, where) != OK)
 			success = FALSE;
+		    // Ensure the public/private access level is matching.
+		    if (if_fp[if_i]->uf_private != cl_fp[cl_i]->uf_private)
+		    {
+			semsg(_(e_interface_str_and_class_str_function_access_not_same),
+				cl_name, if_name);
+			success = FALSE;
+		    }
 		    break;
 		}
 	    }
@@ -1150,7 +1157,9 @@ early_ret:
 		for (int i = 0; i < fgap->ga_len; ++i)
 		{
 		    char_u *n = ((ufunc_T **)fgap->ga_data)[i]->uf_name;
-		    if (STRCMP(name, n) == 0)
+		    char_u *pstr = *name == '_' ? name + 1 : name;
+		    char_u *qstr = *n == '_' ? n + 1 : n;
+		    if (STRCMP(pstr, qstr) == 0)
 		    {
 			semsg(_(e_duplicate_function_str), name);
 			break;
@@ -1161,6 +1170,11 @@ early_ret:
 		{
 		    if (is_new)
 			uf->uf_flags |= FC_NEW;
+
+		    // If the method name starts with '_', then it a private
+		    // method.
+		    if (*name == '_')
+			uf->uf_private = TRUE;
 
 		    ((ufunc_T **)fgap->ga_data)[fgap->ga_len] = uf;
 		    ++fgap->ga_len;
@@ -1523,6 +1537,13 @@ class_object_index(
 		typval_T    argvars[MAX_FUNC_ARGS + 1];
 		int	    argcount = 0;
 
+		if (fp->uf_private)
+		{
+		    // Cannot access a private method outside of a class
+		    semsg(_(e_cannot_access_private_method_str), name);
+		    return FAIL;
+		}
+
 		char_u *argp = name_end;
 		int ret = get_func_arguments(&argp, evalarg, 0,
 							   argvars, &argcount);
@@ -1743,7 +1764,7 @@ object_clear(object_T *obj)
     class_T *cl = obj->obj_class;
 
     if (!cl)
-        return;
+	return;
 
     // the member values are just after the object structure
     typval_T *tv = (typval_T *)(obj + 1);
@@ -1914,8 +1935,8 @@ object_free_nonref(int copyID)
 }
 
 /*
- * Return TRUE when the class "cl", its base class or one of the implemented interfaces
- * matches the class "other_cl".
+ * Return TRUE when the class "cl", its base class or one of the implemented
+ * interfaces matches the class "other_cl".
  */
     int
 class_instance_of(class_T *cl, class_T *other_cl)
