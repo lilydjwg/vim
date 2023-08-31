@@ -490,7 +490,7 @@ def Test_assignment_with_operator()
       vim9script
 
       class Foo
-        this.x: number
+        public this.x: number
 
         def Add(n: number)
           this.x += n
@@ -894,6 +894,15 @@ def Test_class_object_member_access()
     endclass
   END
   v9.CheckScriptFailure(lines, 'E1065:')
+
+  # Test for "static" cannot be followed by "this".
+  lines =<< trim END
+    vim9script
+    class Something
+      static this.val = 1
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1368: Static cannot be followed by "this" in a member name')
 enddef
 
 def Test_class_object_compare()
@@ -1171,6 +1180,61 @@ def Test_class_member()
   END
   v9.CheckScriptFailure(lines, 'E1010:')
 
+  # Test for setting a member on a null object
+  lines =<< trim END
+    vim9script
+    class A
+        public this.val: string
+    endclass
+
+    def F()
+        var obj: A
+        obj.val = ""
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1360: Using a null object')
+
+  # Test for accessing a member on a null object
+  lines =<< trim END
+    vim9script
+    class A
+        this.val: string
+    endclass
+
+    def F()
+        var obj: A
+        echo obj.val
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1360: Using a null object')
+
+  # Test for setting a member on a null object, at script level
+  lines =<< trim END
+    vim9script
+    class A
+        public this.val: string
+    endclass
+
+    var obj: A
+    obj.val = ""
+  END
+  # FIXME(in source): this should give E1360 as well!
+  v9.CheckScriptFailure(lines, 'E1012: Type mismatch; expected object<A> but got string')
+
+  # Test for accessing a member on a null object, at script level
+  lines =<< trim END
+    vim9script
+    class A
+        this.val: string
+    endclass
+
+    var obj: A
+    echo obj.val
+  END
+  v9.CheckScriptFailure(lines, 'E1360: Using a null object')
+
   # Test for no space before or after the '=' when initializing a member
   # variable
   lines =<< trim END
@@ -1307,6 +1371,18 @@ def Test_class_defcompile()
       defcompile C.Fc
   END
   v9.CheckScriptFailure(lines, 'E1012: Type mismatch; expected number but got string')
+
+  lines =<< trim END
+      vim9script
+
+      class C
+          static def new()
+          enddef
+      endclass
+
+      defcompile C.new
+  END
+  v9.CheckScriptFailure(lines, 'E1370: Cannot define a "new" function as static')
 
   # Trying to compile a function using a non-existing class variable
   lines =<< trim END
@@ -2355,7 +2431,7 @@ def Test_extends_method_crashes_vim()
     endclass
 
     class Bool extends Property
-      this.value: bool
+      this.value2: bool
     endclass
 
     def Observe(obj: Property, who: Observer)
@@ -2572,30 +2648,24 @@ def Test_multi_level_member_access()
     vim9script
 
     class A
-      this.val1: number = 0
-      this.val2: number = 0
-      this.val3: number = 0
+      public this.val1: number = 0
     endclass
 
     class B extends A
-      this.val2: number = 0
-      this.val3: number = 0
+      public this.val2: number = 0
     endclass
 
     class C extends B
-      this.val3: number = 0
+      public this.val3: number = 0
     endclass
 
     def A_members(a: A)
       a.val1 += 1
-      a.val2 += 1
-      a.val3 += 1
     enddef
 
     def B_members(b: B)
       b.val1 += 1
       b.val2 += 1
-      b.val3 += 1
     enddef
 
     def C_members(c: C)
@@ -2609,8 +2679,8 @@ def Test_multi_level_member_access()
     B_members(cobj)
     C_members(cobj)
     assert_equal(3, cobj.val1)
-    assert_equal(3, cobj.val2)
-    assert_equal(3, cobj.val3)
+    assert_equal(2, cobj.val2)
+    assert_equal(1, cobj.val3)
   END
   v9.CheckScriptSuccess(lines)
 enddef
@@ -3436,6 +3506,281 @@ def Test_objmethod_funcarg()
     Baz()
   END
   v9.CheckScriptSuccess(lines)
+enddef
+
+" Test for declaring duplicate object and class members
+def Test_dup_member_variable()
+  # Duplicate member variable
+  var lines =<< trim END
+    vim9script
+    class C
+      this.val = 10
+      this.val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate private member variable
+  lines =<< trim END
+    vim9script
+    class C
+      this._val = 10
+      this._val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate public member variable
+  lines =<< trim END
+    vim9script
+    class C
+      public this.val = 10
+      public this.val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate private member variable
+  lines =<< trim END
+    vim9script
+    class C
+      this.val = 10
+      this._val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate public and private member variable
+  lines =<< trim END
+    vim9script
+    class C
+      this._val = 20
+      public this.val = 10
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate class member variable
+  lines =<< trim END
+    vim9script
+    class C
+      static s: string = "abc"
+      static _s: string = "def"
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _s')
+
+  # Duplicate public and private class member variable
+  lines =<< trim END
+    vim9script
+    class C
+      public static s: string = "abc"
+      static _s: string = "def"
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _s')
+
+  # Duplicate class and object member variable
+  lines =<< trim END
+    vim9script
+    class C
+      static val = 10
+      this.val = 20
+      def new()
+      enddef
+    endclass
+    var c = C.new()
+    assert_equal(10, C.val)
+    assert_equal(20, c.val)
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # Duplicate object member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      this.val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      this.val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate object private member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      this._val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      this._val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate object private member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      this.val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      this._val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate object member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      this._val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      this.val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate class member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      static val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      static val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+
+  # Duplicate private class member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      static _val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      static _val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate private class member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      static val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      static _val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: _val')
+
+  # Duplicate class member variable in a derived class
+  lines =<< trim END
+    vim9script
+    class A
+      static _val = 10
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+      static val = 20
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1369: Duplicate member: val')
+enddef
+
+" Test for accessing a private member outside a class in a def function
+def Test_private_member_access_outside_class()
+  # private object member variable
+  var lines =<< trim END
+    vim9script
+    class A
+      this._val = 10
+      def GetVal(): number
+        return this._val
+      enddef
+    endclass
+    def T()
+      var a = A.new()
+      a._val = 20
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E1333: Cannot access private member: _val')
+
+  # access a non-existing private object member variable
+  lines =<< trim END
+    vim9script
+    class A
+      this._val = 10
+    endclass
+    def T()
+      var a = A.new()
+      a._a = 1
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E1089: Unknown variable: _a = 1')
+enddef
+
+" Test for changing the member access of an interface in a implementation class
+def Test_change_interface_member_access()
+  var lines =<< trim END
+    vim9script
+    interface A
+      public this.val: number
+    endinterface
+    class B implements A
+      this.val = 10
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1367: Access level of member "val" of interface "A" is different')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      this.val: number
+    endinterface
+    class B implements A
+      public this.val = 10
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1367: Access level of member "val" of interface "A" is different')
+enddef
+
+" Test for trying to change a readonly member from a def function
+def Test_readonly_member_change_in_def_func()
+  var lines =<< trim END
+    vim9script
+    class A
+      this.val: number
+    endclass
+    def T()
+      var a = A.new()
+      a.val = 20
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E46: Cannot change read-only variable "val"')
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
