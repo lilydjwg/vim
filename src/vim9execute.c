@@ -2144,7 +2144,7 @@ execute_storeindex(isn_T *iptr, ectx_T *ectx)
     // Stack contains:
     // -3 value to be stored
     // -2 index
-    // -1 dict, list, blob or object
+    // -1 dict, list, blob, object or class
     tv = STACK_TV_BOT(-3);
     SOURCING_LNUM = iptr->isn_lnum;
 
@@ -2306,14 +2306,25 @@ execute_storeindex(isn_T *iptr, ectx_T *ectx)
 	}
 	else if (dest_type == VAR_CLASS || dest_type == VAR_OBJECT)
 	{
-	    object_T	    *obj = tv_dest->vval.v_object;
-	    typval_T	    *otv = (typval_T *)(obj + 1);
+	    typval_T	    *otv;
 
-	    class_T	    *itf = iptr->isn_arg.storeindex.si_class;
-	    if (itf != NULL)
-		// convert interface member index to class member index
-		lidx = object_index_from_itf_index(itf, FALSE,
-							 lidx, obj->obj_class);
+	    if (dest_type == VAR_OBJECT)
+	    {
+		object_T	*obj = tv_dest->vval.v_object;
+
+		otv = (typval_T *)(obj + 1);
+		class_T	    *itf = iptr->isn_arg.storeindex.si_class;
+		if (itf != NULL)
+		    // convert interface member index to class member index
+		    lidx = object_index_from_itf_index(itf, FALSE,
+							lidx, obj->obj_class);
+	    }
+	    else
+	    {
+		// VAR_CLASS
+		class_T	*class = tv_dest->vval.v_class;
+		otv = class->class_members_tv;
+	    }
 
 	    clear_tv(&otv[lidx]);
 	    otv[lidx] = *tv;
@@ -3825,6 +3836,7 @@ exec_instructions(ectx_T *ectx)
 		    char_u	*tofree = NULL;
 
 		    --ectx->ec_stack.ga_len;
+		    SOURCING_LNUM = iptr->isn_lnum;
 		    tv = STACK_TV_BOT(0);
 		    if (tv->v_type == VAR_STRING)
 		    {
@@ -3834,7 +3846,6 @@ exec_instructions(ectx_T *ectx)
 		    }
 		    else if (iptr->isn_type == ISN_STOREFUNCOPT)
 		    {
-			SOURCING_LNUM = iptr->isn_lnum;
 			// If the option can be set to a function reference or
 			// a lambda and the passed value is a function
 			// reference, then convert it to the name (string) of

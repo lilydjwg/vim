@@ -33,9 +33,9 @@ parse_member(
     exarg_T	*eap,
     char_u	*line,
     char_u	*varname,
-    int	has_public,	    // TRUE if "public" seen before "varname"
+    int		has_public,	    // TRUE if "public" seen before "varname"
     char_u	**varname_end,
-    garray_T *type_list,
+    garray_T	*type_list,
     type_T	**type_ret,
     char_u	**init_expr)
 {
@@ -119,12 +119,12 @@ parse_member(
  */
     static int
 add_member(
-    garray_T    *gap,
-    char_u	    *varname,
-    char_u	    *varname_end,
-    int	    has_public,
-    type_T	    *type,
-    char_u	    *init_expr)
+    garray_T	*gap,
+    char_u	*varname,
+    char_u	*varname_end,
+    int		has_public,
+    type_T	*type,
+    char_u	*init_expr)
 {
     if (ga_grow(gap, 1) == FAIL)
 	return FAIL;
@@ -629,8 +629,8 @@ is_valid_constructor(ufunc_T *uf, int is_abstract, int has_static)
  */
     static int
 update_member_method_lookup_table(
-    class_T		*ifcl,
-    class_T		*cl,
+    class_T	*ifcl,
+    class_T	*cl,
     garray_T	*objmethods,
     int		pobj_method_offset,
     int		is_interface)
@@ -1475,6 +1475,7 @@ early_ret:
 
 	// Add the class to the script-local variables.
 	// TODO: handle other context, e.g. in a function
+	// TODO: does uf_hash need to be cleared?
 	typval_T tv;
 	tv.v_type = VAR_CLASS;
 	tv.vval.v_class = cl;
@@ -1553,26 +1554,35 @@ cleanup:
 /*
  * Find member "name" in class "cl", set "member_idx" to the member index and
  * return its type.
+ * When "is_object" is TRUE, then look for object members.  Otherwise look for
+ * class members.
  * When not found "member_idx" is set to -1 and t_any is returned.
+ * Set *p_m ocmmember_T if not NULL
  */
     type_T *
 class_member_type(
     class_T	*cl,
+    int		is_object,
     char_u	*name,
     char_u	*name_end,
     int		*member_idx,
-    omacc_T	*access)
+    ocmember_T	**p_m)
 {
     *member_idx = -1;  // not found (yet)
     size_t len = name_end - name;
+    int member_count = is_object ? cl->class_obj_member_count
+					: cl->class_class_member_count;
+    ocmember_T *members = is_object ? cl->class_obj_members
+					: cl->class_class_members;
 
-    for (int i = 0; i < cl->class_obj_member_count; ++i)
+    for (int i = 0; i < member_count; ++i)
     {
-	ocmember_T *m = cl->class_obj_members + i;
+	ocmember_T *m = members + i;
 	if (STRNCMP(m->ocm_name, name, len) == 0 && m->ocm_name[len] == NUL)
 	{
 	    *member_idx = i;
-	    *access = m->ocm_access;
+	    if (p_m != NULL)
+		*p_m = m;
 	    return m->ocm_type;
 	}
     }
