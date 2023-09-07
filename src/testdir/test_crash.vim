@@ -5,9 +5,11 @@ source screendump.vim
 CheckScreendump
 
 func Test_crash1()
-  if !executable('sh')
-    throw 'Skipped: sh not executable!'
-  endif
+  CheckNotBSD
+  CheckExecutable dash
+  " Test 7 fails on Mac ...
+  CheckNotMac
+
   " The following used to crash Vim
   let opts = #{cmd: 'sh'}
   let vim  = GetVimProg()
@@ -40,10 +42,11 @@ func Test_crash1()
   " clean up
   call delete('Xerr')
   " This test takes a bit longer
-  call TermWait(buf, 200)
+  call TermWait(buf, 1000)
 
   let file = 'crash/poc_tagfunc.vim'
   let args = printf(cmn_args, vim, file)
+  " using || because this poc causes vim to exit with exitstatus != 0
   call term_sendkeys(buf, args ..
     \ '  || echo "crash 5: [OK]" >> X_crash1_result.txt' .. "\<cr>")
 
@@ -55,8 +58,13 @@ func Test_crash1()
     \ '  && echo "crash 6: [OK]" >> X_crash1_result.txt' .. "\<cr>")
   " clean up
   call delete('X')
-  " This test takes a bit longer
-  call TermWait(buf, 200)
+  call TermWait(buf, 3000)
+
+  let file = 'crash/vim_regsub_both_poc'
+  let args = printf(cmn_args, vim, file)
+  call term_sendkeys(buf, args ..
+    \ '  && echo "crash 7: [OK]" >> X_crash1_result.txt' .. "\<cr>")
+  call TermWait(buf, 3000)
 
   " clean up
   exe buf .. "bw!"
@@ -70,6 +78,7 @@ func Test_crash1()
       \ 'crash 4: [OK]',
       \ 'crash 5: [OK]',
       \ 'crash 6: [OK]',
+      \ 'crash 7: [OK]',
       \ ]
 
   call assert_equal(expected, getline(1, '$'))
