@@ -1884,7 +1884,7 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckScriptFailure(lines, 'E1407: Member "IsEven": type mismatch, expected func(number): bool but got func(number): string')
+  v9.CheckScriptFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(number): string')
 
   lines =<< trim END
       vim9script
@@ -1897,7 +1897,7 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckScriptFailure(lines, 'E1407: Member "IsEven": type mismatch, expected func(number): bool but got func(bool): bool')
+  v9.CheckScriptFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(bool): bool')
 
   lines =<< trim END
       vim9script
@@ -1910,7 +1910,7 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckScriptFailure(lines, 'E1407: Member "IsEven": type mismatch, expected func(number): bool but got func(number, ...list<number>): bool')
+  v9.CheckScriptFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(number, ...list<number>): bool')
 
   # access superclass interface members from subclass, mix variable order
   lines =<< trim END
@@ -1955,10 +1955,6 @@ def Test_class_implements_interface()
         enddef
     endclass
 
-    def F1(i: I1): list<number>
-        return [ i.svar1, i.svar2 ]
-    enddef
-
     def F2(i: I1): list<number>
         return [ i.mvar1, i.mvar2 ]
     enddef
@@ -1966,10 +1962,6 @@ def Test_class_implements_interface()
     var oa = A.new()
     var ob = B.new()
     var oc = C.new()
-
-    assert_equal([11, 12],   F1(oa))
-    assert_equal([21, 22],   F1(ob))
-    assert_equal([31, 32],   F1(oc))
 
     assert_equal([111, 112], F2(oa))
     assert_equal([121, 122], F2(ob))
@@ -2041,39 +2033,21 @@ def Test_class_implements_interface()
         enddef
     endclass
 
-    def F1(i: I1): list<number>
-        return [ i.svar1, i.svar2 ]
-    enddef
-
     def F2(i: I1): list<number>
         return [ i.mvar1, i.mvar2 ]
-    enddef
-
-    def F3(i: I2): list<number>
-        return [ i.svar3, i.svar4 ]
     enddef
 
     def F4(i: I2): list<number>
         return [ i.mvar3, i.mvar4 ]
     enddef
 
-    def F5(o: C): number
-        return o.svar5
-    enddef
-
     var oa = A.new()
     var ob = B.new()
     var oc = C.new()
 
-    assert_equal([[11, 12]],   [F1(oa)])
-    assert_equal([[21, 22], [23, 24]], [F1(ob), F3(ob)])
-    assert_equal([[31, 32], [33, 34]], [F1(oc), F3(oc)])
-
     assert_equal([[111, 112]], [F2(oa)])
     assert_equal([[121, 122], [123, 124]], [F2(ob), F4(ob)])
     assert_equal([[131, 132], [133, 134]], [F2(oc), F4(oc)])
-
-    assert_equal(1001, F5(oc))
   END
   v9.CheckScriptSuccess(lines)
 enddef
@@ -4182,25 +4156,7 @@ def Test_static_member_access_outside_class()
         return 11
     enddef
 
-    # access the class static through an interface argument
-    def F2(i: I): number
-        assert_equal(1, i.s_var1)
-        assert_equal(2, i.s_var2)
-        return 22
-    enddef
-
-    # access the class static through an object interface
-    def F3(o: C): number
-        assert_equal(1, o.s_var1)
-        assert_equal(2, o.s_var2)
-        assert_equal(7, o.x_static)
-        return 33
-    enddef
-
     assert_equal(11, F1())
-    var c = C.new()
-    assert_equal(22, F2(c))
-    assert_equal(33, F3(c))
   END
   v9.CheckScriptSuccess(lines)
 enddef
@@ -4250,7 +4206,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckScriptFailure(lines, 'E1333: Cannot access private member: _val')
+  v9.CheckScriptFailure(lines, 'E1326: Member not found on object "A": _val')
 
   # private static member variable
   lines =<< trim END
@@ -4292,8 +4248,6 @@ def Test_private_member_access_outside_class()
     T()
   END
   v9.CheckScriptFailure(lines, 'E1333: Cannot access private member: _val')
-
-
 enddef
 
 " Test for changing the member access of an interface in a implementation class
@@ -4362,7 +4316,7 @@ def Test_modify_class_member_from_def_function()
 enddef
 
 " Test for accessing a class member variable using an object
-def Test_class_member_access_using_object()
+def Test_class_variable_access_using_object()
   var lines =<< trim END
     vim9script
     class A
@@ -4374,26 +4328,348 @@ def Test_class_member_access_using_object()
     A.svar2->add(4)
     assert_equal([1, 3], A.svar1)
     assert_equal([2, 4], A.svar2)
-    var a1 = A.new()
-    a1.svar1->add(5)
-    a1.svar2->add(6)
-    assert_equal([1, 3, 5], a1.svar1)
-    assert_equal([2, 4, 6], a1.svar2)
 
     def Foo()
       A.svar1->add(7)
       A.svar2->add(8)
-      assert_equal([1, 3, 5, 7], A.svar1)
-      assert_equal([2, 4, 6, 8], A.svar2)
-      var a2 = A.new()
-      a2.svar1->add(9)
-      a2.svar2->add(10)
-      assert_equal([1, 3, 5, 7, 9], a2.svar1)
-      assert_equal([2, 4, 6, 8, 10], a2.svar2)
+      assert_equal([1, 3, 7], A.svar1)
+      assert_equal([2, 4, 8], A.svar2)
     enddef
     Foo()
   END
   v9.CheckScriptSuccess(lines)
+
+  # Cannot read from a class variable using an object in script context
+  lines =<< trim END
+    vim9script
+    class A
+      public this.var1: number
+      public static svar2: list<number> = [1]
+    endclass
+
+    var a = A.new()
+    echo a.svar2
+  END
+  v9.CheckScriptFailure(lines, 'E1326: Member not found on object "A": svar2')
+
+  # Cannot write to a class variable using an object in script context
+  lines =<< trim END
+    vim9script
+    class A
+      public this.var1: number
+      public static svar2: list<number> = [1]
+    endclass
+
+    var a = A.new()
+    a.svar2 = [2]
+  END
+  v9.CheckScriptFailure(lines, 'E1334: Object member not found: svar2 = [2]')
+
+  # Cannot read from a class variable using an object in def method context
+  lines =<< trim END
+    vim9script
+    class A
+      public this.var1: number
+      public static svar2: list<number> = [1]
+    endclass
+
+    def T()
+      var a = A.new()
+      echo a.svar2
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E1326: Member not found on object "A": svar2')
+
+  # Cannot write to a class variable using an object in def method context
+  lines =<< trim END
+    vim9script
+    class A
+      public this.var1: number
+      public static svar2: list<number> = [1]
+    endclass
+
+    def T()
+      var a = A.new()
+      a.svar2 = [2]
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E1089: Unknown variable: svar2 = [2]')
+enddef
+
+" Test for using a interface method using a child object
+def Test_interface_method_from_child()
+  var lines =<< trim END
+    vim9script
+
+    interface A
+      def Foo(): string
+    endinterface
+
+    class B implements A
+      def Foo(): string
+        return 'foo'
+      enddef
+    endclass
+
+    class C extends B
+      def Bar(): string
+        return 'bar'
+      enddef
+    endclass
+
+    def T1(a: A)
+      assert_equal('foo', a.Foo())
+    enddef
+
+    def T2(b: B)
+      assert_equal('foo', b.Foo())
+    enddef
+
+    var c = C.new()
+    T1(c)
+    T2(c)
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Test for using an interface method using a child object when it is overridden
+" by the child class.
+" FIXME: This test fails.
+" def Test_interface_overridden_method_from_child()
+"   var lines =<< trim END
+"     vim9script
+"
+"     interface A
+"       def Foo(): string
+"     endinterface
+"
+"     class B implements A
+"       def Foo(): string
+"         return 'b-foo'
+"       enddef
+"     endclass
+"
+"     class C extends B
+"       def Bar(): string
+"         return 'bar'
+"       enddef
+"       def Foo(): string
+"         return 'c-foo'
+"       enddef
+"     endclass
+"
+"     def T1(a: A)
+"       assert_equal('c-foo', a.Foo())
+"     enddef
+"
+"     def T2(b: B)
+"       assert_equal('c-foo', b.Foo())
+"     enddef
+"
+"     var c = C.new()
+"     T1(c)
+"     T2(c)
+"   END
+"   v9.CheckScriptSuccess(lines)
+" enddef
+
+" Test for abstract methods
+def Test_abstract_method()
+  # Use two abstract methods
+  var lines =<< trim END
+    vim9script
+    abstract class A
+      def M1(): number
+        return 10
+      enddef
+      abstract def M2(): number
+      abstract def M3(): number
+    endclass
+    class B extends A
+      def M2(): number
+        return 20
+      enddef
+      def M3(): number
+        return 30
+      enddef
+    endclass
+    var b = B.new()
+    assert_equal([10, 20, 30], [b.M1(), b.M2(), b.M3()])
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # Don't define an abstract method
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract def Foo()
+    endclass
+    class B extends A
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1373: Abstract method "Foo" is not implemented')
+
+  # Use abstract method in a concrete class
+  lines =<< trim END
+    vim9script
+    class A
+      abstract def Foo()
+    endclass
+    class B extends A
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1372: Abstract method "abstract def Foo()" cannot be defined in a concrete class')
+
+  # Use abstract method in an interface
+  lines =<< trim END
+    vim9script
+    interface A
+      abstract def Foo()
+    endinterface
+    class B implements A
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1372: Abstract method "abstract def Foo()" cannot be defined in a concrete class')
+
+  # Abbreviate the "abstract" keyword
+  lines =<< trim END
+    vim9script
+    class A
+      abs def Foo()
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1065: Command cannot be shortened: abs def Foo()')
+
+  # Use "abstract" with a member variable
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract this.val = 10
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1371: Abstract must be followed by "def" or "static"')
+
+  # Use a static abstract method
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract static def Foo(): number
+    endclass
+    class B extends A
+      static def Foo(): number
+        return 4
+      enddef
+    endclass
+    assert_equal(4, B.Foo())
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # Type mismatch between abstract method and concrete method
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract def Foo(a: string, b: number): list<number>
+    endclass
+    class B extends A
+      def Foo(a: number, b: string): list<string>
+        return []
+      enddef
+    endclass
+  END
+  v9.CheckScriptFailure(lines, 'E1407: Method "Foo": type mismatch, expected func(string, number): list<number> but got func(number, string): list<string>')
+
+  # Use an abstract class to invoke an abstract method
+  # FIXME: This should fail
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract static def Foo()
+    endclass
+    A.Foo()
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # Invoke an abstract method from a def function
+  lines =<< trim END
+    vim9script
+    abstract class A
+      abstract def Foo(): list<number>
+    endclass
+    class B extends A
+      def Foo(): list<number>
+        return [3, 5]
+      enddef
+    endclass
+    def Bar(c: B)
+      assert_equal([3, 5], c.Foo())
+    enddef
+    var b = B.new()
+    Bar(b)
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Test for calling a class method using an object in a def function context and
+" script context.
+def Test_class_method_call_using_object()
+  # script context
+  var lines =<< trim END
+    vim9script
+    class A
+      static def Foo(): list<string>
+        return ['a', 'b']
+      enddef
+      def Bar()
+        assert_equal(['a', 'b'], A.Foo())
+        assert_equal(['a', 'b'], Foo())
+      enddef
+    endclass
+
+    def T()
+      assert_equal(['a', 'b'], A.Foo())
+      var t_a = A.new()
+      t_a.Bar()
+    enddef
+
+    assert_equal(['a', 'b'], A.Foo())
+    var a = A.new()
+    a.Bar()
+    T()
+  END
+  v9.CheckScriptSuccess(lines)
+
+  # script context
+  lines =<< trim END
+    vim9script
+    class A
+      static def Foo(): string
+        return 'foo'
+      enddef
+    endclass
+
+    var a = A.new()
+    assert_equal('foo', a.Foo())
+  END
+  v9.CheckScriptFailure(lines, 'E1325: Method not found on class "A": Foo()')
+
+  # def function context
+  lines =<< trim END
+    vim9script
+    class A
+      static def Foo(): string
+        return 'foo'
+      enddef
+    endclass
+
+    def T()
+      var a = A.new()
+      assert_equal('foo', a.Foo())
+    enddef
+    T()
+  END
+  v9.CheckScriptFailure(lines, 'E1325: Method not found on class "A": Foo()')
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
