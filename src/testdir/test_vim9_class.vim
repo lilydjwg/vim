@@ -4,12 +4,14 @@ source check.vim
 import './vim9.vim' as v9
 
 def Test_class_basic()
+  # Class supported only in "vim9script"
   var lines =<< trim END
       class NotWorking
       endclass
   END
   v9.CheckSourceFailure(lines, 'E1316:')
 
+  # First character in a class name should be capitalized.
   lines =<< trim END
       vim9script
       class notWorking
@@ -17,6 +19,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1314:')
 
+  # Only alphanumeric characters are supported in a class name
   lines =<< trim END
       vim9script
       class Not@working
@@ -24,6 +27,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1315:')
 
+  # Unsupported keyword (instead of class)
   lines =<< trim END
       vim9script
       abstract noclass Something
@@ -31,6 +35,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E475:')
 
+  # Only the completed word "class" should be recognized
   lines =<< trim END
       vim9script
       abstract classy Something
@@ -38,6 +43,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E475:')
 
+  # The complete "endclass" should be specified.
   lines =<< trim END
       vim9script
       class Something
@@ -45,6 +51,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1065:')
 
+  # Additional words after "endclass"
   lines =<< trim END
       vim9script
       class Something
@@ -52,6 +59,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E488:')
 
+  # Additional commands after "endclass"
   lines =<< trim END
       vim9script
       class Something
@@ -59,6 +67,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E488:')
 
+  # Use "this" without any member variable name
   lines =<< trim END
       vim9script
       class Something
@@ -67,6 +76,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1317:')
 
+  # Use "this." without any member variable name
   lines =<< trim END
       vim9script
       class Something
@@ -75,6 +85,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1317:')
 
+  # Space between "this" and ".<variable>"
   lines =<< trim END
       vim9script
       class Something
@@ -83,6 +94,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1317:')
 
+  # Space between "this." and the member variable name
   lines =<< trim END
       vim9script
       class Something
@@ -91,6 +103,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1317:')
 
+  # Use "that" instead of "this"
   lines =<< trim END
       vim9script
       class Something
@@ -100,6 +113,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1318: Not a valid command in a class: that.count')
 
+  # Member variable without a type or initialization
   lines =<< trim END
       vim9script
       class Something
@@ -108,6 +122,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1022:')
 
+  # Use a non-existing member variable in new()
   lines =<< trim END
       vim9script
       class Something
@@ -117,8 +132,9 @@ def Test_class_basic()
       endclass
       var obj = Something.new()
   END
-  v9.CheckSourceFailure(lines, 'E1089:')
+  v9.CheckSourceFailure(lines, 'E1326: Member not found on object "Something": state')
 
+  # Space before ":" in a member variable declaration
   lines =<< trim END
       vim9script
       class Something
@@ -127,6 +143,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1059:')
 
+  # No space after ":" in a member variable declaration
   lines =<< trim END
       vim9script
       class Something
@@ -145,6 +162,67 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E1170:')
 
+  # Test for using class as a bool
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    if A
+    endif
+  END
+  v9.CheckSourceFailure(lines, 'E1319: Using a class as a Number')
+
+  # Test for using object as a bool
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    var a = A.new()
+    if a
+    endif
+  END
+  v9.CheckSourceFailure(lines, 'E1320: Using an object as a Number')
+
+  # Test for using class as a float
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    sort([1.1, A], 'f')
+  END
+  v9.CheckSourceFailure(lines, 'E1321: Using a class as a Float')
+
+  # Test for using object as a float
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    var a = A.new()
+    sort([1.1, a], 'f')
+  END
+  v9.CheckSourceFailure(lines, 'E1322: Using an object as a Float')
+
+  # Test for using class as a string
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    :exe 'call ' .. A
+  END
+  v9.CheckSourceFailure(lines, 'E1323: Using a class as a String')
+
+  # Test for using object as a string
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    var a = A.new()
+    :exe 'call ' .. a
+  END
+  v9.CheckSourceFailure(lines, 'E1324: Using an object as a String')
+
+  # Test creating a class with member variables and methods, calling a object
+  # method.  Check for using type() and typename() with a class and an object.
   lines =<< trim END
       vim9script
 
@@ -211,6 +289,7 @@ def Test_class_basic()
   END
   v9.CheckSourceFailure(lines, 'E15:')
 
+  # Use a multi-line initialization for a member variable
   lines =<< trim END
   vim9script
   class A
@@ -288,6 +367,7 @@ def Test_class_interface_wrong_end()
 enddef
 
 def Test_object_not_set()
+  # Use an uninitialized object in script context
   var lines =<< trim END
       vim9script
 
@@ -301,6 +381,7 @@ def Test_object_not_set()
   END
   v9.CheckSourceFailure(lines, 'E1360:')
 
+  # Use an uninitialized object from a def function
   lines =<< trim END
       vim9script
 
@@ -319,6 +400,8 @@ def Test_object_not_set()
   END
   v9.CheckSourceFailure(lines, 'E1360:')
 
+  # Pass an uninitialized object variable to a "new" function and try to call an
+  # object method.
   lines =<< trim END
       vim9script
 
@@ -359,6 +442,7 @@ def Test_object_not_set()
   v9.CheckSourceFailure(lines, 'E1363:')
 enddef
 
+" Null object assignment and comparison
 def Test_null_object_assign_compare()
   var lines =<< trim END
     vim9script
@@ -399,6 +483,7 @@ def Test_null_object_assign_compare()
   v9.CheckSourceSuccess(lines)
 enddef
 
+" Test for object member initialization and disassembly
 def Test_class_member_initializer()
   var lines =<< trim END
       vim9script
@@ -458,32 +543,6 @@ def Test_member_any_used_as_object()
   END
   v9.CheckSourceSuccess(lines)
 
-  lines =<< trim END
-      vim9script
-
-      class Inner
-        this.value: number = 0
-      endclass
-
-      class Outer
-        this.inner: Inner
-      endclass
-
-      def F(outer: Outer)
-        outer.inner.value = 1
-      enddef
-
-      def Test_assign_to_nested_typed_member()
-        var inner = Inner.new(0)
-        var outer = Outer.new(inner)
-        F(outer)
-        assert_equal(1, inner.value)
-      enddef
-
-      Test_assign_to_nested_typed_member()
-  END
-  v9.CheckSourceSuccess(lines)
-
   # Try modifying a private variable using an "any" object
   lines =<< trim END
     vim9script
@@ -529,7 +588,92 @@ def Test_member_any_used_as_object()
   v9.CheckSourceFailure(lines, 'E1326: Member not found on object "Inner": someval')
 enddef
 
+" Nested assignment to a object variable which is of another class type
+def Test_assignment_nested_type()
+  var lines =<< trim END
+    vim9script
+
+    class Inner
+      public this.value: number = 0
+    endclass
+
+    class Outer
+      this.inner: Inner
+    endclass
+
+    def F(outer: Outer)
+      outer.inner.value = 1
+    enddef
+
+    def Test_assign_to_nested_typed_member()
+      var inner = Inner.new(0)
+      var outer = Outer.new(inner)
+      F(outer)
+      assert_equal(1, inner.value)
+    enddef
+
+    Test_assign_to_nested_typed_member()
+
+    var script_inner = Inner.new(0)
+    var script_outer = Outer.new(script_inner)
+    script_outer.inner.value = 1
+    assert_equal(1, script_inner.value)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Assignment where target item is read only in :def
+  lines =<< trim END
+    vim9script
+
+    class Inner
+      this.value: number = 0
+    endclass
+
+    class Outer
+      this.inner: Inner
+    endclass
+
+    def F(outer: Outer)
+      outer.inner.value = 1
+    enddef
+
+    def Test_assign_to_nested_typed_member()
+      var inner = Inner.new(0)
+      var outer = Outer.new(inner)
+      F(outer)
+      assert_equal(1, inner.value)
+    enddef
+
+    Test_assign_to_nested_typed_member()
+  END
+  v9.CheckSourceFailure(lines, 'E46: Cannot change read-only variable "value"')
+
+  # Assignment where target item is read only script level
+  lines =<< trim END
+    vim9script
+
+    class Inner
+      this.value: number = 0
+    endclass
+
+    class Outer
+      this.inner: Inner
+    endclass
+
+    def F(outer: Outer)
+      outer.inner.value = 1
+    enddef
+
+    var script_inner = Inner.new(0)
+    var script_outer = Outer.new(script_inner)
+    script_outer.inner.value = 1
+    assert_equal(1, script_inner.value)
+  END
+  v9.CheckSourceFailure(lines, 'E1335: Member is not writable: value')
+enddef
+
 def Test_assignment_with_operator()
+  # Use "+=" to assign to a object variable
   var lines =<< trim END
       vim9script
 
@@ -689,8 +833,19 @@ def Test_class_default_new()
       var missing = Person.new()
   END
   v9.CheckSourceFailure(lines, 'E119:')
-enddef
 
+  # Using a specific value to initialize an instance variable in the new()
+  # method.
+  lines =<< trim END
+      vim9script
+      class A
+        this.val: string
+        def new(this.val = 'a')
+        enddef
+      endclass
+  END
+  v9.CheckSourceFailure(lines, "E1328: Constructor default value must be v:none:  = 'a'")
+enddef
 
 def Test_class_new_with_object_member()
   var lines =<< trim END
@@ -825,6 +980,15 @@ def Test_class_object_member_inits()
     var a = A.new()
   END
   v9.CheckSourceFailure(lines, 'E1001:')
+
+  # Test for initializing an object member with an special type
+  lines =<< trim END
+    vim9script
+    class A
+       this.value: void
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1330: Invalid type for object member: void')
 enddef
 
 " Test for instance variable access
@@ -1398,6 +1562,7 @@ def Test_class_member()
   END
   v9.CheckSourceFailure(lines, 'E1340: Argument already declared in the class: count')
 
+  # Use a local variable in a method with the same name as a class variable
   lines =<< trim END
       vim9script
 
@@ -1556,17 +1721,10 @@ func Test_interface_garbagecollect()
     vim9script
 
     interface I
-      static ro_class_var: number
-      public static rw_class_var: number
-      static _priv_class_var: number
       this.ro_obj_var: number
       public this.rw_obj_var: number
-      this._priv_obj_var: number
 
-      static def ClassFoo(): number
-      static def _ClassBar(): number
       def ObjFoo(): number
-      def _ObjBar(): number
     endinterface
 
     class A implements I
@@ -1604,7 +1762,7 @@ func Test_interface_garbagecollect()
   call v9.CheckSourceSuccess(lines)
 endfunc
 
-def Test_class_function()
+def Test_class_method()
   var lines =<< trim END
       vim9script
       class Value
@@ -1640,6 +1798,29 @@ def Test_class_function()
     endclass
   END
   v9.CheckSourceFailure(lines, 'E1318:')
+
+  # Test for calling a class method from another class method without the class
+  # name prefix.
+  lines =<< trim END
+    vim9script
+    class A
+      static myList: list<number> = [1]
+      static def Foo(n: number)
+        myList->add(n)
+      enddef
+      static def Bar()
+        Foo(2)
+      enddef
+      def Baz()
+        Foo(3)
+      enddef
+    endclass
+    A.Bar()
+    var a = A.new()
+    a.Baz()
+    assert_equal([1, 2, 3], A.myList)
+  END
+  v9.CheckSourceSuccess(lines)
 enddef
 
 def Test_class_defcompile()
@@ -1736,8 +1917,8 @@ def Test_interface_basics()
   var lines =<< trim END
       vim9script
       interface Something
-        this.value: string
-        static count: number
+        this.ro_var: string
+        public this.rw_var: list<number>
         def GetCount(): number
       endinterface
   END
@@ -1749,16 +1930,6 @@ def Test_interface_basics()
       endinterface
   END
   v9.CheckSourceFailure(lines, 'E1342:')
-
-  lines =<< trim END
-      vim9script
-
-      interface Some
-        static count: number
-        def Method(count: number)
-      endinterface
-  END
-  v9.CheckSourceFailure(lines, 'E1340: Argument already declared in the class: count', 5)
 
   lines =<< trim END
       vim9script
@@ -1784,7 +1955,7 @@ def Test_interface_basics()
       vim9script
       interface SomethingWrong
         this.value: string
-        static count = 7
+        this.count = 7
         def GetCount(): number
       endinterface
   END
@@ -1794,7 +1965,7 @@ def Test_interface_basics()
       vim9script
       interface SomethingWrong
         this.value: string
-        static count: number
+        this.count: number
         def GetCount(): number
           return 5
         enddef
@@ -1845,12 +2016,12 @@ def Test_class_implements_interface()
       vim9script
 
       interface Some
-        static count: number
+        this.count: number
         def Method(nr: number)
       endinterface
 
       class SomeImpl implements Some
-        static count: number
+        this.count: number
         def Method(nr: number)
           echo nr
         enddef
@@ -1862,7 +2033,7 @@ def Test_class_implements_interface()
 
       class AnotherImpl implements Some, Another
         this.member = 'abc'
-        static count: number
+        this.count = 20
         def Method(nr: number)
           echo nr
         enddef
@@ -1874,11 +2045,11 @@ def Test_class_implements_interface()
       vim9script
 
       interface Some
-        static counter: number
+        this.count: number
       endinterface
 
       class SomeImpl implements Some implements Some
-        static count: number
+        this.count: number
       endclass
   END
   v9.CheckSourceFailure(lines, 'E1350:')
@@ -1887,11 +2058,11 @@ def Test_class_implements_interface()
       vim9script
 
       interface Some
-        static counter: number
+        this.count: number
       endinterface
 
       class SomeImpl implements Some, Some
-        static count: number
+        this.count: number
       endclass
   END
   v9.CheckSourceFailure(lines, 'E1351: Duplicate interface after "implements": Some')
@@ -1900,35 +2071,35 @@ def Test_class_implements_interface()
       vim9script
 
       interface Some
-        static counter: number
+        this.counter: number
         def Method(nr: number)
       endinterface
 
       class SomeImpl implements Some
-        static count: number
+        this.count: number
         def Method(nr: number)
           echo nr
         enddef
       endclass
   END
-  v9.CheckSourceFailure(lines, 'E1348: Member "counter" of interface "Some" not implemented')
+  v9.CheckSourceFailure(lines, 'E1348: Member "counter" of interface "Some" is not implemented')
 
   lines =<< trim END
       vim9script
 
       interface Some
-        static count: number
+        this.count: number
         def Methods(nr: number)
       endinterface
 
       class SomeImpl implements Some
-        static count: number
+        this.count: number
         def Method(nr: number)
           echo nr
         enddef
       endclass
   END
-  v9.CheckSourceFailure(lines, 'E1349: Function "Methods" of interface "Some" not implemented')
+  v9.CheckSourceFailure(lines, 'E1349: Method "Methods" of interface "Some" is not implemented')
 
   # Check different order of members in class and interface works.
   lines =<< trim END
@@ -2005,17 +2176,6 @@ def Test_class_implements_interface()
   END
   v9.CheckSourceFailure(lines, 'E1347:')
 
-  # all the class methods in an "interface" should be implemented
-  lines =<< trim END
-    vim9script
-    interface A
-      static def Foo()
-    endinterface
-    class B implements A
-    endclass
-  END
-  v9.CheckSourceFailure(lines, 'E1349:')
-
   # implements should be followed by a white space
   lines =<< trim END
     vim9script
@@ -2030,22 +2190,6 @@ def Test_class_implements_interface()
       vim9script
 
       interface One
-        static matching: bool
-        static as_any: any
-        static not_matching: number
-      endinterface
-      class Two implements One
-        static not_matching: string
-        static as_any: string
-        static matching: bool
-      endclass
-  END
-  v9.CheckSourceFailure(lines, 'E1406: Member "not_matching": type mismatch, expected number but got string')
-
-  lines =<< trim END
-      vim9script
-
-      interface One
         def IsEven(nr: number): bool
       endinterface
       class Two implements One
@@ -2053,7 +2197,7 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckSourceFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(number): string')
+  v9.CheckSourceFailure(lines, 'E1383: Method "IsEven": type mismatch, expected func(number): bool but got func(number): string')
 
   lines =<< trim END
       vim9script
@@ -2066,7 +2210,7 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckSourceFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(bool): bool')
+  v9.CheckSourceFailure(lines, 'E1383: Method "IsEven": type mismatch, expected func(number): bool but got func(bool): bool')
 
   lines =<< trim END
       vim9script
@@ -2079,15 +2223,13 @@ def Test_class_implements_interface()
         enddef
       endclass
   END
-  v9.CheckSourceFailure(lines, 'E1407: Method "IsEven": type mismatch, expected func(number): bool but got func(number, ...list<number>): bool')
+  v9.CheckSourceFailure(lines, 'E1383: Method "IsEven": type mismatch, expected func(number): bool but got func(number, ...list<number>): bool')
 
   # access superclass interface members from subclass, mix variable order
   lines =<< trim END
     vim9script
 
     interface I1
-        public static svar1: number
-        public static svar2: number
         public this.mvar1: number
         public this.mvar2: number
     endinterface
@@ -2140,15 +2282,11 @@ def Test_class_implements_interface()
     vim9script
 
     interface I1
-        public static svar1: number
-        public static svar2: number
         public this.mvar1: number
         public this.mvar2: number
     endinterface
 
     interface I2
-        public static svar3: number
-        public static svar4: number
         public this.mvar3: number
         public this.mvar4: number
     endinterface
@@ -2312,7 +2450,6 @@ def Test_call_interface_method()
     unlet g:result
   END
   v9.CheckSourceSuccess(lines)
-
 
   # No class that implements the interface.
   lines =<< trim END
@@ -2655,7 +2792,6 @@ def Test_using_base_class()
   v9.CheckSourceSuccess(lines)
 enddef
 
-
 def Test_class_import()
   var lines =<< trim END
       vim9script
@@ -2952,6 +3088,10 @@ def Test_instanceof()
       assert_true(instanceof(a3, [Base1, Base2, Intf1]))
     enddef
     Foo()
+
+    var o_null: Base1
+    assert_false(instanceof(o_null, Base1))
+
   END
   v9.CheckSourceSuccess(lines)
 enddef
@@ -3621,7 +3761,7 @@ def Test_private_class_method()
         return 1234
       enddef
       def Bar()
-        assert_equal(1234, A._Foo())
+        assert_equal(1234, _Foo())
       enddef
     endclass
     var a = A.new()
@@ -3629,7 +3769,8 @@ def Test_private_class_method()
   END
   v9.CheckSourceSuccess(lines)
 
-  # Use a class private method from another class private method
+  # Use a class private method from another class private method without the
+  # class name prefix.
   lines =<< trim END
     vim9script
 
@@ -3638,10 +3779,10 @@ def Test_private_class_method()
         return 1234
       enddef
       static def _Foo2()
-        assert_equal(1234, A._Foo1())
+        assert_equal(1234, _Foo1())
       enddef
       def Bar()
-        A._Foo2()
+        _Foo2()
       enddef
     endclass
     var a = A.new()
@@ -3745,146 +3886,6 @@ def Test_private_class_method()
     assert_equal(1234, C._Foo())
   END
   v9.CheckSourceFailure(lines, 'E1325: Method not found on class "C": _Foo')
-enddef
-
-" Test for an interface private object_method
-def Test_interface_private_object_method()
-  # Implement an interface private method and use it from a public method
-  var lines =<< trim END
-    vim9script
-    interface Intf
-      def _Foo(): number
-    endinterface
-    class A implements Intf
-      def _Foo(): number
-        return 1234
-      enddef
-      def Bar(): number
-        return this._Foo()
-      enddef
-    endclass
-    var a = A.new()
-    assert_equal(1234, a.Bar())
-  END
-  v9.CheckSourceSuccess(lines)
-
-  # Call an interface private class method (script context)
-  lines =<< trim END
-    vim9script
-    interface Intf
-      def _Foo(): number
-    endinterface
-    class A implements Intf
-      def _Foo(): number
-        return 1234
-      enddef
-    endclass
-    var a = A.new()
-    assert_equal(1234, a._Foo())
-  END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo()')
-
-  # Call an interface private class method (def context)
-  lines =<< trim END
-    vim9script
-    interface Intf
-      def _Foo(): number
-    endinterface
-    class A implements Intf
-      def _Foo(): number
-        return 1234
-      enddef
-    endclass
-    def T()
-      var a = A.new()
-      assert_equal(1234, a._Foo())
-    enddef
-    T()
-  END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo()')
-
-  # Implement an interface private object method as a private class method
-  lines =<< trim END
-    vim9script
-    interface Intf
-      def _Foo(): number
-    endinterface
-    class A implements Intf
-      static def _Foo(): number
-        return 1234
-      enddef
-    endclass
-  END
-  v9.CheckSourceFailure(lines, 'E1349: Function "_Foo" of interface "Intf" not implemented')
-enddef
-
-" Test for an interface private class method
-def Test_interface_private_class_method()
-  # Implement an interface private class method and use it from a public method
-  var lines =<< trim END
-    vim9script
-    interface Intf
-      static def _Foo(): number
-    endinterface
-    class A implements Intf
-      static def _Foo(): number
-        return 1234
-      enddef
-      def Bar(): number
-        return A._Foo()
-      enddef
-    endclass
-    var a = A.new()
-    assert_equal(1234, a.Bar())
-  END
-  v9.CheckSourceSuccess(lines)
-
-  # Call an interface private class method (script context)
-  lines =<< trim END
-    vim9script
-    interface Intf
-      static def _Foo(): number
-    endinterface
-    class A implements Intf
-      static def _Foo(): number
-        return 1234
-      enddef
-    endclass
-    assert_equal(1234, A._Foo())
-  END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo())')
-
-  # Call an interface private class method (def context)
-  lines =<< trim END
-    vim9script
-    interface Intf
-      static def _Foo(): number
-    endinterface
-    class A implements Intf
-      static def _Foo(): number
-        return 1234
-      enddef
-    endclass
-    def T()
-      assert_equal(1234, A._Foo())
-    enddef
-    T()
-  END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo())')
-
-  # Implement an interface private class method as a private object method
-  lines =<< trim END
-    vim9script
-    interface Intf
-      static def _Foo(): number
-    endinterface
-    class A implements Intf
-      def _Foo(): number
-        return 1234
-      enddef
-    endclass
-  END
-  v9.CheckSourceFailure(lines, 'E1349: Function "_Foo" of interface "Intf" not implemented')
 enddef
 
 " Test for using the return value of a class/object method as a function
@@ -4142,124 +4143,6 @@ def Test_dup_member_variable()
   v9.CheckSourceSuccess(lines)
 enddef
 
-def Test_interface_static_member_access()
-  # In a class cannot read from interface static
-  var lines =<< trim END
-    vim9script
-    interface I
-        public static num: number
-    endinterface
-    class C implements I
-        public static num = 3
-        def F()
-            var x = I.num
-        enddef
-    endclass
-    C.new().F()
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "num"')
-
-  # In a class cannot write to interface static
-  lines =<< trim END
-    vim9script
-    interface I
-        public static num: number
-    endinterface
-    class C implements I
-        public static num = 3
-        def F()
-            I.num = 7
-        enddef
-    endclass
-    C.new().F()
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "num"')
-
-  # In a def cannot read from interface static
-  lines =<< trim END
-    vim9script
-    interface I
-        public static num: number
-    endinterface
-    def F()
-        var x = I.num
-    enddef
-    F()
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "num"')
-
-  # In a def cannot write to interface static
-  lines =<< trim END
-    vim9script
-    interface I
-        public static num: number
-    endinterface
-    def F()
-        I.num = 7
-    enddef
-    F()
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "num"')
-
-  # script level cannot read interface static
-  lines =<< trim END
-    vim9script
-    interface I
-        public static s_var1: number
-    endinterface
-
-    var x = I.s_var1
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "s_var1"')
-
-  # script level cannot write interface static
-  lines =<< trim END
-    vim9script
-    interface I
-        public static s_var1: number
-    endinterface
-
-    I.s_var1 = 3
-  END
-  v9.CheckSourceFailure(lines, 'E1409: Cannot directly access interface "I" static member "I.s_var1 = 3"')
-
-enddef
-
-def Test_static_member_access_outside_class()
-  # Verify access of statics implemented from interface
-  # in a :def (outside of a class)
-  # Note the order of the static is different
-  # between the interface and the class,
-  # since they are allocated in order in each interface/class;
-  # so the static index is mapped from interfaced to  class as needed.
-
-  # Check reading statics
-  var lines =<< trim END
-    vim9script
-
-    interface I
-        public static s_var1: number
-        public static s_var2: number
-    endinterface
-
-    class C implements I
-        public static s_var2 = 2
-        public static x_static = 7
-        public static s_var1 = 1
-    endclass
-
-    def F1(): number
-        assert_equal(1, C.s_var1)
-        assert_equal(2, C.s_var2)
-        assert_equal(7, C.x_static)
-        return 11
-    enddef
-
-    assert_equal(11, F1())
-  END
-  v9.CheckSourceSuccess(lines)
-enddef
-
 " Test for accessing a private member outside a class in a def function
 def Test_private_member_access_outside_class()
   # private object member variable
@@ -4291,7 +4174,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1089: Unknown variable: _a')
+  v9.CheckSourceFailure(lines, 'E1326: Member not found on object "A": _a')
 
   # private static member variable
   lines =<< trim END
@@ -4319,7 +4202,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1374: Class member "_val" accessible only inside class "A"')
+  v9.CheckSourceFailure(lines, 'E1375: Class member "_val" accessible only using class "A"')
 
   # private static class variable
   lines =<< trim END
@@ -4493,7 +4376,7 @@ def Test_class_variable_access_using_object()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1374: Class member "svar2" accessible only inside class "A"')
+  v9.CheckSourceFailure(lines, 'E1375: Class member "svar2" accessible only using class "A"')
 enddef
 
 " Test for using a interface method using a child object
@@ -4627,9 +4510,11 @@ def Test_abstract_method()
       abstract def Foo()
     endinterface
     class B implements A
+      def Foo()
+      enddef
     endclass
   END
-  v9.CheckSourceFailure(lines, 'E1372: Abstract method "abstract def Foo()" cannot be defined in a concrete class')
+  v9.CheckSourceSuccess(lines)
 
   # Abbreviate the "abstract" keyword
   lines =<< trim END
@@ -4676,7 +4561,7 @@ def Test_abstract_method()
       enddef
     endclass
   END
-  v9.CheckSourceFailure(lines, 'E1407: Method "Foo": type mismatch, expected func(string, number): list<number> but got func(number, string): list<string>')
+  v9.CheckSourceFailure(lines, 'E1383: Method "Foo": type mismatch, expected func(string, number): list<number> but got func(number, string): list<string>')
 
   # Use an abstract class to invoke an abstract method
   # FIXME: This should fail
@@ -4937,7 +4822,7 @@ def Test_class_variable()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1374: Class member "val" accessible only inside class "A"')
+  v9.CheckSourceFailure(lines, 'E1375: Class member "val" accessible only using class "A"')
 
   # Reading a class variable using an object at function level
   lines =<< trim END
@@ -5149,7 +5034,7 @@ def Test_instance_method_access_level()
       enddef
     endclass
   END
-  v9.CheckSourceFailure(lines, 'E1378: Access level of method "_Foo" is different in class "A"')
+  v9.CheckSourceFailure(lines, 'E1377: Access level of method "_Foo" is different in class "A"')
 
   # Public method in subclass
   lines =<< trim END
@@ -5165,7 +5050,7 @@ def Test_instance_method_access_level()
       enddef
     endclass
   END
-  v9.CheckSourceFailure(lines, 'E1378: Access level of method "Foo" is different in class "A"')
+  v9.CheckSourceFailure(lines, 'E1377: Access level of method "Foo" is different in class "A"')
 enddef
 
 def Test_extend_empty_class()
@@ -5190,6 +5075,581 @@ def Test_extend_empty_class()
     var c = C.new()
     assert_equal(2, c.rw_obj_var)
     assert_equal(4, c.ObjMethod())
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" A interface cannot have a static variable or a static method or a private
+" variable or a private method
+def Test_interface_with_unsupported_members()
+  var lines =<< trim END
+    vim9script
+    interface A
+      static num: number
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      static _num: number
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      public static num: number
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      public static _num: number
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      static def Foo(d: dict<any>): list<string>
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      static def _Foo(d: dict<any>): list<string>
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1378: Static member not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      this._Foo: list<string>
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1379: Private variable not supported in an interface')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      def _Foo(d: dict<any>): list<string>
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1380: Private method not supported in an interface')
+enddef
+
+" Test for extending an interface
+def Test_extend_interface()
+  var lines =<< trim END
+    vim9script
+    interface A
+      this.var1: list<string>
+      def Foo()
+    endinterface
+    interface B extends A
+      public this.var2: dict<string>
+      def Bar()
+    endinterface
+    class C implements A, B
+      this.var1 = [1, 2]
+      def Foo()
+      enddef
+      public this.var2 = {a: '1'}
+      def Bar()
+      enddef
+    endclass
+  END
+  v9.CheckSourceSuccess(lines)
+
+  lines =<< trim END
+    vim9script
+    interface A
+      def Foo()
+    endinterface
+    interface B extends A
+      public this.var2: dict<string>
+    endinterface
+    class C implements A, B
+      public this.var2 = {a: '1'}
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1349: Method "Foo" of interface "A" is not implemented')
+
+  lines =<< trim END
+    vim9script
+    interface A
+      def Foo()
+    endinterface
+    interface B extends A
+      public this.var2: dict<string>
+    endinterface
+    class C implements A, B
+      def Foo()
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1348: Member "var2" of interface "B" is not implemented')
+
+  # interface cannot extend a class
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    interface B extends A
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1354: Cannot extend A')
+
+  # class cannot extend an interface
+  lines =<< trim END
+    vim9script
+    interface A
+    endinterface
+    class B extends A
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1354: Cannot extend A')
+
+  # interface cannot implement another interface
+  lines =<< trim END
+    vim9script
+    interface A
+    endinterface
+    interface B implements A
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1381: Interface cannot use "implements"')
+
+  # interface cannot extend multiple interfaces
+  lines =<< trim END
+    vim9script
+    interface A
+    endinterface
+    interface B
+    endinterface
+    interface C extends A, B
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1315: White space required after name: A, B')
+
+  # Variable type in an extended interface is of different type
+  lines =<< trim END
+    vim9script
+    interface A
+      this.val1: number
+    endinterface
+    interface B extends A
+      this.val2: string
+    endinterface
+    interface C extends B
+      this.val1: string
+      this.val2: number
+    endinterface
+  END
+  v9.CheckSourceFailure(lines, 'E1382: Member "val1": type mismatch, expected number but got string')
+enddef
+
+" Test for a child class implementing an interface when some of the methods are
+" defined in the parent class.
+def Test_child_class_implements_interface()
+  var lines =<< trim END
+    vim9script
+
+    interface Intf
+      def F1(): list<list<number>>
+      def F2(): list<list<number>>
+      def F3(): list<list<number>>
+      this.var1: list<dict<number>>
+      this.var2: list<dict<number>>
+      this.var3: list<dict<number>>
+    endinterface
+
+    class A
+      def A1()
+      enddef
+      def F3(): list<list<number>>
+        return [[3]]
+      enddef
+      this.v1: list<list<number>> = [[0]]
+      this.var3 = [{c: 30}]
+    endclass
+
+    class B extends A
+      def B1()
+      enddef
+      def F2(): list<list<number>>
+        return [[2]]
+      enddef
+      this.v2: list<list<number>> = [[0]]
+      this.var2 = [{b: 20}]
+    endclass
+
+    class C extends B implements Intf
+      def C1()
+      enddef
+      def F1(): list<list<number>>
+        return [[1]]
+      enddef
+      this.v3: list<list<number>> = [[0]]
+      this.var1 = [{a: 10}]
+    endclass
+
+    def T(if: Intf)
+      assert_equal([[1]], if.F1())
+      assert_equal([[2]], if.F2())
+      assert_equal([[3]], if.F3())
+      assert_equal([{a: 10}], if.var1)
+      assert_equal([{b: 20}], if.var2)
+      assert_equal([{c: 30}], if.var3)
+    enddef
+
+    var c = C.new()
+    T(c)
+    assert_equal([[1]], c.F1())
+    assert_equal([[2]], c.F2())
+    assert_equal([[3]], c.F3())
+    assert_equal([{a: 10}], c.var1)
+    assert_equal([{b: 20}], c.var2)
+    assert_equal([{c: 30}], c.var3)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # One of the interface methods is not found
+  lines =<< trim END
+    vim9script
+
+    interface Intf
+      def F1()
+      def F2()
+      def F3()
+    endinterface
+
+    class A
+      def A1()
+      enddef
+    endclass
+
+    class B extends A
+      def B1()
+      enddef
+      def F2()
+      enddef
+    endclass
+
+    class C extends B implements Intf
+      def C1()
+      enddef
+      def F1()
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1349: Method "F3" of interface "Intf" is not implemented')
+
+  # One of the interface methods is of different type
+  lines =<< trim END
+    vim9script
+
+    interface Intf
+      def F1()
+      def F2()
+      def F3()
+    endinterface
+
+    class A
+      def F3(): number
+        return 0
+      enddef
+      def A1()
+      enddef
+    endclass
+
+    class B extends A
+      def B1()
+      enddef
+      def F2()
+      enddef
+    endclass
+
+    class C extends B implements Intf
+      def C1()
+      enddef
+      def F1()
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1383: Method "F3": type mismatch, expected func() but got func(): number')
+
+  # One of the interface variables is not present
+  lines =<< trim END
+    vim9script
+
+    interface Intf
+      this.var1: list<dict<number>>
+      this.var2: list<dict<number>>
+      this.var3: list<dict<number>>
+    endinterface
+
+    class A
+      this.v1: list<list<number>> = [[0]]
+    endclass
+
+    class B extends A
+      this.v2: list<list<number>> = [[0]]
+      this.var2 = [{b: 20}]
+    endclass
+
+    class C extends B implements Intf
+      this.v3: list<list<number>> = [[0]]
+      this.var1 = [{a: 10}]
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1348: Member "var3" of interface "Intf" is not implemented')
+
+  # One of the interface variables is of different type
+  lines =<< trim END
+    vim9script
+
+    interface Intf
+      this.var1: list<dict<number>>
+      this.var2: list<dict<number>>
+      this.var3: list<dict<number>>
+    endinterface
+
+    class A
+      this.v1: list<list<number>> = [[0]]
+      this.var3: list<dict<string>>
+    endclass
+
+    class B extends A
+      this.v2: list<list<number>> = [[0]]
+      this.var2 = [{b: 20}]
+    endclass
+
+    class C extends B implements Intf
+      this.v3: list<list<number>> = [[0]]
+      this.var1 = [{a: 10}]
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1382: Member "var3": type mismatch, expected list<dict<number>> but got list<dict<string>>')
+enddef
+
+" Test for extending an interface with duplicate variables and methods
+def Test_interface_extends_with_dup_members()
+  var lines =<< trim END
+    vim9script
+    interface A
+      this.n1: number
+      def Foo1(): number
+    endinterface
+    interface B extends A
+      this.n2: number
+      this.n1: number
+      def Foo2(): number
+      def Foo1(): number
+    endinterface
+    class C implements B
+      this.n1 = 10
+      this.n2 = 20
+      def Foo1(): number
+        return 30
+      enddef
+      def Foo2(): number
+        return 40
+      enddef
+    endclass
+    def T1(a: A)
+      assert_equal(10, a.n1)
+      assert_equal(30, a.Foo1())
+    enddef
+    def T2(b: B)
+      assert_equal(10, b.n1)
+      assert_equal(20, b.n2)
+      assert_equal(30, b.Foo1())
+      assert_equal(40, b.Foo2())
+    enddef
+    var c = C.new()
+    T1(c)
+    T2(c)
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using "any" type for a variable in a sub-class while it has a
+" concrete type in the interface
+def Test_implements_using_var_type_any()
+  var lines =<< trim END
+    vim9script
+    interface A
+      this.val: list<dict<string>>
+    endinterface
+    class B implements A
+      this.val = [{a: '1'}, {b: '2'}]
+    endclass
+    var b = B.new()
+    assert_equal([{a: '1'}, {b: '2'}], b.val)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # initialize instance variable using a different type
+  lines =<< trim END
+    vim9script
+    interface A
+      this.val: list<dict<string>>
+    endinterface
+    class B implements A
+      this.val = {a: 1, b: 2}
+    endclass
+    var b = B.new()
+  END
+  v9.CheckSourceFailure(lines, 'E1382: Member "val": type mismatch, expected list<dict<string>> but got dict<number>')
+enddef
+
+" Test for assigning to a member variable in a nested class
+def Test_nested_object_assignment()
+  var lines =<< trim END
+    vim9script
+
+    class A
+        this.value: number
+    endclass
+
+    class B
+        this.a: A = A.new()
+    endclass
+
+    class C
+        this.b: B = B.new()
+    endclass
+
+    class D
+        this.c: C = C.new()
+    endclass
+
+    def T(da: D)
+        da.c.b.a.value = 10
+    enddef
+
+    var d = D.new()
+    T(d)
+  END
+  v9.CheckSourceFailure(lines, 'E46: Cannot change read-only variable "value"')
+enddef
+
+" Test for calling methods using a null object
+def Test_null_object_method_call()
+  # Calling a object method using a null object in script context
+  var lines =<< trim END
+    vim9script
+
+    class C
+      def Foo()
+        assert_report('This method should not be executed')
+      enddef
+    endclass
+
+    var o: C
+    o.Foo()
+  END
+  v9.CheckSourceFailure(lines, 'E1360: Using a null object', 10)
+
+  # Calling a object method using a null object in def function context
+  lines =<< trim END
+    vim9script
+
+    class C
+      def Foo()
+        assert_report('This method should not be executed')
+      enddef
+    endclass
+
+    def T()
+      var o: C
+      o.Foo()
+    enddef
+    T()
+  END
+  v9.CheckSourceFailure(lines, 'E1360: Using a null object', 2)
+
+  # Calling a object method through another class method using a null object in
+  # script context
+  lines =<< trim END
+    vim9script
+
+    class C
+      def Foo()
+        assert_report('This method should not be executed')
+      enddef
+
+      static def Bar(o_any: any)
+        var o_typed: C = o_any
+        o_typed.Foo()
+      enddef
+    endclass
+
+    var o: C
+    C.Bar(o)
+  END
+  v9.CheckSourceFailure(lines, 'E1360: Using a null object', 2)
+
+  # Calling a object method through another class method using a null object in
+  # def function context
+  lines =<< trim END
+    vim9script
+
+    class C
+      def Foo()
+        assert_report('This method should not be executed')
+      enddef
+
+      static def Bar(o_any: any)
+        var o_typed: C = o_any
+        o_typed.Foo()
+      enddef
+    endclass
+
+    def T()
+      var o: C
+      C.Bar(o)
+    enddef
+    T()
+  END
+  v9.CheckSourceFailure(lines, 'E1360: Using a null object', 2)
+enddef
+
+" Test for using a dict as an object member
+def Test_dict_object_member()
+  var lines =<< trim END
+    vim9script
+
+    class Context
+      public this.state: dict<number> = {}
+      def GetState(): dict<number>
+        return this.state
+      enddef
+    endclass
+
+    var ctx = Context.new()
+    ctx.state->extend({a: 1})
+    ctx.state['b'] = 2
+    assert_equal({a: 1, b: 2}, ctx.GetState())
+
+    def F()
+      ctx.state['c'] = 3
+      assert_equal({a: 1, b: 2, c: 3}, ctx.GetState())
+    enddef
+    F()
+    assert_equal(3, ctx.state.c)
+    ctx.state.c = 4
+    assert_equal(4, ctx.state.c)
   END
   v9.CheckSourceSuccess(lines)
 enddef

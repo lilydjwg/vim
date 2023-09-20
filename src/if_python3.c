@@ -442,7 +442,7 @@ static void(*py3_PyEval_RestoreThread)(PyThreadState *);
 static PyThreadState*(*py3_PyEval_SaveThread)(void);
 static int (*py3_PyArg_Parse)(PyObject *, char *, ...);
 static int (*py3_PyArg_ParseTuple)(PyObject *, char *, ...);
-static int (*py3_PyMem_Free)(void *);
+static void (*py3_PyMem_Free)(void *);
 static void* (*py3_PyMem_Malloc)(size_t);
 static int (*py3_Py_IsInitialized)(void);
 static void (*py3_PyErr_Clear)(void);
@@ -1425,7 +1425,7 @@ ex_py3(exarg_T *eap)
 	    p_pyx = 3;
 
 	DoPyCommand(script == NULL ? (char *) eap->arg : (char *) script,
-		(rangeinitializer) init_range_cmd,
+		init_range_cmd,
 		(runner) run_cmd,
 		(void *) eap);
     }
@@ -1491,7 +1491,7 @@ ex_py3file(exarg_T *eap)
 
     // Execute the file
     DoPyCommand(buffer,
-	    (rangeinitializer) init_range_cmd,
+	    init_range_cmd,
 	    (runner) run_cmd,
 	    (void *) eap);
 }
@@ -1503,7 +1503,7 @@ ex_py3do(exarg_T *eap)
 	p_pyx = 3;
 
     DoPyCommand((char *)eap->arg,
-	    (rangeinitializer)init_range_cmd,
+	    init_range_cmd,
 	    (runner)run_do,
 	    (void *)eap);
 }
@@ -2053,7 +2053,7 @@ LineToString(const char *str)
 do_py3eval(char_u *str, typval_T *rettv)
 {
     DoPyCommand((char *) str,
-	    (rangeinitializer) init_range_eval,
+	    init_range_eval,
 	    (runner) run_eval,
 	    (void *) rettv);
     if (rettv->v_type == VAR_UNKNOWN)
