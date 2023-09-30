@@ -1483,6 +1483,7 @@ $quote	eval.txt	/*$quote*
 +wildmenu	various.txt	/*+wildmenu*
 +windows	various.txt	/*+windows*
 +writebackup	various.txt	/*+writebackup*
++xattr	various.txt	/*+xattr*
 +xfontset	various.txt	/*+xfontset*
 +xim	various.txt	/*+xim*
 +xpm	various.txt	/*+xpm*
@@ -3208,6 +3209,7 @@ $quote	eval.txt	/*$quote*
 :set-inv	options.txt	/*:set-inv*
 :set-termcap	options.txt	/*:set-termcap*
 :set-verbose	options.txt	/*:set-verbose*
+:set=	options.txt	/*:set=*
 :set^=	options.txt	/*:set^=*
 :set_env	options.txt	/*:set_env*
 :setf	options.txt	/*:setf*
@@ -4479,14 +4481,15 @@ E1380	vim9class.txt	/*E1380*
 E1381	vim9class.txt	/*E1381*
 E1382	vim9class.txt	/*E1382*
 E1383	vim9class.txt	/*E1383*
+E1384	vim9class.txt	/*E1384*
+E1385	vim9class.txt	/*E1385*
+E1386	vim9class.txt	/*E1386*
+E1387	vim9class.txt	/*E1387*
+E1388	vim9class.txt	/*E1388*
+E1389	vim9class.txt	/*E1389*
 E139	message.txt	/*E139*
+E1390	vim9class.txt	/*E1390*
 E140	message.txt	/*E140*
-E1400	builtin.txt	/*E1400*
-E1401	builtin.txt	/*E1401*
-E1402	builtin.txt	/*E1402*
-E1403	builtin.txt	/*E1403*
-E1404	builtin.txt	/*E1404*
-E1405	builtin.txt	/*E1405*
 E141	message.txt	/*E141*
 E142	message.txt	/*E142*
 E143	autocmd.txt	/*E143*
@@ -4498,6 +4501,16 @@ E148	repeat.txt	/*E148*
 E149	helphelp.txt	/*E149*
 E15	eval.txt	/*E15*
 E150	helphelp.txt	/*E150*
+E1500	builtin.txt	/*E1500*
+E1501	builtin.txt	/*E1501*
+E1502	builtin.txt	/*E1502*
+E1503	builtin.txt	/*E1503*
+E1504	builtin.txt	/*E1504*
+E1505	builtin.txt	/*E1505*
+E1506	editing.txt	/*E1506*
+E1507	editing.txt	/*E1507*
+E1508	editing.txt	/*E1508*
+E1509	editing.txt	/*E1509*
 E151	helphelp.txt	/*E151*
 E152	helphelp.txt	/*E152*
 E153	helphelp.txt	/*E153*
@@ -6477,6 +6490,7 @@ complete-items	insert.txt	/*complete-items*
 complete-popup	insert.txt	/*complete-popup*
 complete-popuphidden	insert.txt	/*complete-popuphidden*
 complete-script-local-functions	cmdline.txt	/*complete-script-local-functions*
+complete-set-option	cmdline.txt	/*complete-set-option*
 complete_CTRL-E	insert.txt	/*complete_CTRL-E*
 complete_CTRL-Y	insert.txt	/*complete_CTRL-Y*
 complete_add()	builtin.txt	/*complete_add()*
@@ -6492,6 +6506,7 @@ conceal	syntax.txt	/*conceal*
 confirm()	builtin.txt	/*confirm()*
 connection-refused	message.txt	/*connection-refused*
 console-menus	gui.txt	/*console-menus*
+constructor	vim9class.txt	/*constructor*
 context.vim	ft_context.txt	/*context.vim*
 control	intro.txt	/*control*
 conversion-server	mbyte.txt	/*conversion-server*
@@ -6665,6 +6680,7 @@ debugger.txt	debugger.txt	/*debugger.txt*
 dec-mouse	options.txt	/*dec-mouse*
 decada_members	ft_ada.txt	/*decada_members*
 deepcopy()	builtin.txt	/*deepcopy()*
+default-constructor	vim9class.txt	/*default-constructor*
 defaults.vim	starting.txt	/*defaults.vim*
 defaults.vim-explained	usr_05.txt	/*defaults.vim-explained*
 define-function	userfunc.txt	/*define-function*
@@ -8916,6 +8932,7 @@ netrw.vim	pi_netrw.txt	/*netrw.vim*
 netrw_filehandler	pi_netrw.txt	/*netrw_filehandler*
 netterm-mouse	options.txt	/*netterm-mouse*
 network	pi_netrw.txt	/*network*
+new()	vim9class.txt	/*new()*
 new-5	version5.txt	/*new-5*
 new-6	version6.txt	/*new-6*
 new-7	version7.txt	/*new-7*
@@ -9307,6 +9324,8 @@ printf-s	builtin.txt	/*printf-s*
 printf-x	builtin.txt	/*printf-x*
 printing	print.txt	/*printing*
 printing-formfeed	print.txt	/*printing-formfeed*
+private-method	vim9class.txt	/*private-method*
+private-variable	vim9class.txt	/*private-variable*
 profile	repeat.txt	/*profile*
 profiling	repeat.txt	/*profiling*
 profiling-variable	eval.txt	/*profiling-variable*
@@ -11210,6 +11229,7 @@ x-resources	version5.txt	/*x-resources*
 x11-clientserver	remote.txt	/*x11-clientserver*
 x11-cut-buffer	gui_x11.txt	/*x11-cut-buffer*
 x11-selection	gui_x11.txt	/*x11-selection*
+xattr	editing.txt	/*xattr*
 xf86conf.vim	syntax.txt	/*xf86conf.vim*
 xfontset	mbyte.txt	/*xfontset*
 xfree-xterm	syntax.txt	/*xfree-xterm*

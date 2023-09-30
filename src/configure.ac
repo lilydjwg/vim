@@ -480,7 +480,7 @@ else
   AC_MSG_RESULT(yes)
 fi
 if test "$enable_smack" = "yes"; then
-  AC_CHECK_HEADER([attr/xattr.h], true, enable_smack="no")
+  AC_CHECK_HEADER([sys/xattr.h], true, enable_smack="no")
 fi
 if test "$enable_smack" = "yes"; then
   AC_MSG_CHECKING(for XATTR_NAME_SMACKEXEC in linux/xattr.h)
@@ -511,6 +511,18 @@ if test "x$found_smack" = "x"; then
   else
      AC_MSG_RESULT(yes)
   fi
+fi
+
+dnl enable xattr support
+AC_MSG_CHECKING(--enable-xattr argument)
+AC_ARG_ENABLE(xattr,
+	[  --disable-xattr	  Do not check for XATTR support.],
+	, enable_xattr="yes")
+if test "$enable_xattr" = "yes"; then
+  AC_MSG_RESULT(yes)
+  AC_CHECK_HEADER([sys/xattr.h], [AC_DEFINE(HAVE_XATTR)])
+else
+  AC_MSG_RESULT(no)
 fi
 
 dnl Check user requested features.
