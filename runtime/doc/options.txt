@@ -435,7 +435,7 @@ Set using a variable with lambda expression: >
 	let &tagfunc = L
 
 In Vim9 script, in a compiled function, you can use a lambda, but a
-closured does not work, because the function will be called without the
+closure does not work, because the function will be called without the
 context of where it was defined.
 
 
@@ -2839,7 +2839,8 @@ A jump table for the options with a short description can be found at |Q_op|.
 				When omitted a context of six lines is used.
 				When using zero the context is actually one,
 				since folds require a line in between, also
-				for a deleted line.
+				for a deleted line. Set it to a very large
+				value (999999) to disable folding completely.
 				See |fold-diff|.
 
 		iblank		Ignore changes where lines are all blank.  Adds
@@ -4928,6 +4929,8 @@ A jump table for the options with a short description can be found at |Q_op|.
 	"echo &key".  This is to avoid showing it to someone who shouldn't
 	know.  It also means you cannot see it yourself once you have set it,
 	be careful not to make a typing error!
+	You also cannot use |:set-=|, |:set+=|, |:set^=| on this option to
+	prevent an attacker from guessing substrings in your key.
 	You can use "&key" in an expression to detect whether encryption is
 	enabled.  When 'key' is set it returns "*****" (five stars).
 

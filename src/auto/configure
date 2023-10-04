@@ -5279,8 +5279,8 @@ else
 printf "%s\n" "yes" >&6; }
 fi
 if test "$enable_smack" = "yes"; then
-  ac_fn_c_check_header_compile "$LINENO" "sys/xattr.h" "ac_cv_header_attr_xattr_h" "$ac_includes_default"
-if test "x$ac_cv_header_attr_xattr_h" = xyes
+  ac_fn_c_check_header_compile "$LINENO" "sys/xattr.h" "ac_cv_header_sys_xattr_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_xattr_h" = xyes
 then :
   true
 else $as_nop
@@ -5434,8 +5434,8 @@ fi
 if test "$enable_xattr" = "yes"; then
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
-  ac_fn_c_check_header_compile "$LINENO" "sys/xattr.h" "ac_cv_header_attr_xattr_h" "$ac_includes_default"
-if test "x$ac_cv_header_attr_xattr_h" = xyes
+  ac_fn_c_check_header_compile "$LINENO" "sys/xattr.h" "ac_cv_header_sys_xattr_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_xattr_h" = xyes
 then :
   printf "%s\n" "#define HAVE_XATTR 1" >>confdefs.h
 
@@ -5445,7 +5445,6 @@ else
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
 fi
-
 
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking --with-features argument" >&5
@@ -8103,7 +8102,7 @@ printf "%s\n" "$rubyhdrdir" >&6; }
 	librubyarg=`$vi_cv_path_ruby -r rbconfig -e "print $ruby_rbconfig.expand($ruby_rbconfig::CONFIG['LIBRUBYARG'])"`
 	librubya=`$vi_cv_path_ruby -r rbconfig -e "print $ruby_rbconfig.expand($ruby_rbconfig::CONFIG['LIBRUBY_A'])"`
 	rubylibdir=`$vi_cv_path_ruby -r rbconfig -e "print $ruby_rbconfig.expand($ruby_rbconfig::CONFIG['libdir'])"`
-	if test -f "$rubylibdir/$librubya" || expr "$librubyarg" : "-lruby"; then
+	if test -f "$rubylibdir/$librubya" || expr "$librubyarg" : "-lruby" >/dev/null; then
 	  RUBY_LIBS="$RUBY_LIBS -L$rubylibdir"
 	elif test "$librubyarg" = "libruby.a"; then
 	  	  librubyarg="-lruby"

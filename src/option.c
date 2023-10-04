@@ -1312,15 +1312,8 @@ ex_set(exarg_T *eap)
 }
 
 /*
- * :set operator types
+ * :set boolean option prefix
  */
-typedef enum {
-    OP_NONE = 0,
-    OP_ADDING,		// "opt+=arg"
-    OP_PREPENDING,	// "opt^=arg"
-    OP_REMOVING,	// "opt-=arg"
-} set_op_T;
-
 typedef enum {
     PREFIX_NO = 0,	// "no" prefix
     PREFIX_NONE,	// no prefix
@@ -1837,7 +1830,7 @@ stropt_get_newval(
 					     &(options[opt_idx]), OPT_GLOBAL));
     else
     {
-	++arg;	// joption_value2stringump to after the '=' or ':'
+	++arg;	// jump to after the '=' or ':'
 
 	// Set 'keywordprg' to ":help" if an empty
 	// value was passed to :set by the user.
@@ -1935,7 +1928,7 @@ do_set_option_string(
 	char_u	    **argp,
 	int	    nextchar,
 	set_op_T    op_arg,
-	int	    flags,
+	long_u	    flags,
 	int	    cp_val,
 	char_u	    *varp_arg,
 	char	    *errbuf,
@@ -2037,7 +2030,7 @@ do_set_option_string(
 	// be triggered that can cause havoc.
 	*errmsg = did_set_string_option(
 			opt_idx, (char_u **)varp, oldval, newval, errbuf,
-			opt_flags, value_checked);
+			opt_flags, op, value_checked);
 
 	secure = secure_saved;
     }
@@ -7376,6 +7369,15 @@ set_context_in_set_cmd(
     else
 	expand_option_idx = opt_idx;
 
+    if (!is_term_option)
+    {
+	if (options[opt_idx].flags & P_NO_CMD_EXPAND)
+	{
+	    xp->xp_context=EXPAND_UNSUCCESSFUL;
+	    return;
+	}
+    }
+
     xp->xp_pattern = p + 1;
     expand_option_start_col = (int)(p + 1 - xp->xp_line);
 
@@ -7989,7 +7991,7 @@ ExpandSettingSubtract(
 	    return FAIL;
 	}
 
-	int num_flags = STRLEN(option_val);
+	size_t num_flags = STRLEN(option_val);
 	if (num_flags == 0)
 	    return FAIL;
 
