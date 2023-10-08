@@ -626,7 +626,7 @@ def Test_member_any_used_as_object()
     var outer_obj = Outer.new(inner_obj)
     F(outer_obj)
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _value', 1)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_value" in class "Inner"', 1)
 
   # Try modifying a non-existing variable using an "any" object
   lines =<< trim END
@@ -1063,9 +1063,9 @@ def Test_instance_variable_access()
     assert_equal(1, trip.GetOne())
     assert_equal(2, trip.two)
     assert_equal(3, trip.three)
-    assert_fails('echo trip._one', 'E1333: Cannot access private variable: _one')
+    assert_fails('echo trip._one', 'E1333: Cannot access private variable "_one" in class "Triple"')
 
-    assert_fails('trip._one = 11', 'E1333: Cannot access private variable: _one')
+    assert_fails('trip._one = 11', 'E1333: Cannot access private variable "_one" in class "Triple"')
     assert_fails('trip.two = 22', 'E1335: Variable "two" in class "Triple" is not writable')
     trip.three = 33
     assert_equal(33, trip.three)
@@ -1315,7 +1315,7 @@ def Test_class_variable_access()
     var b = B.new()
     b.Foo()
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _priv_class_var', 1)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_priv_class_var" in class "A"', 1)
 
   # A private class variable cannot be modified from a child class
   lines =<< trim END
@@ -1333,7 +1333,7 @@ def Test_class_variable_access()
     var b = B.new()
     b.Foo()
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _priv_class_var', 1)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_priv_class_var" in class "A"', 1)
 
   # Access from child class extending a class and from script context
   lines =<< trim END
@@ -1514,8 +1514,8 @@ def Test_class_member()
     assert_fails('TextPos.counter = 5', 'E1335: Variable "counter" in class "TextPos" is not writable')
     assert_fails('TextPos.counter += 5', 'E1335: Variable "counter" in class "TextPos" is not writable')
 
-    assert_fails('echo TextPos._secret', 'E1333: Cannot access private variable: _secret')
-    assert_fails('TextPos._secret = 8', 'E1333: Cannot access private variable: _secret')
+    assert_fails('echo TextPos._secret', 'E1333: Cannot access private variable "_secret" in class "TextPos"')
+    assert_fails('TextPos._secret = 8', 'E1333: Cannot access private variable "_secret" in class "TextPos"')
 
     assert_equal(42, TextPos.anybody)
     TextPos.anybody = 12
@@ -1723,6 +1723,119 @@ def Test_class_member()
     var v = a.bar
   END
   v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "A": bar', 5)
+enddef
+
+" These messages should show the defining class of the variable (base class),
+" not the class that did the reference (super class)
+def Test_defining_class_message()
+  var lines =<< trim END
+    vim9script
+
+    class Base
+      this._v1: list<list<number>>
+    endclass
+
+    class Child extends Base
+    endclass
+
+    var o = Child.new()
+    var x = o._v1
+  END
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_v1" in class "Base"', 11)
+  lines =<< trim END
+    vim9script
+
+    class Base
+      this._v1: list<list<number>>
+    endclass
+
+    class Child extends Base
+    endclass
+
+    def F()
+      var o = Child.new()
+      var x = o._v1
+    enddef
+    F()
+  END
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_v1" in class "Base"', 2)
+  lines =<< trim END
+    vim9script
+
+    class Base
+      this.v1: list<list<number>>
+    endclass
+
+    class Child extends Base
+    endclass
+
+    var o = Child.new()
+    o.v1 = []
+  END
+  v9.CheckSourceFailure(lines, 'E1335: Variable "v1" in class "Base" is not writable', 11)
+  lines =<< trim END
+    vim9script
+
+    class Base
+      this.v1: list<list<number>>
+    endclass
+
+    class Child extends Base
+    endclass
+
+    def F()
+      var o = Child.new()
+      o.v1 = []
+    enddef
+    F()
+  END
+
+  # Attempt to read a private variable that is in the middle
+  # of the class hierarchy.
+  v9.CheckSourceFailure(lines, 'E1335: Variable "v1" in class "Base" is not writable', 2)
+  lines =<< trim END
+    vim9script
+
+    class Base0
+    endclass
+
+    class Base extends Base0
+      this._v1: list<list<number>>
+    endclass
+
+    class Child extends Base
+    endclass
+
+    def F()
+      var o = Child.new()
+      var x = o._v1
+    enddef
+    F()
+  END
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_v1" in class "Base"', 2)
+
+  # Attempt to read a private variable that is at the start
+  # of the class hierarchy.
+  lines =<< trim END
+    vim9script
+
+    class Base0
+    endclass
+
+    class Base extends Base0
+    endclass
+
+    class Child extends Base
+      this._v1: list<list<number>>
+    endclass
+
+    def F()
+      var o = Child.new()
+      var x = o._v1
+    enddef
+    F()
+  END
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_v1" in class "Child"', 2)
 enddef
 
 func Test_class_garbagecollect()
@@ -3522,9 +3635,6 @@ def Test_lockvar_object_variable()
   # method arg, static method arg.
   # Also different depths
 
-  # TODO: handle inside_class in vim9class
-  # lockvar of a read-only currently fails even if inside
-
   #
   # lockvar of read-only object variable
   #
@@ -3542,8 +3652,7 @@ def Test_lockvar_object_variable()
     var o = C.new(3)
     o.Lock()
   END
-  # TODO: wrong error
-  v9.CheckSourceFailure(lines, 'E1335: Variable "val1" in class "C" is not writable')
+  v9.CheckSourceFailure(lines, 'E1391: Cannot (un)lock variable "this.val1" in class "C"')
 
   # read-only lockvar from scriptlevel
   lines =<< trim END
@@ -3602,8 +3711,7 @@ def Test_lockvar_object_variable()
     var o = C.new(3)
     o.Lock(C.new(5))
   END
-  # TODO: wrong error, tricky since type "any"
-  v9.CheckSourceFailure(lines, 'E1335: Variable "val5" in class "C" is not writable')
+  v9.CheckSourceFailure(lines, 'E1391: Cannot (un)lock variable "o_any.val5" in class "C"')
 
   # read-only lockvar from class method arg
   lines =<< trim END
@@ -3618,8 +3726,7 @@ def Test_lockvar_object_variable()
     var o = C.new(3)
     C.Lock(o)
   END
-  # TODO: wrong error, tricky since type "any"
-  v9.CheckSourceFailure(lines, 'E1335: Variable "val6" in class "C" is not writable')
+  v9.CheckSourceFailure(lines, 'E1391: Cannot (un)lock variable "o_any.val6" in class "C"')
 
   #
   # lockvar of public object variable
@@ -3987,6 +4094,151 @@ def Test_lockvar_general()
     assert_equal([ [9], [2], [8] ], o.val)
   END
   v9.CheckSourceSuccess(lines)
+
+  # lock a script level variable from an object method
+  lines =<< trim END
+    vim9script
+
+    class C
+      def Lock()
+        lockvar l
+      enddef
+    endclass
+
+    var l = [1]
+    C.new().Lock()
+    l[0] = 11
+  END
+  v9.CheckSourceFailure(lines, 'E741: Value is locked: l[0] = 11', 11)
+
+  # lock a list element referenced by a private object variable
+  # in an object fetched via a script level list
+  lines =<< trim END
+    vim9script
+
+    class C
+      this._v1: list<list<number>>
+      def Lock()
+        lockvar lc[0]._v1[1]
+      enddef
+    endclass
+
+    var l = [[1], [2], [3]]
+    var o = C.new(l)
+    var lc: list<C> = [ o ]
+
+    o.Lock()
+    l[0] = [22]
+    l[1] = [33]
+  END
+  v9.CheckSourceFailure(lines, 'E741: Value is locked: l[1] = [33]', 16)
+
+  # similar to the previous test, except the locking code is executing
+  # in a class that does not own the private variable.
+  # Note that the locking code is in a class has a private variable of
+  # the same name.
+  lines =<< trim END
+    vim9script
+
+    class C2
+      this._v1: list<list<number>>
+      def Lock(obj: any)
+        lockvar lc[0]._v1[1]
+      enddef
+    endclass
+
+    class C
+      this._v1: list<list<number>>
+    endclass
+
+    var l = [[1], [2], [3]]
+    var o = C.new(l)
+    var lc: list<C> = [ o ]
+
+    var o2 = C2.new()
+    o2.Lock(o)
+  END
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_v1" in class "C"')
+enddef
+
+" Test builtin islocked()
+def Test_lockvar_islocked()
+  # Can't lock class/object variable
+  # Lock class/object variable's value
+  # Lock item of variabl's value (a list item)
+  # varible is at index 1 within class/object
+  var lines =<< trim END
+    vim9script
+
+    class C
+      this.o0: list<list<number>> = [ [0],  [1],  [2]]
+      this.o1: list<list<number>> = [[10], [11], [12]]
+      static c0: list<list<number>> = [[20], [21], [22]]
+      static c1: list<list<number>> = [[30], [31], [32]]
+    endclass
+
+    def LockIt(arg: any)
+      lockvar arg
+    enddef
+
+    def UnlockIt(arg: any)
+      unlockvar arg
+    enddef
+
+    var obj = C.new()
+    #lockvar obj.o1         # can't lock something you can't write to
+
+    try
+      lockvar obj.o1         # can't lock something you can't write to
+      call assert_false(1, '"lockvar obj.o1" should have failed')
+    catch
+      call assert_exception('E1335:')
+    endtry
+
+    LockIt(obj.o1)         # but can lock it's value
+    assert_equal(1, islocked("obj.o1"))
+    assert_equal(1, islocked("obj.o1[0]"))
+    assert_equal(1, islocked("obj.o1[1]"))
+    UnlockIt(obj.o1)
+    assert_equal(0, islocked("obj.o1"))
+    assert_equal(0, islocked("obj.o1[0]"))
+
+    lockvar obj.o1[0]
+    assert_equal(0, islocked("obj.o1"))
+    assert_equal(1, islocked("obj.o1[0]"))
+    assert_equal(0, islocked("obj.o1[1]"))
+    unlockvar obj.o1[0]
+    assert_equal(0, islocked("obj.o1"))
+    assert_equal(0, islocked("obj.o1[0]"))
+
+    # Same thing, but with a static
+
+    try
+      lockvar C.c1         # can't lock something you can't write to
+      call assert_false(1, '"lockvar C.c1" should have failed')
+    catch
+      call assert_exception('E1335:')
+    endtry
+
+    LockIt(C.c1)         # but can lock it's value
+    assert_equal(1, islocked("C.c1"))
+    assert_equal(1, islocked("C.c1[0]"))
+    assert_equal(1, islocked("C.c1[1]"))
+    UnlockIt(C.c1)
+    assert_equal(0, islocked("C.c1"))
+    assert_equal(0, islocked("C.c1[0]"))
+
+    lockvar C.c1[0]
+    assert_equal(0, islocked("C.c1"))
+    assert_equal(1, islocked("C.c1[0]"))
+    assert_equal(0, islocked("C.c1[1]"))
+    unlockvar C.c1[0]
+    assert_equal(0, islocked("C.c1"))
+    assert_equal(0, islocked("C.c1[0]"))
+  END
+  v9.CheckSourceSuccess(lines)
+  lines =<< trim END
+  END
 enddef
 
 " Test for a private object method
@@ -4518,7 +4770,7 @@ def Test_static_inheritence()
     assert_equal(102, ob.AccessObject())
     assert_equal(103, oc.AccessObject())
 
-    assert_fails('echo oc.AccessPrivateStaticThroughClassName()', 'E1333: Cannot access private variable: _svar')
+    assert_fails('echo oc.AccessPrivateStaticThroughClassName()', 'E1333: Cannot access private variable "_svar" in class "A"')
 
     # verify object properly resolves to correct static
     assert_equal(1, oa.AccessStaticThroughObject())
@@ -4699,7 +4951,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _val', 2)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_val" in class "A"', 2)
 
   # access a non-existing private object member variable
   lines =<< trim END
@@ -4754,7 +5006,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _val', 1)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_val" in class "A"', 1)
 
   # private static class variable
   lines =<< trim END
@@ -4767,7 +5019,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable: _val', 1)
+  v9.CheckSourceFailure(lines, 'E1333: Cannot access private variable "_val" in class "A"', 1)
 enddef
 
 " Test for changing the member access of an interface in a implementation class
@@ -4828,7 +5080,7 @@ def Test_modify_class_member_from_def_function()
       A.var3 = {c: 3, d: 4}
       assert_equal([3, 4], A.var2)
       assert_equal({c: 3, d: 4}, A.var3)
-      assert_fails('echo A._priv_var4', 'E1333: Cannot access private variable: _priv_var4')
+      assert_fails('echo A._priv_var4', 'E1333: Cannot access private variable "_priv_var4" in class "A"')
     enddef
     T()
   END
@@ -6416,6 +6668,445 @@ def Test_extended_obj_method_type_check()
     endclass
   END
   v9.CheckSourceFailure(lines, 'E1383: Method "Doit": type mismatch, expected func(object<B>): object<B> but got func(object<B>): object<A>', 20)
+enddef
+
+" Test type checking for class variable in assignments
+func Test_class_variable_complex_type_check()
+  " class variable with a specific type.  Try assigning a different type at
+  " script level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+    endclass
+    test_garbagecollect_now()
+    A.Fn = "abc"
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 9)
+
+  " class variable with a specific type.  Try assigning a different type at
+  " class def method level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+      def Bar()
+        Fn = "abc"
+      enddef
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " class variable with a specific type.  Try assigning a different type at
+  " script def method level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+    endclass
+    def Bar()
+      A.Fn = "abc"
+    enddef
+    test_garbagecollect_now()
+    Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " class variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type from script level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn = Foo
+    endclass
+    test_garbagecollect_now()
+    A.Fn = "abc"
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 9)
+
+  " class variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type at class def level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn = Foo
+      def Bar()
+        Fn = "abc"
+      enddef
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " class variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type at script def level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn = Foo
+    endclass
+    def Bar()
+      A.Fn = "abc"
+    enddef
+    test_garbagecollect_now()
+    Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " class variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: any = Foo
+      public static Fn2: any
+    endclass
+    test_garbagecollect_now()
+    assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(A.Fn))
+    A.Fn = "abc"
+    test_garbagecollect_now()
+    assert_equal('string', typename(A.Fn))
+    A.Fn2 = Foo
+    test_garbagecollect_now()
+    assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(A.Fn2))
+    A.Fn2 = "xyz"
+    test_garbagecollect_now()
+    assert_equal('string', typename(A.Fn2))
+  END
+  call v9.CheckSourceSuccess(lines)
+
+  " class variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: any = Foo
+      public static Fn2: any
+
+      def Bar()
+        assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(Fn))
+        Fn = "abc"
+        assert_equal('string', typename(Fn))
+        Fn2 = Foo
+        assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(Fn2))
+        Fn2 = "xyz"
+        assert_equal('string', typename(Fn2))
+      enddef
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+    test_garbagecollect_now()
+    A.Fn = Foo
+    a.Bar()
+  END
+  call v9.CheckSourceSuccess(lines)
+
+  " class variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public static Fn: any = Foo
+      public static Fn2: any
+    endclass
+
+    def Bar()
+      assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(A.Fn))
+      A.Fn = "abc"
+      assert_equal('string', typename(A.Fn))
+      A.Fn2 = Foo
+      assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(A.Fn2))
+      A.Fn2 = "xyz"
+      assert_equal('string', typename(A.Fn2))
+    enddef
+    Bar()
+    test_garbagecollect_now()
+    A.Fn = Foo
+    Bar()
+  END
+  call v9.CheckSourceSuccess(lines)
+
+  let lines =<< trim END
+    vim9script
+    class A
+      public static foo = [0z10, 0z20]
+    endclass
+    assert_equal([0z10, 0z20], A.foo)
+    A.foo = [0z30]
+    assert_equal([0z30], A.foo)
+    var a = A.foo
+    assert_equal([0z30], a)
+  END
+  call v9.CheckSourceSuccess(lines)
+endfunc
+
+" Test type checking for object variable in assignments
+func Test_object_variable_complex_type_check()
+  " object variable with a specific type.  Try assigning a different type at
+  " script level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Fn = "abc"
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 10)
+
+  " object variable with a specific type.  Try assigning a different type at
+  " object def method level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+      def Bar()
+        this.Fn = "abc"
+        this.Fn = Foo
+      enddef
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " object variable with a specific type.  Try assigning a different type at
+  " script def method level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: func(list<dict<blob>>): dict<list<blob>> = Foo
+    endclass
+    def Bar()
+      var a = A.new()
+      a.Fn = "abc"
+      a.Fn = Foo
+    enddef
+    test_garbagecollect_now()
+    Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 2)
+
+  " object variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type from script level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn = Foo
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Fn = "abc"
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 10)
+
+  " object variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type at object def level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn = Foo
+      def Bar()
+        this.Fn = "abc"
+        this.Fn = Foo
+      enddef
+    endclass
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 1)
+
+  " object variable without any type.  Should be set to the initialization
+  " expression type.  Try assigning a different type at script def level.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn = Foo
+    endclass
+    def Bar()
+      var a = A.new()
+      a.Fn = "abc"
+      a.Fn = Foo
+    enddef
+    test_garbagecollect_now()
+    Bar()
+  END
+  call v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(list<dict<blob>>): dict<list<blob>> but got string', 2)
+
+  " object variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: any = Foo
+      public this.Fn2: any
+    endclass
+
+    var a = A.new()
+    test_garbagecollect_now()
+    assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(a.Fn))
+    a.Fn = "abc"
+    test_garbagecollect_now()
+    assert_equal('string', typename(a.Fn))
+    a.Fn2 = Foo
+    test_garbagecollect_now()
+    assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(a.Fn2))
+    a.Fn2 = "xyz"
+    test_garbagecollect_now()
+    assert_equal('string', typename(a.Fn2))
+  END
+  call v9.CheckSourceSuccess(lines)
+
+  " object variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: any = Foo
+      public this.Fn2: any
+
+      def Bar()
+        assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(this.Fn))
+        this.Fn = "abc"
+        assert_equal('string', typename(this.Fn))
+        this.Fn2 = Foo
+        assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(this.Fn2))
+        this.Fn2 = "xyz"
+        assert_equal('string', typename(this.Fn2))
+      enddef
+    endclass
+
+    var a = A.new()
+    test_garbagecollect_now()
+    a.Bar()
+    test_garbagecollect_now()
+    a.Fn = Foo
+    a.Bar()
+  END
+  call v9.CheckSourceSuccess(lines)
+
+  " object variable with 'any" type.  Can be assigned different types.
+  let lines =<< trim END
+    vim9script
+    def Foo(l: list<dict<blob>>): dict<list<blob>>
+      return {}
+    enddef
+    class A
+      public this.Fn: any = Foo
+      public this.Fn2: any
+    endclass
+
+    def Bar()
+      var a = A.new()
+      assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(a.Fn))
+      a.Fn = "abc"
+      assert_equal('string', typename(a.Fn))
+      a.Fn2 = Foo
+      assert_equal('func(list<dict<blob>>): dict<list<blob>>', typename(a.Fn2))
+      a.Fn2 = "xyz"
+      assert_equal('string', typename(a.Fn2))
+    enddef
+    test_garbagecollect_now()
+    Bar()
+    test_garbagecollect_now()
+    Bar()
+  END
+  call v9.CheckSourceSuccess(lines)
+endfunc
+
+" Test for recursively calling an object method.  This used to cause an
+" use-after-free error.
+def Test_recursive_object_method_call()
+  var lines =<< trim END
+    vim9script
+    class A
+      this.val: number = 0
+      def Foo(): number
+        if this.val >= 90
+          return this.val
+        endif
+        this.val += 1
+        return this.Foo()
+      enddef
+    endclass
+    var a = A.new()
+    assert_equal(90, a.Foo())
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for recursively calling a class method.
+def Test_recursive_class_method_call()
+  var lines =<< trim END
+    vim9script
+    class A
+      static val: number = 0
+      static def Foo(): number
+        if val >= 90
+          return val
+        endif
+        val += 1
+        return Foo()
+      enddef
+    endclass
+    assert_equal(90, A.Foo())
+  END
+  v9.CheckSourceSuccess(lines)
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker

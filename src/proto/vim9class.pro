@@ -2,6 +2,7 @@
 int object_index_from_itf_index(class_T *itf, int is_method, int idx, class_T *cl);
 void ex_class(exarg_T *eap);
 type_T *class_member_type(class_T *cl, int is_object, char_u *name, char_u *name_end, int *member_idx);
+type_T *class_member_type_by_idx(class_T *cl, int is_object, int member_idx);
 void ex_enum(exarg_T *eap);
 void ex_type(exarg_T *eap);
 int class_object_index(char_u **arg, typval_T *rettv, evalarg_T *evalarg, int verbose);
@@ -15,6 +16,7 @@ ocmember_T *object_member_lookup(class_T *cl, char_u *name, size_t namelen, int 
 int object_method_idx(class_T *cl, char_u *name, size_t namelen);
 ufunc_T *object_method_lookup(class_T *cl, char_u *name, size_t namelen, int *idx);
 ocmember_T *member_lookup(class_T *cl, vartype_T v_type, char_u *name, size_t namelen, int *idx);
+void emsg_var_cl_define(char *msg, char_u *name, size_t len, class_T *cl);
 ufunc_T *method_lookup(class_T *cl, vartype_T v_type, char_u *name, size_t namelen, int *idx);
 int inside_class(cctx_T *cctx_arg, class_T *cl);
 void copy_object(typval_T *from, typval_T *to);

@@ -1753,10 +1753,7 @@ scrolldown(
 	    ++row;
 	}
 	if (col > width2 && width2 > 0)
-	{
 	    row += col / width2;
-	    col = col % width2;
-	}
 	if (row >= curwin->w_height)
 	{
 	    curwin->w_curswant = curwin->w_virtcol
@@ -1989,10 +1986,7 @@ adjust_skipcol(void)
 	++row;
     }
     if (col > width2)
-    {
 	row += col / width2;
-	col = col % width2;
-    }
     if (row >= curwin->w_height)
     {
 	if (curwin->w_skipcol == 0)
@@ -3262,6 +3256,7 @@ onepage(int dir, long count)
 #ifdef FEAT_DIFF
 			curwin->w_topfill = 0;
 #endif
+			curwin->w_valid &= ~(VALID_WROW|VALID_CROW);
 		    }
 		    comp_botline(curwin);
 		    curwin->w_cursor.lnum = curwin->w_botline - 1;
@@ -3570,6 +3565,14 @@ halfpage(int flag, linenr_T Prenum)
     void
 do_check_cursorbind(void)
 {
+    static win_T	*prev_curwin = NULL;
+    static pos_T	prev_cursor = {0, 0, 0};
+
+    if (curwin == prev_curwin && EQUAL_POS(curwin->w_cursor, prev_cursor))
+	return;
+    prev_curwin = curwin;
+    prev_cursor = curwin->w_cursor;
+
     linenr_T	line = curwin->w_cursor.lnum;
     colnr_T	col = curwin->w_cursor.col;
     colnr_T	coladd = curwin->w_cursor.coladd;

@@ -68,8 +68,6 @@
 #endif
 
 #define PY_SSIZE_T_CLEAN
-#define PyLong_Type (*py3_PyLong_Type)
-#define PyBool_Type (*py3_PyBool_Type)
 
 #ifdef Py_LIMITED_API
 # define USE_LIMITED_API // Using Python 3 limited ABI
@@ -242,7 +240,7 @@ static HINSTANCE hinstPy3 = 0; // Instance of python.dll
 # if PY_VERSION_HEX >= 0x03040000
 #  define PyType_GetFlags py3_PyType_GetFlags
 # endif
-#undef Py_BuildValue
+# undef Py_BuildValue
 # define Py_BuildValue py3_Py_BuildValue
 # define Py_SetPythonHome py3_Py_SetPythonHome
 # define Py_Initialize py3_Py_Initialize
@@ -251,7 +249,9 @@ static HINSTANCE hinstPy3 = 0; // Instance of python.dll
 # define _Py_NoneStruct (*py3__Py_NoneStruct)
 # define _Py_FalseStruct (*py3__Py_FalseStruct)
 # define _Py_TrueStruct (*py3__Py_TrueStruct)
-# define _PyObject_NextNotImplemented (*py3__PyObject_NextNotImplemented)
+# ifndef USE_LIMITED_API
+#  define _PyObject_NextNotImplemented (*py3__PyObject_NextNotImplemented)
+# endif
 # define PyModule_AddObject py3_PyModule_AddObject
 # define PyImport_AppendInittab py3_PyImport_AppendInittab
 # define PyImport_AddModule py3_PyImport_AddModule
@@ -288,11 +288,17 @@ static HINSTANCE hinstPy3 = 0; // Instance of python.dll
 # define PyFloat_AsDouble py3_PyFloat_AsDouble
 # define PyObject_GenericGetAttr py3_PyObject_GenericGetAttr
 # define PyType_Type (*py3_PyType_Type)
-# define PyStdPrinter_Type (*py3_PyStdPrinter_Type)
+# ifndef USE_LIMITED_API
+#  define PyStdPrinter_Type (*py3_PyStdPrinter_Type)
+# endif
 # define PySlice_Type (*py3_PySlice_Type)
 # define PyFloat_Type (*py3_PyFloat_Type)
 # define PyNumber_Check (*py3_PyNumber_Check)
 # define PyNumber_Long (*py3_PyNumber_Long)
+# define PyBool_Type (*py3_PyBool_Type)
+# if PY_VERSION_HEX >= 0x030c00b0
+#  define PyLong_Type (*py3_PyLong_Type)
+# endif
 # define PyErr_NewException py3_PyErr_NewException
 # ifdef Py_DEBUG
 #  define _Py_NegativeRefcount py3__Py_NegativeRefcount
@@ -449,7 +455,9 @@ static void (*py3_PyErr_Clear)(void);
 static PyObject* (*py3_PyErr_Format)(PyObject *, const char *, ...);
 static void (*py3_PyErr_PrintEx)(int);
 static PyObject*(*py3__PyObject_Init)(PyObject *, PyTypeObject *);
+# ifndef USE_LIMITED_API
 static iternextfunc py3__PyObject_NextNotImplemented;
+# endif
 static PyObject* py3__Py_NoneStruct;
 static PyObject* py3__Py_FalseStruct;
 static PyObject* py3__Py_TrueStruct;
@@ -485,12 +493,14 @@ static PyObject* (*py3_PyObject_GenericGetAttr)(PyObject *obj, PyObject *name);
 static PyObject* (*py3_PyType_GenericAlloc)(PyTypeObject *type, Py_ssize_t nitems);
 static PyObject* (*py3_PyType_GenericNew)(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static PyTypeObject* py3_PyType_Type;
+# ifndef USE_LIMITED_API
 static PyTypeObject* py3_PyStdPrinter_Type;
+# endif
 static PyTypeObject* py3_PySlice_Type;
 static PyTypeObject* py3_PyFloat_Type;
-PyTypeObject* py3_PyBool_Type;
+static PyTypeObject* py3_PyBool_Type;
 # if PY_VERSION_HEX >= 0x030c00b0
-PyTypeObject* py3_PyLong_Type;
+static PyTypeObject* py3_PyLong_Type;
 # endif
 static int (*py3_PyNumber_Check)(PyObject *);
 static PyObject* (*py3_PyNumber_Long)(PyObject *);
@@ -633,7 +643,9 @@ static struct
     {"PyEval_SaveThread", (PYTHON_PROC*)&py3_PyEval_SaveThread},
     {"_PyArg_Parse_SizeT", (PYTHON_PROC*)&py3_PyArg_Parse},
     {"Py_IsInitialized", (PYTHON_PROC*)&py3_Py_IsInitialized},
+# ifndef USE_LIMITED_API
     {"_PyObject_NextNotImplemented", (PYTHON_PROC*)&py3__PyObject_NextNotImplemented},
+# endif
     {"_Py_NoneStruct", (PYTHON_PROC*)&py3__Py_NoneStruct},
     {"_Py_FalseStruct", (PYTHON_PROC*)&py3__Py_FalseStruct},
     {"_Py_TrueStruct", (PYTHON_PROC*)&py3__Py_TrueStruct},
@@ -681,11 +693,14 @@ static struct
     {"PyType_GenericAlloc", (PYTHON_PROC*)&py3_PyType_GenericAlloc},
     {"PyType_GenericNew", (PYTHON_PROC*)&py3_PyType_GenericNew},
     {"PyType_Type", (PYTHON_PROC*)&py3_PyType_Type},
+# ifndef USE_LIMITED_API
     {"PyStdPrinter_Type", (PYTHON_PROC*)&py3_PyStdPrinter_Type},
+# endif
     {"PySlice_Type", (PYTHON_PROC*)&py3_PySlice_Type},
     {"PyFloat_Type", (PYTHON_PROC*)&py3_PyFloat_Type},
-# if PY_VERSION_HEX < 0x030c00b0
     {"PyBool_Type", (PYTHON_PROC*)&py3_PyBool_Type},
+# if PY_VERSION_HEX >= 0x030c00b0
+    {"PyLong_Type", (PYTHON_PROC*)&py3_PyLong_Type},
 # endif
     {"PyNumber_Check", (PYTHON_PROC*)&py3_PyNumber_Check},
     {"PyNumber_Long", (PYTHON_PROC*)&py3_PyNumber_Long},
@@ -775,6 +790,42 @@ py3__PyObject_TypeCheck(PyObject *ob, PyTypeObject *type)
 #  else
 #   define _PyObject_TypeCheck(o,t) py3__PyObject_TypeCheck(o,t)
 #  endif
+# endif
+
+# if !defined(USE_LIMITED_API) && PY_VERSION_HEX >= 0x030c00b0
+// Py_SIZE() uses PyLong_Type and PyBool_Type starting from Python 3.12.
+// We need to define our own Py_SIZE() to replace Py{Bool,Long}_Type with
+// py3_Py{Bool,Long}_Type.
+// We also need to redefine PyTuple_GET_SIZE() and PyList_GET_SIZE(), because
+// they use Py_SIZE().
+    static inline Py_ssize_t
+py3_Py_SIZE(PyObject *ob)
+{
+    assert(ob->ob_type != &PyLong_Type);
+    assert(ob->ob_type != &PyBool_Type);
+    PyVarObject *var_ob = _PyVarObject_CAST(ob);
+    return var_ob->ob_size;
+}
+#  undef Py_SIZE
+#  define Py_SIZE(ob) py3_Py_SIZE(_PyObject_CAST(ob))
+
+    static inline Py_ssize_t
+py3_PyTuple_GET_SIZE(PyObject *op)
+{
+    PyTupleObject *tuple = _PyTuple_CAST(op);
+    return Py_SIZE(tuple);
+}
+#  undef PyTuple_GET_SIZE
+#  define PyTuple_GET_SIZE(op) py3_PyTuple_GET_SIZE(_PyObject_CAST(op))
+
+    static inline
+Py_ssize_t py3_PyList_GET_SIZE(PyObject *op)
+{
+    PyListObject *list = _PyList_CAST(op);
+    return Py_SIZE(list);
+}
+#  undef PyList_GET_SIZE
+#  define PyList_GET_SIZE(op) py3_PyList_GET_SIZE(_PyObject_CAST(op))
 # endif
 
 # ifdef MSWIN
@@ -1167,7 +1218,7 @@ reset_stdin(void)
 {
     FILE *(*py__acrt_iob_func)(unsigned) = NULL;
     FILE *(*pyfreopen)(const char *, const char *, FILE *) = NULL;
-    HINSTANCE hinst = hinstPy3;
+    HINSTANCE hinst = get_forwarded_dll(hinstPy3);
 
     if (hinst == NULL || is_stdin_readable())
 	return;
@@ -1219,7 +1270,7 @@ hooked_exit(int ret)
     static void
 hook_py_exit(void)
 {
-    HINSTANCE hinst = hinstPy3;
+    HINSTANCE hinst = get_forwarded_dll(hinstPy3);
 
     if (hinst == NULL || orig_exit != NULL)
 	return;

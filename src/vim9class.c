@@ -72,6 +72,7 @@ parse_member(
     char_u	*varname,
     int		has_public,	    // TRUE if "public" seen before "varname"
     char_u	**varname_end,
+    int		*has_type,
     garray_T	*type_list,
     type_T	**type_ret,
     char_u	**init_expr)
@@ -86,6 +87,7 @@ parse_member(
     char_u *colon = skipwhite(*varname_end);
     char_u *type_arg = colon;
     type_T *type = NULL;
+    *has_type = FALSE;
     if (*colon == ':')
     {
 	if (VIM_ISWHITE(**varname_end))
@@ -102,6 +104,7 @@ parse_member(
 	type = parse_type(&type_arg, type_list, TRUE);
 	if (type == NULL)
 	    return FAIL;
+	*has_type = TRUE;
     }
 
     char_u *init_arg = skipwhite(type_arg);
@@ -160,6 +163,7 @@ add_member(
     char_u	*varname,
     char_u	*varname_end,
     int		has_public,
+    int		has_type,
     type_T	*type,
     char_u	*init_expr)
 {
@@ -169,6 +173,7 @@ add_member(
     m->ocm_name = vim_strnsave(varname, varname_end - varname);
     m->ocm_access = has_public ? VIM_ACCESS_ALL
 		      : *varname == '_' ? VIM_ACCESS_PRIVATE : VIM_ACCESS_READ;
+    m->ocm_has_type = has_type;
     m->ocm_type = type;
     if (init_expr != NULL)
 	m->ocm_init = init_expr;
@@ -1147,7 +1152,7 @@ add_lookup_tables(class_T *cl, class_T *extends_cl, garray_T *objmethods_gap)
  * and initialize it.
  */
     static void
-add_class_members(class_T *cl, exarg_T *eap)
+add_class_members(class_T *cl, exarg_T *eap, garray_T *type_list_gap)
 {
     // Allocate a typval for each class member and initialize it.
     cl->class_members_tv = ALLOC_CLEAR_MULT(typval_T,
@@ -1164,6 +1169,14 @@ add_class_members(class_T *cl, exarg_T *eap)
 	    typval_T *etv = eval_expr(m->ocm_init, eap);
 	    if (etv != NULL)
 	    {
+		if (m->ocm_type->tt_type == VAR_ANY
+			&& !m->ocm_has_type
+			&& etv->v_type != VAR_SPECIAL)
+		    // If the member variable type is not yet set, then use
+		    // the initialization expression type.
+		    m->ocm_type = typval2type(etv, get_copyID(),
+					type_list_gap,
+					TVTT_DO_MEMBER|TVTT_MORE_SPECIFIC);
 		*tv = *etv;
 		vim_free(etv);
 	    }
@@ -1643,6 +1656,7 @@ early_ret:
 	    char_u *varname_end = NULL;
 	    type_T *type = NULL;
 	    char_u *init_expr = NULL;
+	    int	    has_type = FALSE;
 
 	    if (!is_class && *varname == '_')
 	    {
@@ -1653,7 +1667,7 @@ early_ret:
 	    }
 
 	    if (parse_member(eap, line, varname, has_public,
-			  &varname_end, &type_list, &type,
+			  &varname_end, &has_type, &type_list, &type,
 			  is_class ? &init_expr: NULL) == FAIL)
 		break;
 	    if (is_reserved_varname(varname, varname_end))
@@ -1668,7 +1682,7 @@ early_ret:
 		break;
 	    }
 	    if (add_member(&objmembers, varname, varname_end,
-					  has_public, type, init_expr) == FAIL)
+				has_public, has_type, type, init_expr) == FAIL)
 	    {
 		vim_free(init_expr);
 		break;
@@ -1776,12 +1790,14 @@ early_ret:
 	    //	"static _varname"
 	    //	"static varname"
 	    //	"public static varname"
-	    char_u *varname = p;
-	    char_u *varname_end = NULL;
-	    type_T *type = NULL;
-	    char_u *init_expr = NULL;
+	    char_u  *varname = p;
+	    char_u  *varname_end = NULL;
+	    int	    has_type = FALSE;
+	    type_T  *type = NULL;
+	    char_u  *init_expr = NULL;
+
 	    if (parse_member(eap, line, varname, has_public,
-		      &varname_end, &type_list, &type,
+		      &varname_end, &has_type, &type_list, &type,
 		      is_class ? &init_expr : NULL) == FAIL)
 		break;
 	    if (is_reserved_varname(varname, varname_end))
@@ -1796,7 +1812,7 @@ early_ret:
 		break;
 	    }
 	    if (add_member(&classmembers, varname, varname_end,
-				      has_public, type, init_expr) == FAIL)
+			      has_public, has_type, type, init_expr) == FAIL)
 	    {
 		vim_free(init_expr);
 		break;
@@ -1932,7 +1948,7 @@ early_ret:
 
 	// Allocate a typval for each class member and initialize it.
 	if (is_class && cl->class_class_member_count > 0)
-	    add_class_members(cl, eap);
+	    add_class_members(cl, eap, &type_list);
 
 	int	have_new = FALSE;
 	ufunc_T	*class_func = NULL;
@@ -2081,6 +2097,35 @@ class_member_type(
 }
 
 /*
+ * Given a class or object variable index, return the variable type
+ */
+    type_T *
+class_member_type_by_idx(
+    class_T	*cl,
+    int		is_object,
+    int		member_idx)
+{
+    ocmember_T	*m;
+    int		member_count;
+
+    if (is_object)
+    {
+	m = cl->class_obj_members;
+	member_count = cl->class_obj_member_count;
+    }
+    else
+    {
+	m = cl->class_class_members;
+	member_count = cl->class_class_member_count;
+    }
+
+    if (member_idx >= member_count)
+	return NULL;
+
+    return m[member_idx].ocm_type;
+}
+
+/*
  * Handle ":enum" up to ":endenum".
  */
     void
@@ -2122,7 +2167,8 @@ get_member_tv(
 
     if (*name == '_')
     {
-	semsg(_(e_cannot_access_private_variable_str), m->ocm_name);
+	emsg_var_cl_define(e_cannot_access_private_variable_str,
+							m->ocm_name, 0, cl);
 	return FAIL;
     }
 
@@ -2175,6 +2221,7 @@ class_object_index(
 	return FAIL;
     size_t len = name_end - name;
 
+    int did_emsg_save = did_emsg;
     class_T *cl;
     if (rettv->v_type == VAR_CLASS)
 	cl = rettv->vval.v_class;
@@ -2264,7 +2311,8 @@ class_object_index(
 	    return OK;
 	}
 
-	member_not_found_msg(cl, VAR_OBJECT, name, len);
+	if (did_emsg == did_emsg_save)
+	    member_not_found_msg(cl, VAR_OBJECT, name, len);
     }
 
     else if (rettv->v_type == VAR_CLASS)
@@ -2281,7 +2329,8 @@ class_object_index(
 
 	if (*name == '_')
 	{
-	    semsg(_(e_cannot_access_private_variable_str), m->ocm_name);
+	    emsg_var_cl_define(e_cannot_access_private_variable_str,
+							m->ocm_name, 0, cl);
 	    return FAIL;
 	}
 
@@ -2529,6 +2578,57 @@ member_lookup(
 	return class_member_lookup(cl, name, namelen, idx);
     else
 	return object_member_lookup(cl, name, namelen, idx);
+}
+
+/*
+ * Find the class that defines the named member. Look up the hierarchy
+ * starting at "cl".
+ *
+ * Return the class that defines the member "name", else NULL.
+ * Fill in "p_m", if specified, for ocmember_T in found class.
+ */
+// NOTE: if useful for something could also indirectly return vartype and idx.
+    static class_T *
+class_defining_member(class_T *cl, char_u *name, size_t len, ocmember_T **p_m)
+{
+    class_T	*cl_found = NULL;
+    vartype_T	vartype = VAR_UNKNOWN;
+    ocmember_T	*m_found = NULL;
+
+    len = len != 0 ? len : STRLEN(name);
+
+    // Loop assumes if member is not defined in "cl", then it is not
+    // defined in any super class; the last class where it's found is the
+    // class where it is defined. Once the vartype is found, the other
+    // type is no longer checked.
+    for (class_T *super = cl; super != NULL; super = super->class_extends)
+    {
+	class_T		*cl_tmp = NULL;
+	ocmember_T	*m = NULL;
+	if (vartype == VAR_UNKNOWN || vartype == VAR_OBJECT)
+	{
+	    if ((m = object_member_lookup(super, name, len, NULL)) != NULL)
+	    {
+		cl_tmp = super;
+		vartype = VAR_OBJECT;
+	    }
+	}
+	if (vartype == VAR_UNKNOWN || vartype == VAR_CLASS)
+	{
+	    if (( m = class_member_lookup(super, name, len, NULL)) != NULL)
+	    {
+		cl_tmp = super;
+		vartype = VAR_OBJECT;
+	    }
+	}
+	if (cl_tmp == NULL)
+	    break;  // member is not in this or any super class.
+	cl_found = cl_tmp;
+	m_found = m;
+    }
+    if (p_m != NULL)
+	*p_m = m_found;
+    return cl_found;
 }
 
 /*
@@ -2802,6 +2902,22 @@ object_free_nonref(int copyID)
 
     next_nonref_obj = NULL;
     return did_free;
+}
+
+/*
+ * Output message which takes a variable name and the class that defines it.
+ * "cl" is that class where the name was found. Search "cl"'s hierarchy to
+ * find the defining class.
+ */
+    void
+emsg_var_cl_define(char *msg, char_u *name, size_t len, class_T *cl)
+{
+    ocmember_T	*m;
+    class_T	*cl_def = class_defining_member(cl, name, len, &m);
+    if (cl_def != NULL)
+	semsg(_(msg), m->ocm_name, cl_def->class_name);
+    else
+	emsg(_(e_internal_error_please_report_a_bug));
 }
 
 /*
