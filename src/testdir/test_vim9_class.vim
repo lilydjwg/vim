@@ -975,6 +975,28 @@ def Test_class_new_with_object_member()
     Check()
   END
   v9.CheckSourceSuccess(lines)
+
+  # Try using "this." argument in a class method
+  lines =<< trim END
+    vim9script
+    class A
+      this.val = 10
+      static def Foo(this.val: number)
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1390: Cannot use an object variable "this.val" except with the "new" method', 4)
+
+  # Try using "this." argument in an object method
+  lines =<< trim END
+    vim9script
+    class A
+      this.val = 10
+      def Foo(this.val: number)
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1390: Cannot use an object variable "this.val" except with the "new" method', 4)
 enddef
 
 def Test_class_object_member_inits()
@@ -1722,7 +1744,7 @@ def Test_class_member()
     var a = A.new()
     var v = a.bar
   END
-  v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "A": bar', 5)
+  v9.CheckSourceFailure(lines, 'E1337: Class variable "bar" not found in class "A"', 5)
 enddef
 
 " These messages should show the defining class of the variable (base class),
@@ -4255,7 +4277,7 @@ def Test_private_object_method()
     var a = A.new()
     a._Foo()
   END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo()', 9)
+  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo', 9)
 
   # Try calling a private method using an object (from a def function)
   lines =<< trim END
@@ -4468,7 +4490,7 @@ def Test_private_object_method()
     var c = C.new()
     assert_equal(1234, c._Foo())
   END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo()', 16)
+  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo', 16)
 
   # Using "_" prefix in a method name should fail outside of a class
   lines =<< trim END
@@ -4494,7 +4516,7 @@ def Test_private_class_method()
     endclass
     A._Foo()
   END
-  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo()', 8)
+  v9.CheckSourceFailure(lines, 'E1366: Cannot access private method: _Foo', 8)
 
   # Try calling a class private method (from a def function)
   lines =<< trim END
@@ -5122,7 +5144,7 @@ def Test_class_variable_access_using_object()
     var a = A.new()
     echo a.svar2
   END
-  v9.CheckSourceFailure(lines, 'E1375: Class variable "svar2" accessible only using class "A"', 8)
+  v9.CheckSourceFailure(lines, 'E1337: Class variable "svar2" not found in class "A"', 8)
 
   # Cannot write to a class variable using an object in script context
   lines =<< trim END
@@ -5597,7 +5619,7 @@ def Test_class_variable()
     var a = A.new()
     var i = a.val
   END
-  v9.CheckSourceFailure(lines, 'E1375: Class variable "val" accessible only using class "A"', 7)
+  v9.CheckSourceFailure(lines, 'E1337: Class variable "val" not found in class "A"', 7)
 
   # Modifying a class variable using an object at function level
   lines =<< trim END
@@ -5965,6 +5987,18 @@ def Test_extend_interface()
       this.var2 = {a: '1'}
       def Bar()
       enddef
+    endclass
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # extending empty interface
+  lines =<< trim END
+    vim9script
+    interface A
+    endinterface
+    interface B extends A
+    endinterface
+    class C implements B
     endclass
   END
   v9.CheckSourceSuccess(lines)
@@ -6567,6 +6601,17 @@ def Test_reserved_varname()
       o.F()
     END
     v9.CheckSourceFailure(lines, $'E1034: Cannot use reserved name {kword}', 3)
+
+    # class variable name
+    if kword != 'this'
+      lines =<< trim eval END
+        vim9script
+        class C
+          public static {kword}: list<number> = [1, 2, 3]
+        endclass
+      END
+      v9.CheckSourceFailure(lines, $'E1034: Cannot use reserved name {kword}', 3)
+    endif
   endfor
 enddef
 
@@ -7107,6 +7152,43 @@ def Test_recursive_class_method_call()
     assert_equal(90, A.Foo())
   END
   v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for checking the argument types and the return type when assigning a
+" funcref to make sure the invariant class type is used.
+def Test_funcref_argtype_returntype_check()
+  var lines =<< trim END
+    vim9script
+    class A
+    endclass
+    class B extends A
+    endclass
+
+    def Foo(p: B): B
+      return B.new()
+    enddef
+
+    var Bar: func(A): A = Foo
+  END
+  v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(object<A>): object<A> but got func(object<B>): object<B>', 11)
+
+  lines =<< trim END
+    vim9script
+    class A
+    endclass
+    class B extends A
+    endclass
+
+    def Foo(p: B): B
+      return B.new()
+    enddef
+
+    def Baz()
+      var Bar: func(A): A = Foo
+    enddef
+    Baz()
+  END
+  v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(object<A>): object<A> but got func(object<B>): object<B>', 1)
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
