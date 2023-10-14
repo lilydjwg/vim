@@ -616,6 +616,12 @@ call_dfunc(
     // the first local variable.
     if (IS_OBJECT_METHOD(ufunc))
     {
+	if (obj->v_type != VAR_OBJECT)
+	{
+	    semsg(_(e_internal_error_str), "type in stack is not an object");
+	    return FAIL;
+	}
+
 	*STACK_TV_VAR(0) = *obj;
 	obj->v_type = VAR_UNKNOWN;
     }
@@ -923,6 +929,41 @@ static ectx_T *current_ectx = NULL;
 in_def_function(void)
 {
     return current_ectx != NULL;
+}
+
+/*
+ * If executing a class/object method, then fill in the lval_T.
+ * Set lr_tv to the executing item, and lr_exec_class to the executing class;
+ * use free_tv and class_unref when finished with the lval_root.
+ * For use by builtin functions.
+ *
+ * Return FAIL and do nothing if not executing in a class; otherwise OK.
+ */
+    int
+fill_exec_lval_root(lval_root_T *root)
+{
+    ectx_T *ectx = current_ectx;
+    if (ectx != NULL)
+    {
+	dfunc_T	    *dfunc = ((dfunc_T *)def_functions.ga_data)
+						  + current_ectx->ec_dfunc_idx;
+	ufunc_T    *ufunc = dfunc->df_ufunc;
+	if (ufunc->uf_class != NULL)	// executing a method?
+	{
+	    typval_T *tv = alloc_tv();
+	    if (tv != NULL)
+	    {
+		CLEAR_POINTER(root);
+		root->lr_tv = tv;
+		copy_tv(STACK_TV_VAR(0), root->lr_tv);
+		root->lr_cl_exec = ufunc->uf_class;
+		++root->lr_cl_exec->class_refcount;
+		return OK;
+	    }
+	}
+    }
+
+    return FAIL;
 }
 
 /*
@@ -1461,6 +1502,23 @@ call_partial(
     {
 	partial_T   *pt = tv->vval.v_partial;
 	int	    i;
+
+	if (pt->pt_obj != NULL)
+	{
+	    // partial with an object method.  Push the object before the
+	    // function arguments.
+	    if (GA_GROW_FAILS(&ectx->ec_stack, 1))
+		return FAIL;
+	    for (i = 1; i <= argcount; ++i)
+		*STACK_TV_BOT(-i + 1) = *STACK_TV_BOT(-i);
+
+	    typval_T *obj_tv = STACK_TV_BOT(-argcount);
+	    obj_tv->v_type = VAR_OBJECT;
+	    obj_tv->v_lock = 0;
+	    obj_tv->vval.v_object = pt->pt_obj;
+	    ++pt->pt_obj->obj_refcount;
+	    ++ectx->ec_stack.ga_len;
+	}
 
 	if (pt->pt_argc > 0)
 	{
@@ -4185,21 +4243,20 @@ exec_instructions(ectx_T *ectx)
 
 	    case ISN_LOCKUNLOCK:
 		{
-		    lval_root_T	*lval_root_save = lval_root;
-		    int		res;
 #ifdef LOG_LOCKVAR
 		    ch_log(NULL, "LKVAR: execute INS_LOCKUNLOCK isn_arg %s",
 							iptr->isn_arg.string);
 #endif
+		    lval_root_T	*lval_root_save = lval_root;
 
 		    // Stack has the local variable, argument the whole :lock
 		    // or :unlock command, like ISN_EXEC.
 		    --ectx->ec_stack.ga_len;
-		    lval_root_T root = { STACK_TV_BOT(0),
-					iptr->isn_arg.lockunlock.lu_cl_exec,
-					iptr->isn_arg.lockunlock.lu_is_arg };
+		    lval_root_T root = { .lr_tv = STACK_TV_BOT(0),
+			    .lr_cl_exec = iptr->isn_arg.lockunlock.lu_cl_exec,
+			    .lr_is_arg  = iptr->isn_arg.lockunlock.lu_is_arg };
 		    lval_root = &root;
-		    res = exec_command(iptr,
+		    int res = exec_command(iptr,
 					iptr->isn_arg.lockunlock.lu_string);
 		    clear_tv(root.lr_tv);
 		    lval_root = lval_root_save;
@@ -4413,20 +4470,44 @@ exec_instructions(ectx_T *ectx)
 		    }
 		    if (extra != NULL && extra->fre_class != NULL)
 		    {
-			tv = STACK_TV_BOT(-1);
-			if (tv->v_type != VAR_OBJECT)
+			class_T	*cl;
+			if (extra->fre_object_method)
 			{
-			    object_required_error(tv);
-			    vim_free(pt);
-			    goto on_error;
-			}
-			object_T *obj = tv->vval.v_object;
-			class_T *cl = obj->obj_class;
+			    tv = STACK_TV_BOT(-1);
+			    if (tv->v_type != VAR_OBJECT)
+			    {
+				object_required_error(tv);
+				vim_free(pt);
+				goto on_error;
+			    }
 
-			// convert the interface index to the object index
-			int idx = object_index_from_itf_index(extra->fre_class,
-					      TRUE, extra->fre_method_idx, cl);
-			ufunc = cl->class_obj_methods[idx];
+			    object_T *obj = tv->vval.v_object;
+			    cl = obj->obj_class;
+			    // drop the value from the stack
+			    clear_tv(tv);
+			    --ectx->ec_stack.ga_len;
+
+			    pt->pt_obj = obj;
+			    ++obj->obj_refcount;
+			}
+			else
+			    cl = extra->fre_class;
+
+			if (extra->fre_object_method)
+			{
+			    // object method
+			    // convert the interface index to the object index
+			    int idx =
+				object_index_from_itf_index(extra->fre_class,
+					TRUE, extra->fre_method_idx, cl);
+			    ufunc = cl->class_obj_methods[idx];
+			}
+			else
+			{
+			    // class method
+			    ufunc =
+				cl->class_class_functions[extra->fre_method_idx];
+			}
 		    }
 		    else if (extra == NULL || extra->fre_func_name == NULL)
 		    {
