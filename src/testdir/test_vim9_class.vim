@@ -6953,6 +6953,21 @@ def Test_extended_obj_method_type_check()
     endclass
   END
   v9.CheckSourceFailure(lines, 'E1383: Method "Doit": type mismatch, expected func(object<B>): object<B> but got func(object<B>): object<A>', 20)
+
+  # check varargs type mismatch
+  lines =<< trim END
+    vim9script
+
+    class B
+      def F(...xxx: list<any>)
+      enddef
+    endclass
+    class C extends B
+      def F(xxx: list<any>)
+      enddef
+    endclass
+  END
+  v9.CheckSourceFailure(lines, 'E1383: Method "F": type mismatch, expected func(...list<any>) but got func(list<any>)', 10)
 enddef
 
 " Test type checking for class variable in assignments
@@ -7431,6 +7446,54 @@ def Test_funcref_argtype_returntype_check()
   v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(object<A>): object<A> but got func(object<B>): object<B>', 1)
 enddef
 
+def Test_funcref_argtype_invariance_check()
+  var lines =<< trim END
+    vim9script
+
+    class A
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+    endclass
+
+    var Func: func(B): number
+    Func = (o: B): number => 3
+    assert_equal(3, Func(B.new()))
+  END
+  v9.CheckSourceSuccess(lines)
+
+  lines =<< trim END
+    vim9script
+
+    class A
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+    endclass
+
+    var Func: func(B): number
+    Func = (o: A): number => 3
+  END
+  v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(object<B>): number but got func(object<A>): number', 11)
+
+  lines =<< trim END
+    vim9script
+
+    class A
+    endclass
+    class B extends A
+    endclass
+    class C extends B
+    endclass
+
+    var Func: func(B): number
+    Func = (o: C): number => 3
+  END
+  v9.CheckSourceFailure(lines, 'E1012: Type mismatch; expected func(object<B>): number but got func(object<C>): number', 11)
+enddef
+
 " Test for using an operator (e.g. +) with an assignment
 def Test_op_and_assignment()
   # Using += with a class variable
@@ -7507,6 +7570,21 @@ def Test_object_funcref()
     var a = A.new()
     var Fn = a.Foo
     assert_equal({a: 1, b: 2}, Fn())
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Using object method funcref at the script level
+  lines =<< trim END
+    vim9script
+    class A
+      this.val: number
+      def Foo(): number
+        return this.val
+      enddef
+    endclass
+    var a = A.new(345)
+    var Fn = a.Foo
+    assert_equal(345, Fn())
   END
   v9.CheckSourceSuccess(lines)
 
@@ -7604,6 +7682,26 @@ def Test_object_funcref()
     a.Bar()
   END
   v9.CheckSourceSuccess(lines)
+
+  # Using object method funcref using call()
+  lines =<< trim END
+    vim9script
+    class A
+      this.val: number
+      def Foo(): number
+        return this.val
+      enddef
+    endclass
+
+    def Bar(obj: A)
+      assert_equal(123, call(obj.Foo, []))
+    enddef
+
+    var a = A.new(123)
+    Bar(a)
+    assert_equal(123, call(a.Foo, []))
+  END
+  v9.CheckSourceSuccess(lines)
 enddef
 
 " Test for using a class method as a funcref
@@ -7634,6 +7732,21 @@ def Test_class_funcref()
     endclass
     var Fn = A.Foo
     assert_equal({a: 1, b: 2}, Fn())
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Using class method funcref at the script level
+  lines =<< trim END
+    vim9script
+    class A
+      public static val: number
+      static def Foo(): number
+        return val
+      enddef
+    endclass
+    A.val = 567
+    var Fn = A.Foo
+    assert_equal(567, Fn())
   END
   v9.CheckSourceSuccess(lines)
 
@@ -7723,6 +7836,25 @@ def Test_class_funcref()
       enddef
     endclass
     A.Bar()
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Using class method funcref using call()
+  lines =<< trim END
+    vim9script
+    class A
+      public static val: number
+      static def Foo(): number
+        return val
+      enddef
+    endclass
+
+    def Bar()
+      A.val = 468
+      assert_equal(468, call(A.Foo, []))
+    enddef
+    Bar()
+    assert_equal(468, call(A.Foo, []))
   END
   v9.CheckSourceSuccess(lines)
 enddef
@@ -7949,6 +8081,258 @@ def Test_class_member_funcref()
 
     A.Init()
     assert_equal(200, A.Cb(20))
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using object methods as popup callback functions
+def Test_objmethod_popup_callback()
+  # Use the popup from the script level
+  var lines =<< trim END
+    vim9script
+
+    class A
+      this.selection: number = -1
+      this.filterkeys: list<string> = []
+
+      def PopupFilter(id: number, key: string): bool
+        add(this.filterkeys, key)
+        return popup_filter_yesno(id, key)
+      enddef
+
+      def PopupCb(id: number, result: number)
+        this.selection = result ? 100 : 200
+      enddef
+    endclass
+
+    var a = A.new()
+    feedkeys('', 'xt')
+    var winid = popup_create('Y/N?',
+                              {filter: a.PopupFilter, callback: a.PopupCb})
+    feedkeys('y', 'xt')
+    popup_close(winid)
+    assert_equal(100, a.selection)
+    assert_equal(['y'], a.filterkeys)
+    feedkeys('', 'xt')
+    winid = popup_create('Y/N?',
+                              {filter: a.PopupFilter, callback: a.PopupCb})
+    feedkeys('n', 'xt')
+    popup_close(winid)
+    assert_equal(200, a.selection)
+    assert_equal(['y', 'n'], a.filterkeys)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Use the popup from a def function
+  lines =<< trim END
+    vim9script
+
+    class A
+      this.selection: number = -1
+      this.filterkeys: list<string> = []
+
+      def PopupFilter(id: number, key: string): bool
+        add(this.filterkeys, key)
+        return popup_filter_yesno(id, key)
+      enddef
+
+      def PopupCb(id: number, result: number)
+        this.selection = result ? 100 : 200
+      enddef
+    endclass
+
+    def Foo()
+      var a = A.new()
+      feedkeys('', 'xt')
+      var winid = popup_create('Y/N?',
+                                {filter: a.PopupFilter, callback: a.PopupCb})
+      feedkeys('y', 'xt')
+      popup_close(winid)
+      assert_equal(100, a.selection)
+      assert_equal(['y'], a.filterkeys)
+      feedkeys('', 'xt')
+      winid = popup_create('Y/N?',
+                                {filter: a.PopupFilter, callback: a.PopupCb})
+      feedkeys('n', 'xt')
+      popup_close(winid)
+      assert_equal(200, a.selection)
+      assert_equal(['y', 'n'], a.filterkeys)
+    enddef
+    Foo()
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using class methods as popup callback functions
+def Test_classmethod_popup_callback()
+  # Use the popup from the script level
+  var lines =<< trim END
+    vim9script
+
+    class A
+      static selection: number = -1
+      static filterkeys: list<string> = []
+
+      static def PopupFilter(id: number, key: string): bool
+        add(filterkeys, key)
+        return popup_filter_yesno(id, key)
+      enddef
+
+      static def PopupCb(id: number, result: number)
+        selection = result ? 100 : 200
+      enddef
+    endclass
+
+    feedkeys('', 'xt')
+    var winid = popup_create('Y/N?',
+                              {filter: A.PopupFilter, callback: A.PopupCb})
+    feedkeys('y', 'xt')
+    popup_close(winid)
+    assert_equal(100, A.selection)
+    assert_equal(['y'], A.filterkeys)
+    feedkeys('', 'xt')
+    winid = popup_create('Y/N?',
+                              {filter: A.PopupFilter, callback: A.PopupCb})
+    feedkeys('n', 'xt')
+    popup_close(winid)
+    assert_equal(200, A.selection)
+    assert_equal(['y', 'n'], A.filterkeys)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Use the popup from a def function
+  lines =<< trim END
+    vim9script
+
+    class A
+      static selection: number = -1
+      static filterkeys: list<string> = []
+
+      static def PopupFilter(id: number, key: string): bool
+        add(filterkeys, key)
+        return popup_filter_yesno(id, key)
+      enddef
+
+      static def PopupCb(id: number, result: number)
+        selection = result ? 100 : 200
+      enddef
+    endclass
+
+    def Foo()
+      feedkeys('', 'xt')
+      var winid = popup_create('Y/N?',
+                                {filter: A.PopupFilter, callback: A.PopupCb})
+      feedkeys('y', 'xt')
+      popup_close(winid)
+      assert_equal(100, A.selection)
+      assert_equal(['y'], A.filterkeys)
+      feedkeys('', 'xt')
+      winid = popup_create('Y/N?',
+                                {filter: A.PopupFilter, callback: A.PopupCb})
+      feedkeys('n', 'xt')
+      popup_close(winid)
+      assert_equal(200, A.selection)
+      assert_equal(['y', 'n'], A.filterkeys)
+    enddef
+    Foo()
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using an object method as a timer callback function
+def Test_objmethod_timer_callback()
+  # Use the timer callback from script level
+  var lines =<< trim END
+    vim9script
+
+    class A
+      this.timerTick: number = -1
+      def TimerCb(timerID: number)
+        this.timerTick = 6
+      enddef
+    endclass
+
+    var a = A.new()
+    timer_start(0, a.TimerCb)
+    var maxWait = 5
+    while maxWait > 0 && a.timerTick == -1
+      :sleep 10m
+      maxWait -= 1
+    endwhile
+    assert_equal(6, a.timerTick)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Use the timer callback from a def function
+  lines =<< trim END
+    vim9script
+
+    class A
+      this.timerTick: number = -1
+      def TimerCb(timerID: number)
+        this.timerTick = 6
+      enddef
+    endclass
+
+    def Foo()
+      var a = A.new()
+      timer_start(0, a.TimerCb)
+      var maxWait = 5
+      while maxWait > 0 && a.timerTick == -1
+        :sleep 10m
+        maxWait -= 1
+      endwhile
+      assert_equal(6, a.timerTick)
+    enddef
+    Foo()
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using a class method as a timer callback function
+def Test_classmethod_timer_callback()
+  # Use the timer callback from script level
+  var lines =<< trim END
+    vim9script
+
+    class A
+      static timerTick: number = -1
+      static def TimerCb(timerID: number)
+        timerTick = 6
+      enddef
+    endclass
+
+    timer_start(0, A.TimerCb)
+    var maxWait = 5
+    while maxWait > 0 && A.timerTick == -1
+      :sleep 10m
+      maxWait -= 1
+    endwhile
+    assert_equal(6, A.timerTick)
+  END
+  v9.CheckSourceSuccess(lines)
+
+  # Use the timer callback from a def function
+  lines =<< trim END
+    vim9script
+
+    class A
+      static timerTick: number = -1
+      static def TimerCb(timerID: number)
+        timerTick = 6
+      enddef
+    endclass
+
+    def Foo()
+      timer_start(0, A.TimerCb)
+      var maxWait = 5
+      while maxWait > 0 && A.timerTick == -1
+        :sleep 10m
+        maxWait -= 1
+      endwhile
+      assert_equal(6, A.timerTick)
+    enddef
+    Foo()
   END
   v9.CheckSourceSuccess(lines)
 enddef
