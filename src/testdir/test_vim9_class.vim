@@ -132,7 +132,7 @@ def Test_class_basic()
     endclass
     var obj = Something.new()
   END
-  v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "Something": state', 1)
+  v9.CheckSourceFailure(lines, 'E1326: Variable "state" not found in object "Something"', 1)
 
   # Space before ":" in a member variable declaration
   lines =<< trim END
@@ -648,7 +648,7 @@ def Test_member_any_used_as_object()
     var outer_obj = Outer.new(inner_obj)
     F(outer_obj)
   END
-  v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "Inner": someval', 1)
+  v9.CheckSourceFailure(lines, 'E1326: Variable "someval" not found in object "Inner"', 1)
 enddef
 
 " Nested assignment to a object variable which is of another class type
@@ -1092,7 +1092,7 @@ def Test_instance_variable_access()
     trip.three = 33
     assert_equal(33, trip.three)
 
-    assert_fails('trip.four = 4', 'E1326: Variable not found on object "Triple": four')
+    assert_fails('trip.four = 4', 'E1326: Variable "four" not found in object "Triple"')
   END
   v9.CheckSourceSuccess(lines)
 
@@ -1743,7 +1743,7 @@ def Test_class_member()
     var a = A.new()
     var v = a.bar
   END
-  v9.CheckSourceFailure(lines, 'E1337: Class variable "bar" not found in class "A"', 5)
+  v9.CheckSourceFailure(lines, 'E1326: Variable "bar" not found in object "A"', 5)
 enddef
 
 " These messages should show the defining class of the variable (base class),
@@ -2080,7 +2080,7 @@ def Test_class_defcompile()
     var a = A.new()
     defcompile a.Foo()
   END
-  v9.CheckSourceFailureList(lines, ['E1326: Variable not found on object "A": Foo', 'E475: Invalid argument: a.Foo()'])
+  v9.CheckSourceFailureList(lines, ['E1326: Variable "Foo" not found in object "A"', 'E475: Invalid argument: a.Foo()'])
 enddef
 
 def Test_class_object_to_string()
@@ -3055,7 +3055,7 @@ def Test_abstract_class()
     endclass
     var p = Base.new('Peter')
   END
-  v9.CheckSourceFailure(lines, 'E1325: Method not found on class "Base": new', 8)
+  v9.CheckSourceFailure(lines, 'E1325: Method "new" not found in class "Base"', 8)
 
   lines =<< trim END
     abstract class Base
@@ -4478,7 +4478,7 @@ def Test_lockvar_islocked_notfound()
     var obj = C.new()
     obj.Islocked("this.notobjmember")
   END
-  v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "C": notobjmember')
+  v9.CheckSourceFailure(lines, 'E1326: Variable "notobjmember" not found in object "C"')
 
   # access a script variable through methods
   lines =<< trim END
@@ -4938,7 +4938,7 @@ def Test_private_class_method()
     var c = C.new()
     assert_equal(1234, C._Foo())
   END
-  v9.CheckSourceFailure(lines, 'E1325: Method not found on class "C": _Foo', 16)
+  v9.CheckSourceFailure(lines, 'E1325: Method "_Foo" not found in class "C"', 16)
 enddef
 
 " Test for using the return value of a class/object method as a function
@@ -5227,7 +5227,7 @@ def Test_private_member_access_outside_class()
     enddef
     T()
   END
-  v9.CheckSourceFailure(lines, 'E1326: Variable not found on object "A": _a', 2)
+  v9.CheckSourceFailure(lines, 'E1326: Variable "_a" not found in object "A"', 2)
 
   # private static member variable
   lines =<< trim END
@@ -5384,7 +5384,7 @@ def Test_class_variable_access_using_object()
     var a = A.new()
     echo a.svar2
   END
-  v9.CheckSourceFailure(lines, 'E1337: Class variable "svar2" not found in class "A"', 8)
+  v9.CheckSourceFailure(lines, 'E1375: Class variable "svar2" accessible only using class "A"', 8)
 
   # Cannot write to a class variable using an object in script context
   lines =<< trim END
@@ -5859,7 +5859,7 @@ def Test_class_variable()
     var a = A.new()
     var i = a.val
   END
-  v9.CheckSourceFailure(lines, 'E1337: Class variable "val" not found in class "A"', 7)
+  v9.CheckSourceFailure(lines, 'E1375: Class variable "val" accessible only using class "A"', 7)
 
   # Modifying a class variable using an object at function level
   lines =<< trim END
@@ -8333,6 +8333,111 @@ def Test_classmethod_timer_callback()
       assert_equal(6, A.timerTick)
     enddef
     Foo()
+  END
+  v9.CheckSourceSuccess(lines)
+enddef
+
+" Test for using a class variable as the first and/or second operand of a binary
+" operator.
+def Test_class_variable_as_operands()
+  var lines =<< trim END
+    vim9script
+    class Tests
+      static truthy: bool = true
+      public static TruthyFn: func
+      static list: list<any> = []
+      static four: number = 4
+      static str: string = 'hello'
+
+      static def Str(): string
+        return str
+      enddef
+
+      static def Four(): number
+        return four
+      enddef
+
+      static def List(): list<any>
+        return list
+      enddef
+
+      static def Truthy(): bool
+        return truthy
+      enddef
+
+      def TestOps()
+        assert_true(Tests.truthy == truthy)
+        assert_true(truthy == Tests.truthy)
+        assert_true(Tests.list isnot [])
+        assert_true([] isnot Tests.list)
+        assert_equal(2, Tests.four >> 1)
+        assert_equal(16, 1 << Tests.four)
+        assert_equal(8, Tests.four + four)
+        assert_equal(8, four + Tests.four)
+        assert_equal('hellohello', Tests.str .. str)
+        assert_equal('hellohello', str .. Tests.str)
+
+        # Using class variable for list indexing
+        var l = range(10)
+        assert_equal(4, l[Tests.four])
+        assert_equal([4, 5, 6], l[Tests.four : Tests.four + 2])
+
+        # Using class variable for Dict key
+        var d = {hello: 'abc'}
+        assert_equal('abc', d[Tests.str])
+      enddef
+    endclass
+
+    def TestOps2()
+      assert_true(Tests.truthy == Tests.Truthy())
+      assert_true(Tests.Truthy() == Tests.truthy)
+      assert_true(Tests.truthy == Tests.TruthyFn())
+      assert_true(Tests.TruthyFn() == Tests.truthy)
+      assert_true(Tests.list is Tests.List())
+      assert_true(Tests.List() is Tests.list)
+      assert_equal(2, Tests.four >> 1)
+      assert_equal(16, 1 << Tests.four)
+      assert_equal(8, Tests.four + Tests.Four())
+      assert_equal(8, Tests.Four() + Tests.four)
+      assert_equal('hellohello', Tests.str .. Tests.Str())
+      assert_equal('hellohello', Tests.Str() .. Tests.str)
+
+      # Using class variable for list indexing
+      var l = range(10)
+      assert_equal(4, l[Tests.four])
+      assert_equal([4, 5, 6], l[Tests.four : Tests.four + 2])
+
+      # Using class variable for Dict key
+      var d = {hello: 'abc'}
+      assert_equal('abc', d[Tests.str])
+    enddef
+
+    Tests.TruthyFn = Tests.Truthy
+    var t = Tests.new()
+    t.TestOps()
+    TestOps2()
+
+    assert_true(Tests.truthy == Tests.Truthy())
+    assert_true(Tests.Truthy() == Tests.truthy)
+    assert_true(Tests.truthy == Tests.TruthyFn())
+    assert_true(Tests.TruthyFn() == Tests.truthy)
+    assert_true(Tests.list is Tests.List())
+    assert_true(Tests.List() is Tests.list)
+    assert_equal(2, Tests.four >> 1)
+    assert_equal(16, 1 << Tests.four)
+    assert_equal(8, Tests.four + Tests.Four())
+    assert_equal(8, Tests.Four() + Tests.four)
+    assert_equal('hellohello', Tests.str .. Tests.Str())
+    assert_equal('hellohello', Tests.Str() .. Tests.str)
+
+    # Using class variable for list indexing
+    var l = range(10)
+    assert_equal(4, l[Tests.four])
+    assert_equal([4, 5, 6], l[Tests.four : Tests.four + 2])
+
+    # Using class variable for Dict key
+    var d = {hello: 'abc'}
+    assert_equal('abc', d[Tests.str])
   END
   v9.CheckSourceSuccess(lines)
 enddef

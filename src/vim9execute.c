@@ -1140,7 +1140,17 @@ invoke_defer_funcs(ectx_T *ectx)
 	char_u *name = functv->vval.v_string;
 	functv->vval.v_string = NULL;
 
+	// If the deferred function is called after an exception, then only the
+	// first statement in the function will be executed (because of the
+	// exception).  So save and restore the try/catch/throw exception
+	// state.
+	exception_state_T estate;
+	exception_state_save(&estate);
+	exception_state_clear();
+
 	(void)call_func(name, -1, &rettv, argcount, argvars, &funcexe);
+
+	exception_state_restore(&estate);
 
 	clear_tv(&rettv);
 	vim_free(name);
