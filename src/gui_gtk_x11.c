@@ -2079,7 +2079,8 @@ scroll_event(GtkWidget *widget,
 	    break;
 #if GTK_CHECK_VERSION(3,4,0)
 	case GDK_SCROLL_SMOOTH:
-	    if (event->time - last_smooth_event_time > 50) {
+	    if (event->time - last_smooth_event_time > 50)
+	    {
 		// reset our accumulations after 50ms of silence
 		acc_x = acc_y = 0;
 	    }
@@ -2101,28 +2102,35 @@ scroll_event(GtkWidget *widget,
     vim_modifiers = modifiers_gdk2mouse(event->state);
 
 #if GTK_CHECK_VERSION(3,4,0)
-    if (event->direction == GDK_SCROLL_SMOOTH) {
-	while (acc_x > 1.0) { // right
+    if (event->direction == GDK_SCROLL_SMOOTH)
+    {
+	while (acc_x > 1.0)
+	{ // right
 	    acc_x = MAX(0.0, acc_x - 1.0);
 	    gui_send_mouse_event(MOUSE_6, (int)event->x, (int)event->y,
 		    FALSE, vim_modifiers);
 	}
-	while (acc_x < -1.0) { // left
+	while (acc_x < -1.0)
+	{ // left
 	    acc_x = MIN(0.0, acc_x + 1.0);
 	    gui_send_mouse_event(MOUSE_7, (int)event->x, (int)event->y,
 		    FALSE, vim_modifiers);
 	}
-	while (acc_y > 1.0) { // down
+	while (acc_y > 1.0)
+	{ // down
 	    acc_y = MAX(0.0, acc_y - 1.0);
 	    gui_send_mouse_event(MOUSE_5, (int)event->x, (int)event->y,
 		    FALSE, vim_modifiers);
 	}
-	while (acc_y < -1.0) { // up
+	while (acc_y < -1.0)
+	{ // up
 	    acc_y = MIN(0.0, acc_y + 1.0);
 	    gui_send_mouse_event(MOUSE_4, (int)event->x, (int)event->y,
 		    FALSE, vim_modifiers);
 	}
-    } else {
+    }
+    else
+    {
 #endif
 	gui_send_mouse_event(button, (int)event->x, (int)event->y,
 		FALSE, vim_modifiers);
@@ -2695,9 +2703,12 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
     // When started with "--echo-wid" argument, write window ID on stdout.
     if (echo_wid_arg)
     {
-	if (gui_mch_get_display()) {
+	if (gui_mch_get_display())
+	{
 	    printf("WID: %ld\n", (long)GDK_WINDOW_XID(mainwin_win));
-	} else {
+	}
+	else
+	{
 	    printf("WID: 0\n");
 	}
 	fflush(stdout);
@@ -2734,7 +2745,8 @@ mainwin_realize(GtkWidget *widget UNUSED, gpointer data UNUSED)
 	setup_save_yourself();
 
 #ifdef FEAT_CLIENTSERVER
-    if (gui_mch_get_display()) {
+    if (gui_mch_get_display())
+    {
 	if (serverName == NULL && serverDelayedStartName != NULL)
 	{
 	    // This is a :gui command in a plain vim with no previous server
@@ -3628,7 +3640,8 @@ gui_gtk_set_selection_targets(GdkAtom selection)
     static int	    n_targets = N_SELECTION_TARGETS;
     static GtkTargetEntry  targets[N_SELECTION_TARGETS];
 
-    if (targets[0].target == NULL) {
+    if (targets[0].target == NULL)
+    {
 	for (i = 0; i < (int)N_SELECTION_TARGETS; ++i)
 	{
 	    // OpenOffice tries to use TARGET_HTML and fails when we don't
@@ -7002,7 +7015,8 @@ clip_mch_request_selection(Clipboard_T *cbd)
 	    return;
     }
 
-    if (gui_mch_get_display()) {
+    if (gui_mch_get_display())
+    {
 	// Final fallback position - use the X CUT_BUFFER0 store
 	yank_cut_buffer0(GDK_WINDOW_XDISPLAY(gtk_widget_get_window(gui.mainwin)),
 		cbd);
@@ -7038,7 +7052,8 @@ clip_mch_own_selection(Clipboard_T *cbd)
     success = gtk_selection_owner_set(gui.drawarea, cbd->gtk_sel_atom,
 				    gui.event_time);
     // don't update on every visual selection change
-    if (!(cbd->owned && VIsual_active)) {
+    if (!(cbd->owned && VIsual_active))
+    {
 	gui_gtk_set_selection_targets(cbd->gtk_sel_atom);
     }
     gui_mch_update();
@@ -7174,7 +7189,8 @@ gui_mch_setmouse(int x, int y)
     // internal GDK mechanism present to accomplish this.  (and for good
     // reason...)
     Display * dpy = gui_mch_get_display();
-    if (dpy) {
+    if (dpy)
+    {
 	XWarpPointer(dpy, (Window)0, GDK_WINDOW_XID(gtk_widget_get_window(gui.drawarea)),
 		    0, 0, 0U, 0U, x, y);
     }
