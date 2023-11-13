@@ -80,6 +80,32 @@ func Test_termdebug_basic()
         \  'priority': 110, 'group': 'TermDebug'}],
         \ sign_getplaced('', #{group: 'TermDebug'})[0].signs)})
   Continue
+  call term_wait(gdb_buf)
+
+  let i = 2
+  while i <= 258
+    Break
+    call term_wait(gdb_buf)
+    if i == 2
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint2.0')[0].text, '02')})
+    endif
+    if i == 10
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint10.0')[0].text, '0A')})
+    endif
+    if i == 168
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint168.0')[0].text, 'A8')})
+    endif
+    if i == 255
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint255.0')[0].text, 'FF')})
+    endif
+    if i == 256
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint256.0')[0].text, 'F+')})
+    endif
+    if i == 258
+      call WaitForAssert({-> assert_equal(sign_getdefined('debugBreakpoint258.0')[0].text, 'F+')})
+    endif
+    let i += 1
+  endwhile
 
   let cn = 0
   " 60 is approx spaceBuffer * 3
@@ -96,17 +122,25 @@ func Test_termdebug_basic()
     bw!
   endif
   set columns=160
+  call term_wait(gdb_buf)
+  let winw = winwidth(0)
   Var
-  call assert_equal(winnr(), winnr('$') - 1)
-  call assert_equal(winlayout(), ['col', [['leaf', 1002], ['leaf', 1001], ['row', [['leaf', 1003 + cn], ['leaf', 1000]]]]])
-  let cn += 1
-  bw!
+  if winwidth(0) < winw
+    call assert_equal(winnr(), winnr('$') - 1)
+    call assert_equal(winlayout(), ['col', [['leaf', 1002], ['leaf', 1001], ['row', [['leaf', 1003 + cn], ['leaf', 1000]]]]])
+    let cn += 1
+    bw!
+  endif
+  let winw = winwidth(0)
   Asm
-  call assert_equal(winnr(), winnr('$') - 1)
-  call assert_equal(winlayout(), ['col', [['leaf', 1002], ['leaf', 1001], ['row', [['leaf', 1003 + cn], ['leaf', 1000]]]]])
-  let cn += 1
-  bw!
+  if winwidth(0) < winw
+    call assert_equal(winnr(), winnr('$') - 1)
+    call assert_equal(winlayout(), ['col', [['leaf', 1002], ['leaf', 1001], ['row', [['leaf', 1003 + cn], ['leaf', 1000]]]]])
+    let cn += 1
+    bw!
+  endif
   set columns&
+  call term_wait(gdb_buf)
 
   wincmd t
   quit!
