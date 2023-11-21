@@ -240,8 +240,6 @@ im_set_position(int row, int col)
     area.height = gui.char_height;
 
     gtk_im_context_set_cursor_location(xic, &area);
-    // apply cursor location update now
-    gtk_im_context_reset(xic);
 
     if (p_imst == IM_OVER_THE_SPOT)
 	im_preedit_window_set_position();
