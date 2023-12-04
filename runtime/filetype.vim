@@ -1397,6 +1397,9 @@ au BufRead,BufNewFile *.mu			setf mupad
 " Mush
 au BufNewFile,BufRead *.mush			setf mush
 
+" Mustache
+au BufNewFile,BufRead *.mustache		setf mustache
+
 " Mutt setup file (also for Muttng)
 au BufNewFile,BufRead Mutt{ng,}rc		setf muttrc
 
