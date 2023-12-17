@@ -1660,17 +1660,16 @@ get_member_type_from_stack(
     // Use "unknown" for an empty list or dict.
     if (count == 0)
 	return &t_unknown;
-
-    // Use the first value type for the list member type, then find the common
-    // type from following items.
+    // Find the common type from following items.
     typep = ((type2_T *)stack->ga_data) + stack->ga_len;
-    result = (typep -(count * skip) + skip - 1)->type_curr;
-    for (i = 1; i < count; ++i)
+    result = &t_unknown;
+    for (i = 0; i < count; ++i)
     {
-	if (result == &t_any)
-	    break;  // won't get more common
 	type = (typep -((count - i) * skip) + skip - 1)->type_curr;
-	common_type(type, result, &result, type_gap);
+	if (check_type_is_value(type) == FAIL)
+	    return NULL;
+	if (result != &t_any)
+	    common_type(type, result, &result, type_gap);
     }
 
     return result;
@@ -1868,6 +1867,8 @@ f_typename(typval_T *argvars, typval_T *rettv)
     int
 check_typval_is_value(typval_T *tv)
 {
+    if (tv == NULL)
+	return OK;
     if (tv->v_type == VAR_CLASS)
     {
         semsg(_(e_using_class_as_value_str), tv->vval.v_class->class_name);
@@ -1887,6 +1888,8 @@ check_typval_is_value(typval_T *tv)
     int
 check_type_is_value(type_T *type)
 {
+    if (type == NULL)
+	return OK;
     if (type->tt_type == VAR_CLASS)
     {
         semsg(_(e_using_class_as_value_str), type->tt_class->class_name);
@@ -1894,29 +1897,10 @@ check_type_is_value(type_T *type)
     }
     else if (type->tt_type == VAR_TYPEALIAS)
     {
-	// Not sure what could be done here to get a name
-	// TODO: MAYBE AN OPTIONAL ARGUMENT
+	// TODO: Not sure what could be done here to get a name.
+	//       Maybe an optional argument?
         emsg(_(e_using_typealias_as_var_val));
 	return FAIL;
-    }
-    return OK;
-}
-
-/*
- * Same as above, except check vartype_T.
- */
-    int
-check_vartype_is_value(vartype_T typ)
-{
-    if (typ == VAR_CLASS)
-    {
-	emsg(_(e_using_class_as_var_val));
-	return FAIL;
-    }
-    else if (typ == VAR_TYPEALIAS)
-    {
-        emsg(_(e_using_typealias_as_var_val));
-        return FAIL;
     }
     return OK;
 }

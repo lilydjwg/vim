@@ -3197,7 +3197,7 @@ def Test_func_argtype_check()
       assert_fails('IntArg(j)', 'E1013: Argument 1: type mismatch, expected number but got job')
       assert_fails('IntArg(ch)', 'E1013: Argument 1: type mismatch, expected number but got channel')
     endif
-    assert_fails('IntArg(A)', 'E1013: Argument 1: type mismatch, expected number but got class<A>')
+    assert_fails('IntArg(A)', 'E1405: Class "A" cannot be used as a value')
     assert_fails('IntArg(o)', 'E1013: Argument 1: type mismatch, expected number but got object<A>')
 
     # Passing a number to functions accepting different argument types
@@ -3262,7 +3262,7 @@ def Test_func_argtype_check()
     v9.CheckSourceFailure(lines, 'E1013: Argument 1: type mismatch, expected number but got channel', 2)
   endif
   lines = pre_lines + ['IntArg(A)'] + post_lines
-  v9.CheckSourceFailure(lines, 'E1013: Argument 1: type mismatch, expected number but got class<A>', 1)
+  v9.CheckSourceFailure(lines, 'E1405: Class "A" cannot be used as a value', 1)
   lines = pre_lines + ['var o: A = A.new()', 'IntArg(o)'] + post_lines
   v9.CheckSourceFailure(lines, 'E1013: Argument 1: type mismatch, expected number but got object<A>', 2)
 enddef
@@ -3359,6 +3359,96 @@ def Test_assign_to_any()
     END
     v9.CheckSourceSuccess(lines)
   endfor
+enddef
+
+def Test_assign_type_to_list_dict()
+  var lines =<< trim END
+    vim9script
+    class C
+    endclass
+
+    var x = [C]
+  END
+  v9.CheckScriptFailure(lines, 'E1405: Class "C" cannot be used as a value')
+
+  lines =<< trim END
+    vim9script
+    class C
+    endclass
+    type T = C
+
+    def F()
+      var x = [3, T, C]
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1405: Class "C" cannot be used as a value')
+
+  lines =<< trim END
+    vim9script
+    type T = number
+
+    def F()
+      var x = [3, T]
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1407: Cannot use a Typealias as a variable or value')
+
+  lines =<< trim END
+    vim9script
+    class C
+    endclass
+
+    var x = {e: C}
+  END
+  v9.CheckScriptFailure(lines, 'E1405: Class "C" cannot be used as a value')
+
+  lines =<< trim END
+    vim9script
+    class C
+    endclass
+
+    def F()
+      var x = {e: C}
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1405: Class "C" cannot be used as a value')
+
+  lines =<< trim END
+    vim9script
+    type T = number
+
+    def F()
+      var x = {e: T}
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1407: Cannot use a Typealias as a variable or value')
+
+  lines =<< trim END
+    vim9script
+    class C
+    endclass
+
+    def F()
+      var x = {e: [C]}
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1405: Class "C" cannot be used as a value')
+
+  lines =<< trim END
+    vim9script
+    type T = number
+
+    def F()
+      var x = {e: [T]}
+    enddef
+    F()
+  END
+  v9.CheckScriptFailure(lines, 'E1407: Cannot use a Typealias as a variable or value')
 enddef
 
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker
