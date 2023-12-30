@@ -1,4 +1,4 @@
-*vim9class.txt*	For Vim version 9.0.  Last change: 2023 Dec 24
+*vim9class.txt*	For Vim version 9.0.  Last change: 2023 Dec 28
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -144,8 +144,8 @@ the closest valid value.
 If you don't care about side effects and want to allow the object variable to
 be changed at any time, you can make it public: >
 
-	public this.lnum: number
-	public this.col: number
+	public var lnum: number
+	public var col: number
 
 Now you don't need the SetLnum(), SetCol() and SetPosition() methods, setting
 "pos.lnum" directly above will no longer give an error.
@@ -212,6 +212,8 @@ the above class): >
 <
 Simplifying the new() method ~
 						*new()* *constructor*
+See also |default-constructor| and |multiple-constructors|.
+
 Many constructors take values for the object variables.  Thus you very often
 see this pattern: >
 
@@ -801,7 +803,7 @@ first.
 
 
 Multiple constructors ~
-
+						*multiple-constructors*
 Normally a class has just one new() constructor.  In case you find that the
 constructor is often called with the same arguments you may want to simplify
 your code by putting those arguments into a second constructor method.  For
