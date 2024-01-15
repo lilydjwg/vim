@@ -5706,6 +5706,7 @@ TabNew	autocmd.txt	/*TabNew*
 Tcl	if_tcl.txt	/*Tcl*
 TermChanged	autocmd.txt	/*TermChanged*
 TermResponse	autocmd.txt	/*TermResponse*
+TermResponseAll	autocmd.txt	/*TermResponseAll*
 TermdebugStartPost	terminal.txt	/*TermdebugStartPost*
 TermdebugStartPre	terminal.txt	/*TermdebugStartPre*
 TermdebugStopPost	terminal.txt	/*TermdebugStopPost*
@@ -6428,6 +6429,7 @@ cino-{	indent.txt	/*cino-{*
 cino-}	indent.txt	/*cino-}*
 cinoptions-values	indent.txt	/*cinoptions-values*
 class	vim9class.txt	/*class*
+class-compile	vim9class.txt	/*class-compile*
 class-method	vim9class.txt	/*class-method*
 clear-undo	undo.txt	/*clear-undo*
 clearmatches()	builtin.txt	/*clearmatches()*
@@ -7147,6 +7149,7 @@ foldtextresult()	builtin.txt	/*foldtextresult()*
 font-sizes	gui_x11.txt	/*font-sizes*
 fontset	mbyte.txt	/*fontset*
 forced-motion	motion.txt	/*forced-motion*
+foreach()	builtin.txt	/*foreach()*
 foreground()	builtin.txt	/*foreground()*
 fork	os_unix.txt	/*fork*
 form.vim	syntax.txt	/*form.vim*
