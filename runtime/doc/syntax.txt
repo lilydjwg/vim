@@ -1,4 +1,4 @@
-*syntax.txt*	For Vim version 9.1.  Last change: 2024 Jan 24
+*syntax.txt*	For Vim version 9.1.  Last change: 2024 Feb 06
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -1331,11 +1331,14 @@ Stack Overflow -
 
 https://stackoverflow.com/questions/12407800/which-comment-style-should-i-use-in-batch-files
 
-To allow the use of the :: idiom for comments in the Windows Command
-Interpreter or working with MS-DOS bat files, set the
-dosbatch_colons_comment variable to anything: >
+To allow the use of the :: idiom for comments in command blocks with the
+Windows Command Interpreter set the dosbatch_colons_comment variable to
+anything: >
 
    :let dosbatch_colons_comment = 1
+
+If this variable is set then a :: comment that is the last line in a command
+block will be highlighted as an error.
 
 There is an option that covers whether *.btm files should be detected as type
 "dosbatch" (MS-DOS batch files) or type "btm" (4DOS batch files).  The latter
@@ -5265,7 +5268,8 @@ ctermul={color-nr}				*highlight-ctermul*
 	"cterm=" argument AFTER the "ctermfg=" or "ctermbg=" argument.	Or use
 	a number instead of a color name.
 
-	The case of the color names is ignored.
+	The case of the color names is ignored, however Vim will use lower
+	case color names when reading from the |v:colornames| dictionary.
 	Note that for 16 color ansi style terminals (including xterms), the
 	numbers in the NR-8 column is used.  Here '*' means 'add 8' so that
 	Blue is 12, DarkGray is 8 etc.
@@ -5384,8 +5388,8 @@ guisp={color-name}					*highlight-guisp*
 	    :highlight Comment guifg=#11f0c3 guibg=#ff00ff
 <
 	If you are authoring a color scheme and use the same hexadecimal value
-	repeatedly, you can define a name for it in |v:colornames|. For
-	example: >
+	repeatedly, you can define a (lower case) name for it in |v:colornames|.
+	For example: >
 
 	    # provide a default value for this color but allow the user to
 	    # override it.
