@@ -3,7 +3,7 @@
 " Maintainer:	Hirohito Higashi <h.east.727 ATMARK gmail.com>
 " 	Doug Kearns <dougkearns@gmail.com>
 " URL:	https://github.com/vim-jp/syntax-vim-ex
-" Last Change:	Feb 23, 2024
+" Last Change:	Feb 27, 2024
 " Former Maintainer: Charles E. Campbell
 " Base File URL:     http://www.drchip.org/astronaut/vim/index.html#SYNTAX_VIM
 " Base File Version: 9.0-25
@@ -29,16 +29,12 @@ syn cluster vimCommentGroup	contains=vimTodo,@Spell
 " regular vim commands {{{2
 " GEN_SYN_VIM: vimCommand normal, START_STR='syn keyword vimCommand contained', END_STR=''
 syn keyword vimCommand contained abc[lear] abo[veleft] abs[tract] al[l] ar[gs] arga[dd] argd[elete] argdo argded[upe] arge[dit] argg[lobal] argl[ocal] argu[ment] as[cii] b[uffer] bN[ext] ba[ll] bad[d] balt bd[elete] bel[owright] bf[irst] bl[ast] bm[odified] bn[ext] bo[tright] bp[revious] br[ewind] brea[k] breaka[dd] breakd[el] breakl[ist] bro[wse] buffers bufd[o] bun[load] bw[ipeout] c[hange] cN[ext] cNf[ile] cabc[lear] cabo[ve] cad[dbuffer] cadde[xpr] caddf[ile] caf[ter] cal[l] cat[ch] cb[uffer] cbe[fore] cbel[ow] cbo[ttom] cc ccl[ose] cd cdo ce[nter] cex[pr] cf[ile] cfd[o] cfir[st] cg[etfile] cgetb[uffer] cgete[xpr] chd[ir] changes che[ckpath] checkt[ime] chi[story] cl[ist] cla[st] class clo[se] cle[arjumps] cn[ext] cnew[er] cnf[ile] co[py] col[der] colo[rscheme]
-syn keyword vimCommand contained com[mand] comc[lear] comp[iler] con[tinue] conf[irm] cons[t] cope[n] cp[revious] cpf[ile] cq[uit] cr[ewind] cs[cope] cst[ag] cw[indow] d[elete] delm[arks] deb[ug] debugg[reedy] def defc[ompile] defe[r] delc[ommand] delf[unction] di[splay] dif[fupdate] diffg[et] diffo[ff] diffp[atch] diffpu[t] diffs[plit] difft[his] dig[raphs] disa[ssemble] dj[ump] dli[st] dr[op] ds[earch] dsp[lit] e[dit] ea[rlier] echoe[rr] echom[sg] echoc[onsole] echon echow[indow] el[se] elsei[f] em[enu] en[dif] endin[terface] endc[lass] endd[ef] ende[num] endf[unction] endfo[r] endt[ry] endw[hile] ene[w] enu[m] ev[al] ex exi[t] exp[ort] exu[sage] f[ile] files filet[ype] filt[er] fin[d] fina[l] finall[y] fini[sh] fir[st] fix[del] fo[ld] foldc[lose] foldd[oopen]
-syn keyword vimCommand contained folddoc[losed] foldo[pen] for fu[nction] g[lobal] go[to] gr[ep] grepa[dd] gu[i] gv[im] h[elp] helpc[lose] helpf[ind] helpg[rep] helpt[ags] ha[rdcopy] hi[ghlight] hid[e] his[tory] ho[rizontal] iabc[lear] if ij[ump] il[ist] imp[ort] int[ro] inte[rface] is[earch] isp[lit] j[oin] ju[mps] k kee[pmarks] keepj[umps] keepp[atterns] keepa[lt] l[ist] lN[ext] lNf[ile] la[st] lab[ove] lan[guage] lad[dexpr] laddb[uffer] laddf[ile] laf[ter] lat[er] lb[uffer] lbe[fore] lbel[ow] lbo[ttom] lc[d] lch[dir] lcl[ose] lcs[cope] ld[o] le[ft] lefta[bove] let lex[pr] leg[acy] lf[ile] lfd[o] lfir[st] lg[etfile] lgetb[uffer] lgete[xpr] lgr[ep] lgrepa[dd] lh[elpgrep] lhi[story] ll lla[st] lli[st] lmak[e] lne[xt] lnew[er] lnf[ile] lo[adview] loadk[eymap] loc[kmarks]
-syn keyword vimCommand contained lockv[ar] lol[der] lop[en] lp[revious] lpf[ile] lr[ewind] lt[ag] lua luad[o] luaf[ile] lv[imgrep] lvimgrepa[dd] lw[indow] ls m[ove] ma[rk] mak[e] marks mat[ch] menut[ranslate] mes[sages] mk[exrc] mks[ession] mksp[ell] mkv[imrc] mkvie[w] mod[e] mz[scheme] mzf[ile] n[ext] nb[key] nbc[lose] nbs[tart] noa[utocmd] noh[lsearch] nos[wapfile] nu[mber] o[pen] ol[dfiles] on[ly] opt[ions] ow[nsyntax] p[rint] pa[ckadd] packl[oadall] pc[lose] pe[rl] perld[o] ped[it] po[p] popu[p] pp[op] pre[serve] prev[ious] pro[mptfind] promptr[epl] prof[ile] profd[el] ps[earch] pt[ag] ptN[ext] ptf[irst] ptj[ump] ptl[ast] ptn[ext] ptp[revious] ptr[ewind] pts[elect] pu[t] pub[lic] pw[d] py[thon] pyd[o] pyf[ile] py3 py3d[o] python3 py3f[ile] pyx pyxd[o] pythonx
-syn keyword vimCommand contained pyxf[ile] q[uit] quita[ll] qa[ll] r[ead] rec[over] red[o] redi[r] redr[aw] redraws[tatus] redrawt[abline] reg[isters] res[ize] ret[ab] retu[rn] rew[ind] ri[ght] rightb[elow] ru[ntime] rub[y] rubyd[o] rubyf[ile] rund[o] rv[iminfo] sN[ext] sa[rgument] sal[l] san[dbox] sav[eas] sb[uffer] sbN[ext] sba[ll] sbf[irst] sbl[ast] sbm[odified] sbn[ext] sbp[revious] sbr[ewind] sc[riptnames] scripte[ncoding] scriptv[ersion] scs[cope] setf[iletype] sf[ind] sfir[st] sh[ell] si[malt] sig[n] sil[ent] sl[eep] sla[st] sn[ext] so[urce] sor[t] sp[lit] spe[llgood] spelld[ump] spelli[nfo] spellr[epall] spellra[re] spellu[ndo] spellw[rong] spr[evious] sr[ewind] st[op] sta[g] star[tinsert] startg[replace] startr[eplace] stat[ic] stopi[nsert] stj[ump] sts[elect]
-syn keyword vimCommand contained sun[hide] sus[pend] sv[iew] sw[apname] synti[me] sync[bind] smi[le] t tN[ext] ta[g] tags tab tabc[lose] tabd[o] tabe[dit] tabf[ind] tabfir[st] tabm[ove] tabl[ast] tabn[ext] tabnew tabo[nly] tabp[revious] tabN[ext] tabr[ewind] tabs tc[d] tch[dir] tcl tcld[o] tclf[ile] te[aroff] ter[minal] tf[irst] th[row] thi[s] tj[ump] tl[ast] tm[enu] tn[ext] to[pleft] tp[revious] tr[ewind] try ts[elect] tu[nmenu] ty[pe] u[ndo] undoj[oin] undol[ist] unh[ide] unl[et] unlo[ckvar] uns[ilent] up[date] v[global] ve[rsion] verb[ose] vert[ical] vi[sual] vie[w] vim[grep] vimgrepa[dd] vim9[cmd] vim9s[cript] viu[sage] vne[w] vs[plit] w[rite] wN[ext] wa[ll] wh[ile] wi[nsize] winc[md] wind[o] winp[os] wn[ext] wp[revious] wq wqa[ll] wu[ndo] wv[iminfo] x[it]
-syn keyword vimCommand contained xa[ll] xr[estore] y[ank] z dl dell delel deletl deletel dp dep delp delep deletp deletep a i
-syn keyword vimCommand contained am[enu] an[oremenu] aun[menu] cme[nu] cnoreme[nu] cunme[nu] ime[nu] inoreme[nu] iunme[nu] me[nu] nme[nu] nnoreme[nu] noreme[nu] nunme[nu] ome[nu] onoreme[nu] ounme[nu] sme[nu] snoreme[nu] sunme[nu] tlm[enu] tln[oremenu] tlu[nmenu] unme[nu] vme[nu] vnoreme[nu] vunme[nu] xme[nu] xnoreme[nu] xunme[nu]
-syn keyword vimCommand contained cm[ap] cno[remap] im[ap] ino[remap] lm[ap] ln[oremap] nm[ap] nn[oremap] no[remap] om[ap] ono[remap] smap snor[emap] tma[p] tno[remap] vm[ap] vn[oremap] xm[ap] xn[oremap]
-syn keyword vimCommand contained cmapc[lear] imapc[lear] lmapc[lear] nmapc[lear] omapc[lear] smapc[lear] tmapc[lear] vmapc[lear] xmapc[lear]
-syn keyword vimCommand contained cu[nmap] iu[nmap] lu[nmap] nun[map] ou[nmap] sunm[ap] tunma[p] unm[ap] vu[nmap] xu[nmap]
+syn keyword vimCommand contained com[mand] comc[lear] comp[iler] con[tinue] conf[irm] cons[t] cope[n] cp[revious] cpf[ile] cq[uit] cr[ewind] cs[cope] cst[ag] cw[indow] d[elete] delm[arks] deb[ug] debugg[reedy] def defc[ompile] defe[r] delc[ommand] delf[unction] di[splay] dif[fupdate] diffg[et] diffo[ff] diffp[atch] diffpu[t] diffs[plit] difft[his] dig[raphs] disa[ssemble] dj[ump] dli[st] dr[op] ds[earch] dsp[lit] e[dit] ea[rlier] el[se] elsei[f] em[enu] en[dif] endin[terface] endc[lass] endd[ef] ende[num] endf[unction] endfo[r] endt[ry] endw[hile] ene[w] enu[m] ev[al] ex exi[t] exp[ort] exu[sage] f[ile] files filet[ype] filt[er] fin[d] fina[l] finall[y] fini[sh] fir[st] fix[del] fo[ld] foldc[lose] foldd[oopen] folddoc[losed] foldo[pen] for fu[nction] g[lobal]
+syn keyword vimCommand contained go[to] gr[ep] grepa[dd] gu[i] gv[im] h[elp] helpc[lose] helpf[ind] helpg[rep] helpt[ags] ha[rdcopy] hi[ghlight] hid[e] his[tory] ho[rizontal] iabc[lear] if ij[ump] il[ist] imp[ort] int[ro] inte[rface] is[earch] isp[lit] j[oin] ju[mps] k kee[pmarks] keepj[umps] keepp[atterns] keepa[lt] l[ist] lN[ext] lNf[ile] la[st] lab[ove] lan[guage] lad[dexpr] laddb[uffer] laddf[ile] laf[ter] lat[er] lb[uffer] lbe[fore] lbel[ow] lbo[ttom] lc[d] lch[dir] lcl[ose] lcs[cope] ld[o] le[ft] lefta[bove] let lex[pr] leg[acy] lf[ile] lfd[o] lfir[st] lg[etfile] lgetb[uffer] lgete[xpr] lgr[ep] lgrepa[dd] lh[elpgrep] lhi[story] ll lla[st] lli[st] lmak[e] lne[xt] lnew[er] lnf[ile] lo[adview] loadk[eymap] loc[kmarks] lockv[ar] lol[der] lop[en] lp[revious]
+syn keyword vimCommand contained lpf[ile] lr[ewind] lt[ag] lua luad[o] luaf[ile] lv[imgrep] lvimgrepa[dd] lw[indow] ls m[ove] ma[rk] mak[e] marks mat[ch] menut[ranslate] mes[sages] mk[exrc] mks[ession] mksp[ell] mkv[imrc] mkvie[w] mod[e] mz[scheme] mzf[ile] n[ext] nb[key] nbc[lose] nbs[tart] noa[utocmd] noh[lsearch] nos[wapfile] nu[mber] o[pen] ol[dfiles] on[ly] opt[ions] ow[nsyntax] p[rint] pa[ckadd] packl[oadall] pc[lose] pe[rl] perld[o] ped[it] po[p] popu[p] pp[op] pre[serve] prev[ious] pro[mptfind] promptr[epl] prof[ile] profd[el] ps[earch] pt[ag] ptN[ext] ptf[irst] ptj[ump] ptl[ast] ptn[ext] ptp[revious] ptr[ewind] pts[elect] pu[t] pub[lic] pw[d] py[thon] pyd[o] pyf[ile] py3 py3d[o] python3 py3f[ile] pyx pyxd[o] pythonx pyxf[ile] q[uit] quita[ll] qa[ll] r[ead]
+syn keyword vimCommand contained rec[over] red[o] redi[r] redr[aw] redraws[tatus] redrawt[abline] reg[isters] res[ize] ret[ab] retu[rn] rew[ind] ri[ght] rightb[elow] ru[ntime] rub[y] rubyd[o] rubyf[ile] rund[o] rv[iminfo] sN[ext] sa[rgument] sal[l] san[dbox] sav[eas] sb[uffer] sbN[ext] sba[ll] sbf[irst] sbl[ast] sbm[odified] sbn[ext] sbp[revious] sbr[ewind] sc[riptnames] scripte[ncoding] scriptv[ersion] scs[cope] setf[iletype] sf[ind] sfir[st] sh[ell] si[malt] sig[n] sil[ent] sl[eep] sla[st] sn[ext] so[urce] sor[t] sp[lit] spe[llgood] spelld[ump] spelli[nfo] spellr[epall] spellra[re] spellu[ndo] spellw[rong] spr[evious] sr[ewind] st[op] sta[g] star[tinsert] startg[replace] startr[eplace] stat[ic] stopi[nsert] stj[ump] sts[elect] sun[hide] sus[pend] sv[iew] sw[apname]
+syn keyword vimCommand contained synti[me] sync[bind] smi[le] t tN[ext] ta[g] tags tab tabc[lose] tabd[o] tabe[dit] tabf[ind] tabfir[st] tabm[ove] tabl[ast] tabn[ext] tabnew tabo[nly] tabp[revious] tabN[ext] tabr[ewind] tabs tc[d] tch[dir] tcl tcld[o] tclf[ile] te[aroff] ter[minal] tf[irst] th[row] thi[s] tj[ump] tl[ast] tm[enu] tn[ext] to[pleft] tp[revious] tr[ewind] try ts[elect] tu[nmenu] ty[pe] u[ndo] undoj[oin] undol[ist] unh[ide] unl[et] unlo[ckvar] uns[ilent] up[date] v[global] ve[rsion] verb[ose] vert[ical] vi[sual] vie[w] vim[grep] vimgrepa[dd] vim9[cmd] vim9s[cript] viu[sage] vne[w] vs[plit] w[rite] wN[ext] wa[ll] wh[ile] wi[nsize] winc[md] wind[o] winp[os] wn[ext] wp[revious] wq wqa[ll] wu[ndo] wv[iminfo] x[it] xa[ll] xr[estore] y[ank] z dl dell delel
+syn keyword vimCommand contained deletl deletel dp dep delp delep deletp deletep a i
 
 syn keyword vimCommand contained	2mat[ch] 3mat[ch]
 
@@ -199,16 +195,16 @@ endif
 
 " Numbers {{{2
 " =======
-syn match vimNumber	'\<\d\+\%(\.\d\+\%([eE][+-]\=\d\+\)\=\)\=' skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'-\d\+\%(\.\d\+\%([eE][+-]\=\d\+\)\=\)\='  skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'\<0[xX]\x\+'		       skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'\%(^\|\A\)\zs#\x\{6}'             	       skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'\<0[zZ][a-zA-Z0-9.]\+'                    skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'0[0-7]\+'		       skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
-syn match vimNumber	'0[bB][01]\+'		       skipwhite nextgroup=vimGlobal,vimSubst,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'\<\d\+\%(\.\d\+\%([eE][+-]\=\d\+\)\=\)\=' skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'-\d\+\%(\.\d\+\%([eE][+-]\=\d\+\)\=\)\='  skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'\<0[xX]\x\+'		       skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'\%(^\|\A\)\zs#\x\{6}'             	       skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'\<0[zZ][a-zA-Z0-9.]\+'                    skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'0[0-7]\+'		       skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
+syn match vimNumber	'0[bB][01]\+'		       skipwhite nextgroup=vimGlobal,vimSubst1,vimCommand,vimComment,vim9Comment
 
 " All vimCommands are contained by vimIsCommand. {{{2
-syn match vimCmdSep	"[:|]\+"	skipwhite nextgroup=vimAbb,vimAddress,vimAutoCmd,vimAugroup,vimBehave,vimEcho,vimEchoHL,vimExecute,vimIsCommand,vimExtCmd,vimFilter,vimGlobal,vimHighlight,vimLet,vimMap,vimMark,vimNorm,vimSet,vimSyntax,vimUnlet,vimUnmap,vimUserCmd
+syn match vimCmdSep	"[:|]\+"	skipwhite nextgroup=vimAbb,vimAddress,vimAutoCmd,vimAugroup,vimBehave,vimEcho,vimEchoHL,vimExecute,vimIsCommand,vimExtCmd,vimFilter,vimGlobal,vimHighlight,vimLet,vimMap,vimMark,vimNorm,vimSet,vimSubst1,vimSyntax,vimUnlet,vimUnmap,vimUserCmd
 syn match vimIsCommand	"\<\%(\h\w*\|[23]mat\%[ch]\)\>"	contains=vimCommand
 syn match vimVar	      contained	"\<\h[a-zA-Z0-9#_]*\>"
 syn match vimVar		"\<[bwglstav]:\h[a-zA-Z0-9#_]*\>"
@@ -217,6 +213,8 @@ syn match vimVar		"\s\zs&t_\S[a-zA-Z0-9]\>"
 syn match vimVar        	"\s\zs&t_k;"
 syn match vimFBVar      contained   "\<[bwglstav]:\h[a-zA-Z0-9#_]*\>"
 syn keyword vimCommand  contained	in
+
+syn cluster vimExprList contains=vimEnvvar,vimFunc,vimFuncVar,vimNumber,vimOper,vimOperParen,vimLetRegister,vimString,vimVar
 
 " Insertions And Appends: insert append {{{2
 "   (buftype != nofile test avoids having append, change, insert show up in the command window)
@@ -236,7 +234,6 @@ syn match   vimBehave	"\<be\%[have]\>"	nextgroup=vimBehaveBang,vimBehaveModel,vi
 syn match   vimBehaveBang	contained	"\a\@1<=!" nextgroup=vimBehaveModel skipwhite
 syn keyword vimBehaveModel	contained	mswin	xterm
 
-hi def link vimBehaveBang vimBang
 " Filetypes {{{2
 " =========
 syn match   vimFiletype	"\<filet\%[ype]\(\s\+\I\i*\)*"	skipwhite contains=vimFTCmd,vimFTOption,vimFTError
@@ -312,12 +309,12 @@ syn region vimKeymap matchgroup=vimCommand start="\<loadk\%[eymap]\>" end="\%$" 
 
 " Special Filenames, Modifiers, Extension Removal: {{{2
 " ===============================================
-syn match	vimSpecFile	"<c\(word\|WORD\)>"	nextgroup=vimSpecFileMod,vimSubst
-syn match	vimSpecFile	"<\([acs]file\|amatch\|abuf\)>"	nextgroup=vimSpecFileMod,vimSubst
-syn match	vimSpecFile	"\s%[ \t:]"ms=s+1,me=e-1	nextgroup=vimSpecFileMod,vimSubst
-syn match	vimSpecFile	"\s%$"ms=s+1	nextgroup=vimSpecFileMod,vimSubst
-syn match	vimSpecFile	"\s%<"ms=s+1,me=e-1	nextgroup=vimSpecFileMod,vimSubst
-syn match	vimSpecFile	"#\d\+\|[#%]<\>"	nextgroup=vimSpecFileMod,vimSubst
+syn match	vimSpecFile	"<c\(word\|WORD\)>"	nextgroup=vimSpecFileMod,vimSubst1
+syn match	vimSpecFile	"<\([acs]file\|amatch\|abuf\)>"	nextgroup=vimSpecFileMod,vimSubst1
+syn match	vimSpecFile	"\s%[ \t:]"ms=s+1,me=e-1	nextgroup=vimSpecFileMod,vimSubst1
+syn match	vimSpecFile	"\s%$"ms=s+1		nextgroup=vimSpecFileMod,vimSubst1
+syn match	vimSpecFile	"\s%<"ms=s+1,me=e-1	nextgroup=vimSpecFileMod,vimSubst1
+syn match	vimSpecFile	"#\d\+\|[#%]<\>"		nextgroup=vimSpecFileMod,vimSubst1
 syn match	vimSpecFileMod	"\(:[phtre]\)\+"	contained
 
 " User-Specified Commands: {{{2
@@ -388,44 +385,45 @@ syn match	vimEscape	contained	"\\\o\{1,3}\|\\[xX]\x\{1,2}\|\\u\x\{1,4}\|\\U\x\{1
 syn match	vimEscape	contained	"\\<" contains=vimNotation
 syn match	vimEscape	contained	"\\<\*[^>]*>\=>"
 
-syn region	vimString start=+$'+ end=+'+ skip=+''+ oneline contains=vimStringInterpolationBrace,vimStringInterpolationExpr
-syn region	vimString start=+$"+ end=+"+ oneline contains=@vimStringGroup,vimStringInterpolationBrace,vimStringInterpolationExpr
-syn region	vimStringInterpolationExpr matchgroup=vimSep start=+{+ end=+}+ oneline contains=vimFunc,vimFuncVar,vimOper,vimOperParen,vimNotation,vimNumber,vimString,vimVar
-syn match	vimStringInterpolationBrace "{{"
-syn match	vimStringInterpolationBrace "}}"
+syn region	vimString	oneline start=+$'+ skip=+''+ end=+'+ contains=vimStringInterpolationBrace,vimStringInterpolationExpr
+syn region	vimString	oneline start=+$"+ end=+"+ contains=@vimStringGroup,vimStringInterpolationBrace,vimStringInterpolationExpr
+syn region	vimStringInterpolationExpr  oneline contained matchgroup=vimSep start=+{+ end=+}+ contains=@vimExprList
+syn match	vimStringInterpolationBrace contained "{{"
+syn match	vimStringInterpolationBrace contained "}}"
 
 " Substitutions: {{{2
 " =============
 syn cluster	vimSubstList	contains=vimPatSep,vimPatRegion,vimPatSepErr,vimSubstTwoBS,vimSubstRange,vimNotation
 syn cluster	vimSubstRepList	contains=vimSubstSubstr,vimSubstTwoBS,vimNotation
 syn cluster	vimSubstList	add=vimCollection
-syn match	vimSubst	"\(:\+\s*\|^\s*\||\s*\)\<\%(\<s\%[ubstitute]\>\|\<sm\%[agic]\>\|\<sno\%[magic]\>\)[:#[:alpha:]]\@!" nextgroup=vimSubstPat
-"syn match	vimSubst	"\%(^\|[^\\]\)\<s\%[ubstitute]\>[:#[:alpha:]]\@!"	nextgroup=vimSubstPat contained
-syn match	vimSubst	"\%(^\|[^\\\"']\)\<s\%[ubstitute]\>[:#[:alpha:]\"']\@!"	nextgroup=vimSubstPat contained
-syn match	vimSubst	"/\zs\<s\%[ubstitute]\>\ze/"		nextgroup=vimSubstPat
-syn match	vimSubst	"\(:\+\s*\|^\s*\)s\ze#.\{-}#.\{-}#"		nextgroup=vimSubstPat
-syn match	vimSubst1       contained	"\<s\%[ubstitute]\>"	nextgroup=vimSubstPat
-syn match	vimSubst2       contained	"s\%[ubstitute]\>"	nextgroup=vimSubstPat
-syn region	vimSubstPat     contained	matchgroup=vimSubstDelim start="\z([^a-zA-Z( \t[\]&]\)"rs=s+1 skip="\\\\\|\\\z1" end="\z1"re=e-1,me=e-1	 contains=@vimSubstList	nextgroup=vimSubstRep4	oneline
-syn region	vimSubstRep4    contained	matchgroup=vimSubstDelim start="\z(.\)" skip="\\\\\|\\\z1" end="\z1" matchgroup=vimNotation end="<[cC][rR]>" contains=@vimSubstRepList	nextgroup=vimSubstFlagErr	oneline
-syn region	vimCollection   contained transparent	start="\\\@<!\[" skip="\\\[" end="\]"	contains=vimCollClass
-syn match	vimCollClassErr contained	"\[:.\{-\}:\]"
-syn match	vimCollClass    contained transparent	"\%#=1\[:\(alnum\|alpha\|blank\|cntrl\|digit\|graph\|lower\|print\|punct\|space\|upper\|xdigit\|retu\%[rn]\|tab\|escape\|backspace\):\]"
-syn match	vimSubstSubstr  contained	"\\z\=\d"
-syn match	vimSubstTwoBS   contained	"\\\\"
-syn match	vimSubstFlagErr contained	"[^< \t\r|]\+" contains=vimSubstFlags
-syn match	vimSubstFlags   contained	"[&cegiIlnpr#]\+"
+syn match	vimSubst	"^\s*\%(s\%[ubstitute]\|sm\%[agic]\|sno\%[magic]\)\>[\"#|]\@!"	nextgroup=vimSubstPat
+syn match	vimSubst	"^\s*\%(s\%[ubstitute]\|sm\%[agic]\|sno\%[magic]\)_\@="	nextgroup=vimSubstPat
+syn match	vimSubst	"^\s*\%(s\%[ubstitute]\|sm\%[agic]\>\|sno\%[magic]\)\ze#.\{-}#.\{-}#"	nextgroup=vimSubstPat
+syn match	vimSubst1	contained	"\%(s\%[ubstitute]\|sm\%[agic]\>\|sno\%[magic]\)\>[\"#|]\@!"		nextgroup=vimSubstPat
+syn match	vimSubst1	contained	"\%(s\%[ubstitute]\|sm\%[agic]\>\|sno\%[magic]\)_\@="			nextgroup=vimSubstPat
+syn match	vimSubst1	contained	"\%(s\%[ubstitute]\|sm\%[agic]\>\|sno\%[magic]\)\ze#.\{-}#.\{-}#"		nextgroup=vimSubstPat
+" TODO: Vim9 illegal separators for abbreviated :s form are [-.:], :su\%[...] required
+"     : # is allowed but "not recommended" (see :h pattern-delimiter)
+syn region	vimSubstPat	contained	matchgroup=vimSubstDelim start="\z([!#$%&'()*+,-./:;<=>?@[\]^_`{}~]\)"rs=s+1 skip="\\\\\|\\\z1" end="\z1"re=e-1,me=e-1	contains=@vimSubstList	nextgroup=vimSubstRep4	oneline
+syn region	vimSubstRep4	contained	matchgroup=vimSubstDelim start="\z(.\)" skip="\\\\\|\\\z1" end="\z1" matchgroup=vimNotation end="<[cC][rR]>"	contains=@vimSubstRepList	nextgroup=vimSubstFlagErr	oneline
+syn region	vimCollection	contained 	transparent	start="\\\@<!\[" skip="\\\[" end="\]"	contains=vimCollClass
+syn match	vimCollClassErr	contained	"\[:.\{-\}:\]"
+syn match	vimCollClass	contained 	transparent	"\%#=1\[:\(alnum\|alpha\|blank\|cntrl\|digit\|graph\|lower\|print\|punct\|space\|upper\|xdigit\|retu\%[rn]\|tab\|escape\|backspace\):\]"
+syn match	vimSubstSubstr	contained	"\\z\=\d"
+syn match	vimSubstTwoBS	contained	"\\\\"
+syn match	vimSubstFlagErr	contained	"[^< \t\r|]\+" contains=vimSubstFlags
+syn match	vimSubstFlags	contained	"[&cegiIlnpr#]\+"
 
 " 'String': {{{2
 syn match	vimString	"[^(,]'[^']\{-}\zs'"
 
 " Marks, Registers, Addresses, Filters: {{{2
-syn match	vimMark	"'[a-zA-Z0-9]\ze[-+,!]"	nextgroup=vimFilter,vimMarkNumber,vimSubst
-syn match	vimMark	"'[<>]\ze[-+,!]"		nextgroup=vimFilter,vimMarkNumber,vimSubst
-syn match	vimMark	",\zs'[<>]\ze"		nextgroup=vimFilter,vimMarkNumber,vimSubst
-syn match	vimMark	"[!,:]\zs'[a-zA-Z0-9]"	nextgroup=vimFilter,vimMarkNumber,vimSubst
-syn match	vimMark	"\<norm\%[al]\s\zs'[a-zA-Z0-9]"	nextgroup=vimFilter,vimMarkNumber,vimSubst
-syn match	vimMarkNumber	"[-+]\d\+"		contained contains=vimOper nextgroup=vimSubst2
+syn match	vimMark	"'[a-zA-Z0-9]\ze[-+,!]"	nextgroup=vimFilter,vimMarkNumber,vimSubst1
+syn match	vimMark	"'[<>]\ze[-+,!]"		nextgroup=vimFilter,vimMarkNumber,vimSubst1
+syn match	vimMark	",\zs'[<>]\ze"		nextgroup=vimFilter,vimMarkNumber,vimSubst1
+syn match	vimMark	"[!,:]\zs'[a-zA-Z0-9]"	nextgroup=vimFilter,vimMarkNumber,vimSubst1
+syn match	vimMark	"\<norm\%[al]\s\zs'[a-zA-Z0-9]"	nextgroup=vimFilter,vimMarkNumber,vimSubst1
+syn match	vimMarkNumber	"[-+]\d\+"		contained contains=vimOper nextgroup=vimSubst1
 syn match	vimPlainMark contained	"'[a-zA-Z0-9]"
 syn match	vimRange	"[`'][a-zA-Z0-9],[`'][a-zA-Z0-9]"	contains=vimMark	skipwhite nextgroup=vimFilter
 
@@ -486,12 +484,16 @@ syn match	vimAutoCmdMod	"\(++\)\=\(once\|nested\)"
 
 " Echo And Execute: -- prefer strings! {{{2
 " ================
-syn region	vimEcho	oneline excludenl matchgroup=vimCommand start="\<ec\%[ho]\>" skip="\(\\\\\)*\\|" end="$\||" contains=vimFunc,vimFuncVar,vimString,vimVar
-syn region	vimExecute	oneline excludenl matchgroup=vimCommand start="\<exe\%[cute]\>" skip="\(\\\\\)*\\|" end="$\||\|<[cC][rR]>" contains=vimFuncVar,vimIsCommand,vimOper,vimNotation,vimOperParen,vimString,vimVar
-syn match	vimEchoHL	"echohl\="	skipwhite nextgroup=vimGroup,vimHLGroup,vimEchoHLNone
+" GEN_SYN_VIM: vimCommand echo, START_STR='syn keyword vimEcho', END_STR='skipwhite nextgroup=vimEchoExpr'
+syn keyword vimEcho ec[ho] echoe[rr] echom[sg] echoc[onsole] echon echow[indow] skipwhite nextgroup=vimEchoExpr
+syn region	vimEchoExpr 	contained	start="[^[:space:]|]" skip=+\\\\\|\\|\|\n\s*\\\|\n\s*"\\ + matchgroup=vimCmdSep end="|" end="$" contains=@vimContinue,@vimExprList
+
+syn match	vimEchoHL	"\<echohl\=\>"	skipwhite nextgroup=vimGroup,vimHLGroup,vimEchoHLNone
 syn case ignore
 syn keyword	vimEchoHLNone	none
 syn case match
+
+syn region	vimExecute	oneline excludenl matchgroup=vimCommand start="\<exe\%[cute]\>" skip="\(\\\\\)*\\|" end="$\||\|<[cC][rR]>" contains=vimFuncVar,vimIsCommand,vimOper,vimNotation,vimOperParen,vimString,vimVar
 
 " Maps: {{{2
 " ====
@@ -761,8 +763,8 @@ syn match	vimCommentTitleLeader	'"\s\+'ms=s+1	contained
 " ====================
 syn match	vimSearch	'^\s*[/?].*'		contains=vimSearchDelim
 syn match	vimSearchDelim	'^\s*\zs[/?]\|[/?]$'	contained
-syn region	vimGlobal	matchgroup=Statement start='\<g\%[lobal]!\=/'  skip='\\.' end='/'	skipwhite nextgroup=vimSubst
-syn region	vimGlobal	matchgroup=Statement start='\<v\%[global]!\=/' skip='\\.' end='/'	skipwhite nextgroup=vimSubst
+syn region	vimGlobal	matchgroup=Statement start='\<g\%[lobal]!\=/'  skip='\\.' end='/'	skipwhite nextgroup=vimSubst1
+syn region	vimGlobal	matchgroup=Statement start='\<v\%[global]!\=/' skip='\\.' end='/'	skipwhite nextgroup=vimSubst1
 
 " Embedded Scripts:  {{{2
 " ================
@@ -982,7 +984,7 @@ if !exists("skip_vim_syntax_inits")
  hi def link vimAutoCmdMod	Special
  hi def link vimAutoSet	vimCommand
  hi def link vimBang	vimOper
-  hi def link vimBehaveBang	vimBang
+ hi def link vimBehaveBang	vimBang
  hi def link vimBehaveModel	vimBehave
  hi def link vimBehave	vimCommand
  hi def link vimBracket	Delimiter
@@ -997,6 +999,7 @@ if !exists("skip_vim_syntax_inits")
  hi def link vimContinue	Special
  hi def link vimContinueComment	vimComment
  hi def link vimCtrlChar	SpecialChar
+ hi def link vimEcho	vimCommand
  hi def link vimEchoHLNone	vimGroup
  hi def link vimEchoHL	vimCommand
  hi def link vimElseIfErr	Error
