@@ -896,8 +896,8 @@ cmd_with_count(
 }
 
 /*
- * If "split_disallowed" is set for "wp", give an error and return FAIL.
- * Otherwise return OK.
+ * If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and
+ * return FAIL.  Otherwise return OK.
  */
     int
 check_split_disallowed(win_T *wp)
@@ -1980,7 +1980,6 @@ win_splitmove(win_T *wp, int size, int flags)
 	// existing window, so just undo winframe_remove.
 	winframe_restore(wp, dir, unflat_altfr);
 	win_append(wp->w_prev, wp);
-	(void)win_comp_pos();   // recompute window positions
 	return FAIL;
     }
 
@@ -2585,7 +2584,7 @@ one_window(void)
 
 /*
  * Close the possibly last window in a tab page.
- * Returns TRUE when the window was closed already.
+ * Return FALSE if there are other windows and nothing is done, TRUE otherwise.
  */
     static int
 close_last_window_tabpage(
@@ -2723,7 +2722,7 @@ win_close(win_T *win, int free_buf)
     // and then close the window and the tab page to avoid that curwin and
     // curtab are invalid while we are freeing memory.
     if (close_last_window_tabpage(win, free_buf, prev_curtab))
-      return FAIL;
+	return FAIL;
 
     // When closing the help window, try restoring a snapshot after closing
     // the window.  Otherwise clear the snapshot, it's now invalid.
@@ -2796,9 +2795,11 @@ win_close(win_T *win, int free_buf)
 
     win_close_buffer(win, free_buf ? DOBUF_UNLOAD : 0, TRUE);
 
-    if (only_one_window() && win_valid(win) && win->w_buffer == NULL
-	    && (last_window() || curtab != prev_curtab
-		|| close_last_window_tabpage(win, free_buf, prev_curtab)))
+    if (win_valid(win) && win->w_buffer == NULL
+#if defined(FEAT_PROP_POPUP)
+	    && !popup_is_popup(win)
+#endif
+	    && last_window())
     {
 	// Autocommands have closed all windows, quit now.  Restore
 	// curwin->w_buffer, otherwise writing viminfo may fail.
@@ -2812,10 +2813,7 @@ win_close(win_T *win, int free_buf)
 						      && win->w_buffer == NULL)
     {
 	// Need to close the window anyway, since the buffer is NULL.
-	// Don't trigger autocmds with a NULL buffer.
-	block_autocmds();
 	win_close_othertab(win, FALSE, prev_curtab);
-	unblock_autocmds();
 	return FAIL;
     }
 
@@ -3352,10 +3350,15 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
 	return; // window is already being closed
 
     // Trigger WinClosed just before starting to free window-related resources.
-    trigger_winclosed(win);
-    // autocmd may have freed the window already.
-    if (!win_valid_any_tab(win))
-	return;
+    // If the buffer is NULL, it isn't safe to trigger autocommands,
+    // and win_close() should have already triggered WinClosed.
+    if (win->w_buffer != NULL)
+    {
+	trigger_winclosed(win);
+	// autocmd may have freed the window already.
+	if (!win_valid_any_tab(win))
+	    return;
+    }
 
     if (win->w_buffer != NULL)
 	// Close the link to the buffer.
@@ -3603,7 +3606,6 @@ winframe_remove(
  * Flatten "frp" into its parent frame if it's the only child, also merging its
  * list with the grandparent if they share the same layout.
  * Frees "frp" if flattened; also "frp->fr_parent" if it has the same layout.
- * "frp" must be valid in the current tabpage.
  */
     static void
 frame_flatten(frame_T *frp)
@@ -3656,13 +3658,16 @@ frame_flatten(frame_T *frp)
 
 /*
  * Undo changes from a prior call to winframe_remove, also restoring lost
- * vertical separators and statuslines.
+ * vertical separators and statuslines, and changed window positions for
+ * windows within "unflat_altfr".
  * Caller must ensure no other changes were made to the layout or window sizes!
  */
     static void
 winframe_restore(win_T *wp, int dir, frame_T *unflat_altfr)
 {
     frame_T	*frp = wp->w_frame;
+    int		row = wp->w_winrow;
+    int		col = wp->w_wincol;
 
     // Put "wp"'s frame back where it was.
     if (frp->fr_prev != NULL)
@@ -3680,17 +3685,25 @@ winframe_restore(win_T *wp, int dir, frame_T *unflat_altfr)
 	    && frp->fr_parent->fr_layout == FR_COL && frp->fr_prev != NULL)
 	frame_add_statusline(frp->fr_prev);
 
-    // Restore the lost room that was redistributed to the altframe.
+    // Restore the lost room that was redistributed to the altframe.  Also
+    // adjusts window sizes to fit restored statuslines/separators, if needed.
     if (dir == 'v')
     {
 	frame_new_height(unflat_altfr, unflat_altfr->fr_height - frp->fr_height,
 		unflat_altfr == frp->fr_next, FALSE);
+	row += frp->fr_height;
     }
     else if (dir == 'h')
     {
 	frame_new_width(unflat_altfr, unflat_altfr->fr_width - frp->fr_width,
 		unflat_altfr == frp->fr_next, FALSE);
+	col += frp->fr_width;
     }
+
+    // If rows/columns went to a window below/right, its positions need to be
+    // restored.  Can only be done after the sizes have been updated.
+    if (unflat_altfr == frp->fr_next)
+	frame_comp_pos(unflat_altfr, &row, &col);
 }
 
 /*
@@ -5522,15 +5535,11 @@ win_enter_ext(win_T *wp, int flags)
     // may have to copy the buffer options when 'cpo' contains 'S'
     if (wp->w_buffer != curbuf)
 	buf_copy_options(wp->w_buffer, BCO_ENTER | BCO_NOHELP);
-
     if (curwin_invalid == 0)
     {
 	prevwin = curwin;	// remember for CTRL-W p
 	curwin->w_redr_status = TRUE;
     }
-    else if (wp == prevwin)
-	prevwin = NULL;		// don't want it to be the new curwin
-
     curwin = wp;
     curbuf = wp->w_buffer;
     check_cursor();

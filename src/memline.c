@@ -2682,6 +2682,13 @@ ml_get_len(linenr_T lnum)
     return ml_get_buf_len(curbuf, lnum);
 }
 
+// return length (excluding the NUL) of the text after position "pos"
+    colnr_T
+ml_get_pos_len(pos_T *pos)
+{
+    return ml_get_buf_len(curbuf, curwin->w_cursor.lnum) - pos->col;
+}
+
 // return length (excluding the NUL) of the cursor line
     colnr_T
 ml_get_curline_len(void)
@@ -2700,9 +2707,13 @@ ml_get_cursor_len(void)
     colnr_T
 ml_get_buf_len(buf_T *buf, linenr_T lnum)
 {
-    if (*ml_get_buf(buf, lnum, FALSE) == NUL)
+    char_u	*line;
+
+    if (*(line = ml_get_buf(buf, lnum, FALSE)) == NUL)
         return 0;
 
+    if (buf->b_ml.ml_line_textlen <= 0)
+	buf->b_ml.ml_line_textlen = (int)STRLEN(line) + 1;
     return buf->b_ml.ml_line_textlen - 1;
 }
 
@@ -2799,8 +2810,11 @@ errorret:
 	buf->b_ml.ml_line_ptr = (char_u *)dp + start;
 	buf->b_ml.ml_line_len = end - start;
 #if defined(FEAT_BYTEOFF) && defined(FEAT_PROP_POPUP)
-	if (buf->b_has_textprop)
-	    buf->b_ml.ml_line_textlen = (int)STRLEN(buf->b_ml.ml_line_ptr) + 1;
+	// Text properties come after a NUL byte, so ml_line_len should be
+	// larger than the size of textprop_T if there is any.
+	if (buf->b_has_textprop
+			 && (size_t)buf->b_ml.ml_line_len > sizeof(textprop_T))
+	    buf->b_ml.ml_line_textlen = 0;  // call STRLEN() later when needed
 	else
 #endif
 	    buf->b_ml.ml_line_textlen = buf->b_ml.ml_line_len;
@@ -3654,7 +3668,7 @@ ml_replace_len(
 
     curbuf->b_ml.ml_line_ptr = line;
     curbuf->b_ml.ml_line_len = len;
-    curbuf->b_ml.ml_line_textlen = len_arg + 1;
+    curbuf->b_ml.ml_line_textlen = !has_props ? len_arg + 1 : 0;
     curbuf->b_ml.ml_line_lnum = lnum;
     curbuf->b_ml.ml_flags = (curbuf->b_ml.ml_flags | ML_LINE_DIRTY) & ~ML_EMPTY;
 
