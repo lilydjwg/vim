@@ -171,6 +171,57 @@ func Test_conceal_with_cursorcolumn()
   call StopVimInTerminal(buf)
 endfunc
 
+" Check that 'cursorline' and 'wincolor' apply to the whole line in presence
+" of wrapped lines containing concealed text.
+func Test_conceal_wrapped_cursorline_wincolor()
+  CheckScreendump
+
+  let code =<< trim [CODE]
+    call setline(1, 'one one one |hidden| one one one one one one one one')
+    syntax match test /|hidden|/ conceal
+    set conceallevel=2 concealcursor=n cursorline
+    normal! g$
+  [CODE]
+
+  call writefile(code, 'XTest_conceal_cul_wcr', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_cul_wcr', {'rows': 4, 'cols': 40})
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_01', {})
+
+  call term_sendkeys(buf, ":set wincolor=ErrorMsg\n")
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_02', {})
+
+  call term_sendkeys(buf, ":set nocursorline\n")
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_03', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+endfunc
+
+" Same as Test_conceal_wrapped_cursorline_wincolor(), but with 'rightleft'.
+func Test_conceal_wrapped_cursorline_wincolor_rightleft()
+  CheckScreendump
+
+  let code =<< trim [CODE]
+    call setline(1, 'one one one |hidden| one one one one one one one one')
+    syntax match test /|hidden|/ conceal
+    set conceallevel=2 concealcursor=n cursorline rightleft
+    normal! g$
+  [CODE]
+
+  call writefile(code, 'XTest_conceal_cul_wcr_rl', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_cul_wcr_rl', {'rows': 4, 'cols': 40})
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_rl_01', {})
+
+  call term_sendkeys(buf, ":set wincolor=ErrorMsg\n")
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_rl_02', {})
+
+  call term_sendkeys(buf, ":set nocursorline\n")
+  call VerifyScreenDump(buf, 'Test_conceal_cul_wcr_rl_03', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+endfunc
+
 func Test_conceal_resize_term()
   CheckScreendump
 
@@ -390,7 +441,7 @@ func Test_conceal_mouse_click()
   call test_setmouse(1, 19)
   call feedkeys("\<LeftMouse>", "tx")
   call assert_equal([0, 1, 23, 0, 23], getcurpos())
-  " click after end of line puts cursor there without 'virtualedit'
+  " click after end of line puts cursor there with 'virtualedit'
   call test_setmouse(1, 20)
   call feedkeys("\<LeftMouse>", "tx")
   call assert_equal([0, 1, 24, 0, 24], getcurpos())
@@ -409,6 +460,126 @@ func Test_conceal_mouse_click()
 
   bwipe!
   set mouse& virtualedit&
+endfunc
+
+" Test that cursor is drawn at the correct column when it is after end of the
+" line with 'virtualedit' and concealing.
+func Run_test_conceal_virtualedit_after_eol(wrap)
+  let code =<< trim eval [CODE]
+    let &wrap = {a:wrap}
+    call setline(1, 'abcdefgh|hidden|ijklmnpop')
+    syntax match test /|hidden|/ conceal
+    set conceallevel=2 concealcursor=n virtualedit=all
+    normal! $
+  [CODE]
+  call writefile(code, 'XTest_conceal_ve_after_eol', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_ve_after_eol', {'rows': 3})
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_1', {})
+  call term_sendkeys(buf, "l")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_2', {})
+  call term_sendkeys(buf, "l")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_3', {})
+  call term_sendkeys(buf, "l")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_4', {})
+  call term_sendkeys(buf, "rr")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_5', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_conceal_virtualedit_after_eol()
+  CheckScreendump
+
+  call Run_test_conceal_virtualedit_after_eol(1)
+  call Run_test_conceal_virtualedit_after_eol(0)
+endfunc
+
+" Same as Run_test_conceal_virtualedit_after_eol(), but with 'rightleft'.
+func Run_test_conceal_virtualedit_after_eol_rightleft(wrap)
+  let code =<< trim eval [CODE]
+    let &wrap = {a:wrap}
+    call setline(1, 'abcdefgh|hidden|ijklmnpop')
+    syntax match test /|hidden|/ conceal
+    set conceallevel=2 concealcursor=n virtualedit=all rightleft
+    normal! $
+  [CODE]
+  call writefile(code, 'XTest_conceal_ve_after_eol_rl', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_ve_after_eol_rl', {'rows': 3})
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_rl_1', {})
+  call term_sendkeys(buf, "h")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_rl_2', {})
+  call term_sendkeys(buf, "h")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_rl_3', {})
+  call term_sendkeys(buf, "h")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_rl_4', {})
+  call term_sendkeys(buf, "rr")
+  call VerifyScreenDump(buf, 'Test_conceal_ve_after_eol_rl_5', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_conceal_virtualedit_after_eol_rightleft()
+  CheckFeature rightleft
+  CheckScreendump
+
+  call Run_test_conceal_virtualedit_after_eol_rightleft(1)
+  call Run_test_conceal_virtualedit_after_eol_rightleft(0)
+endfunc
+
+" Test that cursor position is correct when double-width chars are concealed.
+func Run_test_conceal_double_width(wrap)
+  let code =<< trim eval [CODE]
+    let &wrap = {a:wrap}
+    call setline(1, ['aaaaa口=口bbbbb口=口ccccc', 'foobar'])
+    syntax match test /口=口/ conceal cchar=β
+    set conceallevel=2 concealcursor=n colorcolumn=30
+    normal! $
+  [CODE]
+  call writefile(code, 'XTest_conceal_double_width', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_double_width', {'rows': 4})
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_1', {})
+  call term_sendkeys(buf, "gM")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_2', {})
+  call term_sendkeys(buf, ":set conceallevel=3\<CR>")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_3', {})
+  call term_sendkeys(buf, "$")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_4', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_conceal_double_width()
+  CheckScreendump
+
+  call Run_test_conceal_double_width(1)
+  call Run_test_conceal_double_width(0)
+endfunc
+
+" Test that line wrapping is correct when double-width chars are concealed.
+func Test_conceal_double_width_wrap()
+  CheckScreendump
+
+  let code =<< trim [CODE]
+    call setline(1, 'aaaaaaaaaa口=口bbbbbbbbbb口=口cccccccccc')
+    syntax match test /口=口/ conceal cchar=β
+    set conceallevel=2 concealcursor=n
+    normal! $
+  [CODE]
+  call writefile(code, 'XTest_conceal_double_width_wrap', 'D')
+  let buf = RunVimInTerminal('-S XTest_conceal_double_width_wrap', {'rows': 4, 'cols': 20})
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_wrap_1', {})
+  call term_sendkeys(buf, "gM")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_wrap_2', {})
+  call term_sendkeys(buf, ":set conceallevel=3\<CR>")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_wrap_3', {})
+  call term_sendkeys(buf, "$")
+  call VerifyScreenDump(buf, 'Test_conceal_double_width_wrap_4', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab
