@@ -678,6 +678,19 @@ changed_window_setting_buf(buf_T *buf)
 #endif
 
 /*
+ * Call changed_window_setting_win() for every window.
+ */
+    void
+changed_window_setting_all(void)
+{
+    tabpage_T	*tp;
+    win_T	*wp;
+
+    FOR_ALL_TAB_WINDOWS(tp, wp)
+	changed_window_setting_win(wp);
+}
+
+/*
  * Set wp->w_topline to a certain number.
  */
     void
@@ -3102,7 +3115,7 @@ static int get_scroll_overlap(int dir)
 
     loff.lnum = dir == FORWARD ? curwin->w_botline : curwin->w_topline - 1;
 #ifdef FEAT_DIFF
-    loff.fill = diff_check_fill(curwin, loff.lnum + dir == BACKWARD)
+    loff.fill = diff_check_fill(curwin, loff.lnum + (dir == BACKWARD))
 		- (dir == FORWARD ? curwin->w_filler_rows : curwin->w_topfill);
     loff.height = loff.fill > 0 ? 1 : plines_nofill(loff.lnum);
 #else
