@@ -705,6 +705,38 @@ static char *(features[]) =
 static int included_patches[] =
 {   /* Add new patch number below this line */
 /**/
+    346,
+/**/
+    345,
+/**/
+    344,
+/**/
+    343,
+/**/
+    342,
+/**/
+    341,
+/**/
+    340,
+/**/
+    339,
+/**/
+    338,
+/**/
+    337,
+/**/
+    336,
+/**/
+    335,
+/**/
+    334,
+/**/
+    333,
+/**/
+    332,
+/**/
+    331,
+/**/
     330,
 /**/
     329,
@@ -1731,9 +1763,20 @@ list_version(void)
     version_msg(USR_VIMRC_FILE2);
     version_msg("\"\n");
 #endif
-#ifdef USR_VIMRC_FILE3
+#if defined(USR_VIMRC_FILE3) && defined(XDG_VIMRC_FILE)
     version_msg(_(" 3rd user vimrc file: \""));
     version_msg(USR_VIMRC_FILE3);
+    version_msg("\"\n");
+    version_msg(_(" 4th user vimrc file: \""));
+    version_msg((char *)(XDG_VIMRC_FILE));
+    version_msg("\"\n");
+#elif defined(USR_VIMRC_FILE3)
+    version_msg(_(" 3rd user vimrc file: \""));
+    version_msg(USR_VIMRC_FILE3);
+    version_msg("\"\n");
+#elif defined(XDG_VIMRC_FILE)
+    version_msg(_(" 3rd user vimrc file: \""));
+    version_msg((char *)(XDG_VIMRC_FILE));
     version_msg("\"\n");
 #endif
 #ifdef USR_EXRC_FILE

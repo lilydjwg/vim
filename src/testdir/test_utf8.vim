@@ -62,6 +62,9 @@ func Test_customlist_completion()
   call assert_equal('"Test3 N', getreg(':'))
 
   call garbagecollect(1)
+  delcommand Test1
+  delcommand Test2
+  delcommand Test3
 endfunc
 
 " Yank one 3 byte character and check the mark columns.
@@ -293,6 +296,60 @@ func Test_setcellwidths_dump()
 
   call term_sendkeys(buf, ":call setcellwidths([[0xe5ff, 0xe5ff, 2]])\<CR>")
   call VerifyScreenDump(buf, 'Test_setcellwidths_dump_2', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+" When `setcellwidth` is used on characters that are not targets of `ambiwidth`.
+func Test_setcellwidths_with_non_ambiwidth_character_dump()
+  CheckRunVimInTerminal
+
+  let lines =<< trim END
+      call setline(1, [repeat("\u279c", 60), repeat("\u279c", 60)])
+      set ambiwidth=single
+  END
+  call writefile(lines, 'XCellwidthsWithNonAmbiwidthCharacter', 'D')
+  let buf = RunVimInTerminal('-S XCellwidthsWithNonAmbiwidthCharacter', {'rows': 6, 'cols': 50})
+  call term_sendkeys(buf, ":call setcellwidths([[0x279c, 0x279c, 1]])\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_setcellwidths_with_non_ambiwidth_character_dump_1', {})
+
+  call term_sendkeys(buf, ":call setcellwidths([[0x279c, 0x279c, 2]])\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_setcellwidths_with_non_ambiwidth_character_dump_2', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+
+" For some reason this test causes Test_customlist_completion() to fail on CI,
+" so run it as the last test.
+func Test_zz_ambiwidth_hl_dump()
+  CheckRunVimInTerminal
+
+  let lines =<< trim END
+      call setline(1, [repeat("\u2103", 60), repeat("\u2103", 60)])
+      set ambiwidth=single cursorline list display=lastline
+  END
+  call writefile(lines, 'XAmbiwidthHl', 'D')
+  let buf = RunVimInTerminal('-S XAmbiwidthHl', {'rows': 6, 'cols': 50})
+  call VerifyScreenDump(buf, 'Test_ambiwidth_hl_dump_1', {})
+
+  call term_sendkeys(buf, ":set ambiwidth=double\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_ambiwidth_hl_dump_2', {})
+
+  call term_sendkeys(buf, ":set ambiwidth=single\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_ambiwidth_hl_dump_1', {})
+
+  call term_sendkeys(buf, ":call setcellwidths([[0x2103, 0x2103, 2]])\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_ambiwidth_hl_dump_2', {})
+
+  call term_sendkeys(buf, ":call setcellwidths([[0x2103, 0x2103, 1]])\<CR>")
+  call term_sendkeys(buf, ":echo\<CR>")
+  call VerifyScreenDump(buf, 'Test_ambiwidth_hl_dump_1', {})
 
   call StopVimInTerminal(buf)
 endfunc

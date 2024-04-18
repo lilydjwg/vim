@@ -250,9 +250,9 @@ typedef struct dsc$descriptor   DESC;
 #endif
 
 #ifndef XDG_VIMRC_FILE
-# define XDG_VIMRC_FILE mch_getenv("XDG_CONFIG_HOME") \
-	? (char_u *)"$XDG_CONFIG_HOME/vim/vimrc" \
-	: (char_u *)"~/.config/vim/vimrc"
+# define XDG_VIMRC_FILE (mch_getenv("XDG_CONFIG_HOME") \
+	? "$XDG_CONFIG_HOME/vim/vimrc" \
+	: "~/.config/vim/vimrc")
 #endif
 
 #if !defined(USR_VIMRC_FILE3) && defined(VMS)
@@ -278,6 +278,12 @@ typedef struct dsc$descriptor   DESC;
 #ifdef VMS
 # ifndef USR_GVIMRC_FILE3
 #  define USR_GVIMRC_FILE3  "sys$login:_gvimrc"
+# endif
+#else
+# ifndef USR_GVIMRC_FILE3
+#  define USR_GVIMRC_FILE3 (mch_getenv("XDG_CONFIG_HOME") \
+	? "$XDG_CONFIG_HOME/vim/gvimrc" \
+	: "~/.config/vim/gvimrc")
 # endif
 #endif
 
