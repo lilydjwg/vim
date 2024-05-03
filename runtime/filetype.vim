@@ -1103,6 +1103,9 @@ au BufNewFile,BufRead *.ini,*.INI		setf dosini
 " SysV Inittab
 au BufNewFile,BufRead inittab			setf inittab
 
+" Inko
+au BufNewFile,BufRead *.inko			setf inko
+
 " Inno Setup
 au BufNewFile,BufRead *.iss			setf iss
 
@@ -1356,6 +1359,7 @@ au BufNewFile,BufRead .mailcap,mailcap		setf mailcap
 
 " Makefile
 au BufNewFile,BufRead *[mM]akefile,*.mk,*.mak,*.dsp setf make
+au BufNewFile,BufRead Kbuild setf make
 
 " MakeIndex
 au BufNewFile,BufRead *.ist,*.mst		setf ist
@@ -2382,6 +2386,9 @@ au BufNewFile,BufRead *.tcl,*.tm,*.tk,*.itcl,*.itk,*.jacl,.tclshrc,.wishrc,.tcls
 " Xilinx's xsct and xsdb use tcl
 au BufNewFile,BufRead .xsctcmdhistory,.xsdbcmdhistory	setf tcl
 
+" templ 
+au BufNewFile,BufRead *.templ			setf templ
+
 " Teal
 au BufRead,BufNewFile *.tl			setf teal
 
@@ -2413,7 +2420,7 @@ au BufNewFile,BufRead texdoc.cnf		setf conf
 " LaTeX packages will generate some medium LaTeX files during compiling
 " They should be ignored by .gitignore https://github.com/github/gitignore/blob/main/TeX.gitignore
 " Sometime we need to view its content for debugging
-au BufNewFile,BufRead *.{pgf,nlo,nls,out,thm,eps_tex,pygtex,pygstyle,clo,aux,brf,ind,lof,loe,nav,vrb,ins,tikz,bbx,cbx,beamer}	setf tex
+au BufNewFile,BufRead *.{pgf,nlo,nls,thm,eps_tex,pygtex,pygstyle,clo,aux,brf,ind,lof,loe,nav,vrb,ins,tikz,bbx,cbx,beamer}	setf tex
 
 " ConTeXt
 au BufNewFile,BufRead *.mkii,*.mkiv,*.mkvi,*.mkxl,*.mklx   setf context
@@ -2839,6 +2846,10 @@ au StdinReadPost * if !did_filetype() | runtime! scripts.vim | endif
 " But before patterns matching everything in a directory.
 au BufNewFile,BufRead *.text,README,LICENSE,COPYING,AUTHORS	setf text
 
+" What should *.out files be? Text?
+" Disabled until it is clear, to what this should be set
+"au BufNewFile,BufRead *.out	setf text
+
 
 " Extra checks for when no filetype has been detected now.  Mostly used for
 " patterns that end in "*".  E.g., "zsh*" matches "zsh.vim", but that's a Vim
@@ -3009,6 +3020,9 @@ au BufNewFile,BufRead .reminders*		call s:StarSetf('remind')
 
 " SGML catalog file
 au BufNewFile,BufRead sgml.catalog*		call s:StarSetf('catalog')
+
+" Stylus
+au BufNewFile,BufReadPost *.styl,*.stylus	setf stylus
 
 " avoid doc files being recognized a shell files
 au BufNewFile,BufRead */doc/{,.}bash[_-]completion{,.d,.sh}{,/*} setf text
