@@ -1072,7 +1072,7 @@ au BufNewFile,BufRead */.icewm/menu		setf icemenu
 au BufNewFile,BufRead .indent.pro		setf indent
 au BufNewFile,BufRead indent.pro		call dist#ft#ProtoCheck('indent')
 
-" IDL (Interactive Data Language)
+" IDL (Interactive Data Language), Prolog, Cproto or zsh module C
 au BufNewFile,BufRead *.pro			call dist#ft#ProtoCheck('idlang')
 
 " Indent RC
@@ -1147,6 +1147,9 @@ au BufNewFile,BufRead *.clp			setf jess
 
 " Jgraph
 au BufNewFile,BufRead *.jgr			setf jgraph
+
+" Jujutsu
+au BufNewFile,BufRead *.jjdescription		setf jj
 
 " Jovial
 au BufNewFile,BufRead *.jov,*.j73,*.jovial	setf jovial
@@ -3090,6 +3093,15 @@ au BufNewFile,BufRead */etc/yum.repos.d/*	call s:StarSetf('dosini')
 au BufNewFile,BufRead .zsh*,.zlog*,.zcompdump*  call s:StarSetf('zsh')
 au BufNewFile,BufRead zsh*,zlog*		call s:StarSetf('zsh')
 
+" Zsh module
+" mdd: https://github.com/zsh-users/zsh/blob/57248b88830ce56adc243a40c7773fb3825cab34/Etc/zsh-development-guide#L285-L288
+" mdh, pro: https://github.com/zsh-users/zsh/blob/57248b88830ce56adc243a40c7773fb3825cab34/Etc/zsh-development-guide#L268-L271
+" *.mdd will generate *.mdh, *.pro and *.epro.
+" module's *.c will #include *.mdh containing module dependency information and
+" *.pro containing all static declarations of *.c
+" *.epro contains all external declarations of *.c
+au BufNewFile,BufRead *.mdh,*.epro		setf c
+au BufNewFile,BufRead *.mdd			setf sh
 
 " Help files match *.txt but should have a last line that is a modeline.
 au BufNewFile,BufRead *.txt
