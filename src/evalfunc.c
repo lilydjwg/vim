@@ -5594,31 +5594,12 @@ getregionpos(
 
     if (*region_type == MCHAR)
     {
-	// handle 'selection' == "exclusive"
+	// Handle 'selection' == "exclusive".
 	if (is_select_exclusive && !EQUAL_POS(*p1, *p2))
-	{
-	    if (p2->coladd > 0)
-		p2->coladd--;
-	    else if (p2->col > 0)
-	    {
-		p2->col--;
-
-		mb_adjustpos(curbuf, p2);
-	    }
-	    else if (p2->lnum > 1)
-	    {
-		p2->lnum--;
-		p2->col = ml_get_len(p2->lnum);
-		if (p2->col > 0)
-		{
-		    p2->col--;
-
-		    mb_adjustpos(curbuf, p2);
-		}
-	    }
-	}
-	// if fp2 is on NUL (empty line) inclusive becomes false
-	if (*ml_get_pos(p2) == NUL && !virtual_op)
+	    // When backing up to previous line, inclusive becomes false.
+	    *inclusive = !unadjust_for_sel_inner(p2);
+	// If p2 is on NUL (end of line), inclusive becomes false.
+	if (*inclusive && !virtual_op && *ml_get_pos(p2) == NUL)
 	    *inclusive = FALSE;
     }
     else if (*region_type == MBLOCK)
@@ -5793,7 +5774,6 @@ f_getregionpos(typval_T *argvars, typval_T *rettv)
 
     for (lnum = p1.lnum; lnum <= p2.lnum; lnum++)
     {
-	struct block_def	bd;
 	pos_T			ret_p1, ret_p2;
 
 	if (region_type == MLINE)
@@ -5805,11 +5785,28 @@ f_getregionpos(typval_T *argvars, typval_T *rettv)
 	}
 	else
 	{
+	    struct block_def	bd;
+
 	    if (region_type == MBLOCK)
 		block_prep(&oa, &bd, lnum, FALSE);
 	    else
 		charwise_block_prep(p1, p2, &bd, lnum, inclusive);
-	    if (bd.startspaces > 0)
+
+	    if (bd.is_oneChar)  // selection entirely inside one char
+	    {
+		if (region_type == MBLOCK)
+		{
+		    ret_p1.col = bd.textcol;
+		    ret_p1.coladd = bd.start_char_vcols
+					     - (bd.start_vcol - oa.start_vcol);
+		}
+		else
+		{
+		    ret_p1.col = p1.col + 1;
+		    ret_p1.coladd = p1.coladd;
+		}
+	    }
+	    else if (bd.startspaces > 0)
 	    {
 		ret_p1.col = bd.textcol;
 		ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
@@ -5819,7 +5816,13 @@ f_getregionpos(typval_T *argvars, typval_T *rettv)
 		ret_p1.col = bd.textcol + 1;
 		ret_p1.coladd = 0;
 	    }
-	    if (bd.endspaces > 0)
+
+	    if (bd.is_oneChar)  // selection entirely inside one char
+	    {
+		ret_p2.col = ret_p1.col;
+		ret_p2.coladd = ret_p1.coladd + bd.startspaces;
+	    }
+	    else if (bd.endspaces > 0)
 	    {
 		ret_p2.col = bd.textcol + bd.textlen + 1;
 		ret_p2.coladd = bd.endspaces;
@@ -9712,6 +9715,7 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
 {
     int		flags;
     char_u	*pat;
+    size_t	patlen;
     pos_T	pos;
     pos_T	save_cursor;
     int		save_p_ws = p_ws;
@@ -9786,10 +9790,12 @@ search_cmn(typval_T *argvars, pos_T *match_pos, int *flagsp)
     sia.sa_tm = time_limit;
 #endif
 
+    patlen = STRLEN(pat);
+
     // Repeat until {skip} returns FALSE.
     for (;;)
     {
-	subpatnum = searchit(curwin, curbuf, &pos, NULL, dir, pat, 1L,
+	subpatnum = searchit(curwin, curbuf, &pos, NULL, dir, pat, patlen, 1L,
 						     options, RE_SEARCH, &sia);
 	// finding the first match again means there is no match where {skip}
 	// evaluates to zero.
@@ -10202,6 +10208,13 @@ do_searchpair(
 {
     char_u	*save_cpo;
     char_u	*pat, *pat2 = NULL, *pat3 = NULL;
+    size_t	patlen;
+    size_t	spatlen;
+    size_t	epatlen;
+    size_t	pat2size;
+    size_t	pat2len;
+    size_t	pat3size;
+    size_t	pat3len;
     long	retval = 0;
     pos_T	pos;
     pos_T	firstpos;
@@ -10221,15 +10234,24 @@ do_searchpair(
 
     // Make two search patterns: start/end (pat2, for in nested pairs) and
     // start/middle/end (pat3, for the top pair).
-    pat2 = alloc(STRLEN(spat) + STRLEN(epat) + 17);
-    pat3 = alloc(STRLEN(spat) + STRLEN(mpat) + STRLEN(epat) + 25);
-    if (pat2 == NULL || pat3 == NULL)
+    spatlen = STRLEN(spat);
+    epatlen = STRLEN(epat);
+    pat2size = spatlen + epatlen + 17;
+    pat2 = alloc(pat2size);
+    if (pat2 == NULL)
 	goto theend;
-    sprintf((char *)pat2, "\\m\\(%s\\m\\)\\|\\(%s\\m\\)", spat, epat);
+    pat3size = spatlen + STRLEN(mpat) + epatlen + 25;
+    pat3 = alloc(pat3size);
+    if (pat3 == NULL)
+	goto theend;
+    pat2len = vim_snprintf((char *)pat2, pat2size, "\\m\\(%s\\m\\)\\|\\(%s\\m\\)", spat, epat);
     if (*mpat == NUL)
+    {
 	STRCPY(pat3, pat2);
+	pat3len = pat2len;
+    }
     else
-	sprintf((char *)pat3, "\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)",
+	pat3len = vim_snprintf((char *)pat3, pat3size, "\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)",
 							    spat, epat, mpat);
     if (flags & SP_START)
 	options |= SEARCH_START;
@@ -10246,13 +10268,14 @@ do_searchpair(
     CLEAR_POS(&firstpos);
     CLEAR_POS(&foundpos);
     pat = pat3;
+    patlen = pat3len;
     for (;;)
     {
 	searchit_arg_T sia;
 
 	CLEAR_FIELD(sia);
 	sia.sa_stop_lnum = lnum_stop;
-	n = searchit(curwin, curbuf, &pos, NULL, dir, pat, 1L,
+	n = searchit(curwin, curbuf, &pos, NULL, dir, pat, patlen, 1L,
 						     options, RE_SEARCH, &sia);
 	if (n == FAIL || (firstpos.lnum != 0 && EQUAL_POS(pos, firstpos)))
 	    // didn't find it or found the first match again: FAIL

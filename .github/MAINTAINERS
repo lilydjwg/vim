@@ -200,12 +200,14 @@ runtime/ftplugin/postscr.vim		@mrdubya
 runtime/ftplugin/prisma.vim		@ribru17
 runtime/ftplugin/ps1.vim		@heaths
 runtime/ftplugin/ps1xml.vim		@heaths
+runtime/ftplugin/purescript.vim		@ribru17
 runtime/ftplugin/pymanifest.vim		@ObserverOfTime
 runtime/ftplugin/python.vim		@tpict
 runtime/ftplugin/qb64.vim		@dkearns
 runtime/ftplugin/qml.vim		@ChaseKnowlden
 runtime/ftplugin/racket.vim		@benknoble
 runtime/ftplugin/readline.vim		@dkearns
+runtime/ftplugin/rescript.vim		@ribru17
 runtime/ftplugin/routeros.vim		@zainin
 runtime/ftplugin/rst.vim		@marshallward
 runtime/ftplugin/ruby.vim		@tpope @dkearns
