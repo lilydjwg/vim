@@ -1226,7 +1226,7 @@ ins_compl_build_pum(void)
     int		cur = -1;
     int		lead_len = 0;
     int		max_fuzzy_score = 0;
-    int		cur_cot_flags = get_cot_flags();
+    unsigned int cur_cot_flags = get_cot_flags();
     int		compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
     int		compl_fuzzy_match = (cur_cot_flags & COT_FUZZY) != 0;
 
@@ -1430,6 +1430,15 @@ ins_compl_show_pum(void)
 
 #define DICT_FIRST	(1)	// use just first element in "dict"
 #define DICT_EXACT	(2)	// "dict" is the exact name of a file
+
+/*
+ * Get current completion leader
+ */
+    char_u *
+ins_compl_leader(void)
+{
+    return compl_leader;
+}
 
 /*
  * Add any identifiers that match the given pattern "pat" in the list of
@@ -2925,7 +2934,7 @@ set_completion(colnr_T startcol, list_T *list)
     int save_w_wrow = curwin->w_wrow;
     int save_w_leftcol = curwin->w_leftcol;
     int flags = CP_ORIGINAL_TEXT;
-    int cur_cot_flags = get_cot_flags();
+    unsigned int cur_cot_flags = get_cot_flags();
     int compl_longest = (cur_cot_flags & COT_LONGEST) != 0;
     int compl_no_insert = (cur_cot_flags & COT_NOINSERT) != 0;
     int compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
@@ -4126,7 +4135,7 @@ find_next_completion_match(
 {
     int	    found_end = FALSE;
     compl_T *found_compl = NULL;
-    int	    cur_cot_flags = get_cot_flags();
+    unsigned int cur_cot_flags = get_cot_flags();
     int	    compl_no_select = (cur_cot_flags & COT_NOSELECT) != 0;
     int	    compl_fuzzy_match = (cur_cot_flags & COT_FUZZY) != 0;
 
@@ -4246,7 +4255,7 @@ ins_compl_next(
     int	    advance;
     int	    started = compl_started;
     buf_T   *orig_curbuf = curbuf;
-    int	    cur_cot_flags = get_cot_flags();
+    unsigned int cur_cot_flags = get_cot_flags();
     int	    compl_no_insert = (cur_cot_flags & COT_NOINSERT) != 0;
     int	    compl_fuzzy_match = (cur_cot_flags & COT_FUZZY) != 0;
 
