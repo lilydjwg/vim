@@ -6532,6 +6532,7 @@ compiler-dotnet	quickfix.txt	/*compiler-dotnet*
 compiler-gcc	quickfix.txt	/*compiler-gcc*
 compiler-gnat	ft_ada.txt	/*compiler-gnat*
 compiler-hpada	ft_ada.txt	/*compiler-hpada*
+compiler-javac	quickfix.txt	/*compiler-javac*
 compiler-manx	quickfix.txt	/*compiler-manx*
 compiler-pandoc	quickfix.txt	/*compiler-pandoc*
 compiler-perl	quickfix.txt	/*compiler-perl*
@@ -9177,6 +9178,8 @@ no_buffers_menu	gui.txt	/*no_buffers_menu*
 no_mail_maps	filetype.txt	/*no_mail_maps*
 no_plugin_maps	filetype.txt	/*no_plugin_maps*
 nocombine	syntax.txt	/*nocombine*
+nohlsearch-auto	pattern.txt	/*nohlsearch-auto*
+nohlsearch-install	usr_05.txt	/*nohlsearch-install*
 non-greedy	pattern.txt	/*non-greedy*
 non-zero-arg	eval.txt	/*non-zero-arg*
 none-function_argument	userfunc.txt	/*none-function_argument*
@@ -9430,6 +9433,7 @@ popup_menu()	popup.txt	/*popup_menu()*
 popup_menu-shortcut-example	popup.txt	/*popup_menu-shortcut-example*
 popup_move()	popup.txt	/*popup_move()*
 popup_notification()	popup.txt	/*popup_notification()*
+popup_setbuf()	popup.txt	/*popup_setbuf()*
 popup_setoptions()	popup.txt	/*popup_setoptions()*
 popup_settext()	popup.txt	/*popup_settext()*
 popup_show()	popup.txt	/*popup_show()*
@@ -10697,6 +10701,7 @@ text-functions	usr_41.txt	/*text-functions*
 text-objects	motion.txt	/*text-objects*
 text-objects-changed	version5.txt	/*text-objects-changed*
 text-prop-changes	textprop.txt	/*text-prop-changes*
+text-prop-cleared	textprop.txt	/*text-prop-cleared*
 text-prop-functions	textprop.txt	/*text-prop-functions*
 text-prop-functions-details	textprop.txt	/*text-prop-functions-details*
 text-prop-intro	textprop.txt	/*text-prop-intro*
