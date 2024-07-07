@@ -256,6 +256,7 @@ au BufNewFile,BufRead named*.conf,rndc*.conf,rndc*.key	setf named
 
 " BIND zone
 au BufNewFile,BufRead named.root		setf bindzone
+au BufNewFile,BufRead *.zone			setf bindzone
 au BufNewFile,BufRead *.db			call dist#ft#BindzoneCheck('')
 
 " Blade
@@ -320,6 +321,9 @@ au BufNewFile,BufRead *.toc
 
 " Cdrdao config
 au BufNewFile,BufRead */etc/cdrdao.conf,*/etc/defaults/cdrdao,*/etc/default/cdrdao,.cdrdao	setf cdrdaoconf
+
+" Cedar
+au BufNewFile,BufRead *.cedar			setf cedar
 
 " Cfengine
 au BufNewFile,BufRead cfengine.conf		setf cfengine
@@ -1245,6 +1249,9 @@ au BufNewFile,BufRead */etc/limits,*/etc/*limits.conf,*/etc/*limits.d/*.conf	set
 
 " LambdaProlog or SML (see dist#ft#FTmod for *.mod)
 au BufNewFile,BufRead *.sig			call dist#ft#FTsig()
+
+" LDAP configuration
+au BufNewFile,BufRead ldaprc,.ldaprc,ldap.conf	setf ldapconf
 
 " LDAP LDIF
 au BufNewFile,BufRead *.ldif			setf ldif
@@ -2457,10 +2464,10 @@ au BufNewFile,BufRead *.thrift			setf thrift
 " Tidy config
 au BufNewFile,BufRead .tidyrc,tidyrc,tidy.conf	setf tidy
 
-" TF mud client
+" TF (TinyFugue) mud client
 au BufNewFile,BufRead .tfrc,tfrc		setf tf
 
-" TF mud client or terraform
+" TF (TinyFugue) mud client or terraform
 au BufNewFile,BufRead *.tf			call dist#ft#FTtf()
 
 " TLA+
