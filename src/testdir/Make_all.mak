@@ -166,6 +166,7 @@ NEW_TESTS = \
 	test_gettext \
 	test_gettext_cp1251 \
 	test_gettext_utf8 \
+	test_gettext_make \
 	test_getvar \
 	test_gf \
 	test_glob2regpat \
@@ -314,6 +315,7 @@ NEW_TESTS = \
 	test_textobjects \
 	test_textprop \
 	test_timers \
+	test_tohtml \
 	test_true_false \
 	test_trycatch \
 	test_undo \
@@ -428,6 +430,7 @@ NEW_TESTS_RES = \
 	test_gettext.res \
 	test_gettext_cp1251.res \
 	test_gettext_utf8.res \
+	test_gettext_make.res \
 	test_getvar.res \
 	test_gf.res \
 	test_gn.res \
@@ -558,6 +561,7 @@ NEW_TESTS_RES = \
 	test_textobjects.res \
 	test_textprop.res \
 	test_timers.res \
+	test_tohtml.res \
 	test_true_false.res \
 	test_trycatch.res \
 	test_undo.res \
