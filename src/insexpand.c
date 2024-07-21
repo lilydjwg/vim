@@ -3537,11 +3537,41 @@ get_next_filename_completion(void)
     int		in_fuzzy = ((get_cot_flags() & COT_FUZZY) != 0 && leader_len > 0);
     char_u	**sorted_matches;
     int		*fuzzy_indices_data;
+    char_u	*last_sep = NULL;
+    size_t	path_with_wildcard_len;
+    char_u	*path_with_wildcard;
 
     if (in_fuzzy)
     {
-	vim_free(compl_pattern);
-	compl_pattern = vim_strsave((char_u *)"*");
+	last_sep = vim_strrchr(leader, PATHSEP);
+	if (last_sep == NULL)
+	{
+	    // No path separator or separator is the last character,
+	    // fuzzy match the whole leader
+	    vim_free(compl_pattern);
+	    compl_pattern = vim_strsave((char_u *)"*");
+	    compl_patternlen = STRLEN(compl_pattern);
+	}
+	else if (*(last_sep + 1) == '\0')
+	    in_fuzzy = FALSE;
+	else
+	{
+	    // Split leader into path and file parts
+	    int path_len = last_sep - leader + 1;
+	    path_with_wildcard_len = path_len + 2;
+	    path_with_wildcard = alloc(path_with_wildcard_len);
+	    if (path_with_wildcard != NULL)
+	    {
+		vim_strncpy(path_with_wildcard, leader, path_len);
+		vim_strcat(path_with_wildcard, (char_u *)"*", path_with_wildcard_len);
+		vim_free(compl_pattern);
+		compl_pattern = path_with_wildcard;
+		compl_patternlen = STRLEN(compl_pattern);
+
+		// Move leader to the file part
+		leader = last_sep + 1;
+	    }
+	}
     }
 
     if (expand_wildcards(1, &compl_pattern, &num_matches, &matches,
@@ -3588,16 +3618,21 @@ get_next_filename_completion(void)
 	    }
 	}
 
-	fuzzy_indices_data = (int *)fuzzy_indices.ga_data;
-	qsort(fuzzy_indices_data, fuzzy_indices.ga_len, sizeof(int), compare_scores);
+	// prevent qsort from deref NULL pointer
+	if (fuzzy_indices.ga_len > 0)
+	{
+	    fuzzy_indices_data = (int *)fuzzy_indices.ga_data;
+	    qsort(fuzzy_indices_data, fuzzy_indices.ga_len, sizeof(int), compare_scores);
 
-	sorted_matches = (char_u **)alloc(sizeof(char_u *) * fuzzy_indices.ga_len);
-	for (i = 0; i < fuzzy_indices.ga_len; ++i)
-	    sorted_matches[i] = vim_strsave(matches[fuzzy_indices_data[i]]);
+	    sorted_matches = (char_u **)alloc(sizeof(char_u *) * fuzzy_indices.ga_len);
+	    for (i = 0; i < fuzzy_indices.ga_len; ++i)
+		sorted_matches[i] = vim_strsave(matches[fuzzy_indices_data[i]]);
 
-	FreeWild(num_matches, matches);
-	matches = sorted_matches;
-	num_matches = fuzzy_indices.ga_len;
+	    FreeWild(num_matches, matches);
+	    matches = sorted_matches;
+	    num_matches = fuzzy_indices.ga_len;
+	}
+
 	vim_free(compl_fuzzy_scores);
 	ga_clear(&fuzzy_indices);
     }
