@@ -114,6 +114,7 @@ struct compl_S
     int		cp_flags;	// CP_ values
     int		cp_number;	// sequence number
     int		cp_score;	// fuzzy match score
+    int		cp_user_hlattr;	// highlight attribute to combine with
 };
 
 // values for cp_flags
@@ -205,7 +206,7 @@ static int	  compl_selected_item = -1;
 
 static int	  *compl_fuzzy_scores;
 
-static int ins_compl_add(char_u *str, int len, char_u *fname, char_u **cptext, typval_T *user_data, int cdir, int flags, int adup);
+static int ins_compl_add(char_u *str, int len, char_u *fname, char_u **cptext, typval_T *user_data, int cdir, int flags, int adup, int user_hlattr);
 static void ins_compl_longest_match(compl_T *match);
 static void ins_compl_del_pum(void);
 static void ins_compl_files(int count, char_u **files, int thesaurus, int flags, regmatch_T *regmatch, char_u *buf, int *dir);
@@ -745,7 +746,7 @@ ins_compl_add_infercase(
     if (icase)
 	flags |= CP_ICASE;
 
-    res = ins_compl_add(str, len, fname, NULL, NULL, dir, flags, FALSE);
+    res = ins_compl_add(str, len, fname, NULL, NULL, dir, flags, FALSE, -1);
     vim_free(tofree);
     return res;
 }
@@ -778,7 +779,8 @@ ins_compl_add(
     typval_T	*user_data UNUSED,  // "user_data" entry or NULL
     int		cdir,
     int		flags_arg,
-    int		adup)		// accept duplicate match
+    int		adup,		    // accept duplicate match
+    int		user_hlattr)
 {
     compl_T	*match;
     int		dir = (cdir == 0 ? compl_direction : cdir);
@@ -842,6 +844,7 @@ ins_compl_add(
     else
 	match->cp_fname = NULL;
     match->cp_flags = flags;
+    match->cp_user_hlattr = user_hlattr;
 
     if (cptext != NULL)
     {
@@ -994,7 +997,7 @@ ins_compl_add_matches(
 
     for (i = 0; i < num_matches && add_r != FAIL; i++)
 	if ((add_r = ins_compl_add(matches[i], -1, NULL, NULL, NULL, dir,
-			       CP_FAST | (icase ? CP_ICASE : 0), FALSE)) == OK)
+			       CP_FAST | (icase ? CP_ICASE : 0), FALSE, -1)) == OK)
 	    // if dir was BACKWARD then honor it just once
 	    dir = FORWARD;
     FreeWild(num_matches, matches);
@@ -1338,6 +1341,7 @@ ins_compl_build_pum(void)
 	    compl_match_array[i].pum_kind = compl->cp_text[CPT_KIND];
 	    compl_match_array[i].pum_info = compl->cp_text[CPT_INFO];
 	    compl_match_array[i].pum_score = compl->cp_score;
+	    compl_match_array[i].pum_user_hlattr = compl->cp_user_hlattr;
 	    if (compl->cp_text[CPT_MENU] != NULL)
 		compl_match_array[i++].pum_extra =
 		    compl->cp_text[CPT_MENU];
@@ -2856,6 +2860,8 @@ ins_compl_add_tv(typval_T *tv, int dir, int fast)
     char_u	*(cptext[CPT_COUNT]);
     typval_T	user_data;
     int		status;
+    char_u	*user_hlname;
+    int		user_hlattr = -1;
 
     user_data.v_type = VAR_UNKNOWN;
     if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL)
@@ -2865,6 +2871,10 @@ ins_compl_add_tv(typval_T *tv, int dir, int fast)
 	cptext[CPT_MENU] = dict_get_string(tv->vval.v_dict, "menu", FALSE);
 	cptext[CPT_KIND] = dict_get_string(tv->vval.v_dict, "kind", FALSE);
 	cptext[CPT_INFO] = dict_get_string(tv->vval.v_dict, "info", FALSE);
+	user_hlname = dict_get_string(tv->vval.v_dict, "hl_group", FALSE);
+	if (user_hlname != NULL && *user_hlname != NUL)
+	    user_hlattr = syn_name2attr(user_hlname);
+
 	dict_get_tv(tv->vval.v_dict, "user_data", &user_data);
 	if (dict_get_string(tv->vval.v_dict, "icase", FALSE) != NULL
 				  && dict_get_number(tv->vval.v_dict, "icase"))
@@ -2887,7 +2897,8 @@ ins_compl_add_tv(typval_T *tv, int dir, int fast)
 	clear_tv(&user_data);
 	return FAIL;
     }
-    status = ins_compl_add(word, -1, NULL, cptext, &user_data, dir, flags, dup);
+    status = ins_compl_add(word, -1, NULL, cptext,
+				     &user_data, dir, flags, dup, user_hlattr);
     if (status != OK)
 	clear_tv(&user_data);
     return status;
@@ -2974,7 +2985,7 @@ set_completion(colnr_T startcol, list_T *list)
 	flags |= CP_ICASE;
     if (compl_orig_text == NULL || ins_compl_add(compl_orig_text,
 					      -1, NULL, NULL, NULL, 0,
-					      flags | CP_FAST, FALSE) != OK)
+					      flags | CP_FAST, FALSE, -1) != OK)
 	return;
 
     ctrl_x_mode = CTRL_X_EVAL;
@@ -3570,6 +3581,7 @@ get_next_filename_completion(void)
 
 		// Move leader to the file part
 		leader = last_sep + 1;
+		leader_len = STRLEN(leader);
 	    }
 	}
     }
@@ -3632,12 +3644,18 @@ get_next_filename_completion(void)
 	    matches = sorted_matches;
 	    num_matches = fuzzy_indices.ga_len;
 	}
+	else if (leader_len > 0)
+	{
+	    FreeWild(num_matches, matches);
+	    num_matches = 0;
+	}
 
 	vim_free(compl_fuzzy_scores);
 	ga_clear(&fuzzy_indices);
     }
 
-    ins_compl_add_matches(num_matches, matches, p_fic || p_wic);
+    if (num_matches > 0)
+	ins_compl_add_matches(num_matches, matches, p_fic || p_wic);
 }
 
 /*
@@ -5177,7 +5195,7 @@ ins_compl_start(void)
     if (p_ic)
 	flags |= CP_ICASE;
     if (compl_orig_text == NULL || ins_compl_add(compl_orig_text,
-		-1, NULL, NULL, NULL, 0, flags, FALSE) != OK)
+		-1, NULL, NULL, NULL, 0, flags, FALSE, -1) != OK)
     {
 	VIM_CLEAR(compl_pattern);
 	compl_patternlen = 0;
