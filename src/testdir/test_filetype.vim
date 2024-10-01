@@ -340,6 +340,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     hostsaccess: ['/etc/hosts.allow', '/etc/hosts.deny', 'any/etc/hosts.allow', 'any/etc/hosts.deny'],
     # file.component.html should be HTML, not Angular, see #13594
     html: ['file.html', 'file.htm', 'file.cshtml', 'file.component.html'],
+    http: ['file.http'],
     htmlm4: ['file.html.m4'],
     httest: ['file.htt', 'file.htb'],
     hurl: ['file.hurl'],
@@ -362,7 +363,7 @@ def s:GetFilenameChecks(): dict<list<string>>
     janet: ['file.janet'],
     java: ['file.java', 'file.jav'],
     javacc: ['file.jj', 'file.jjt'],
-    javascript: ['file.js', 'file.jsm', 'file.javascript', 'file.es', 'file.mjs', 'file.cjs', '.node_repl_history'],
+    javascript: ['file.js', 'file.jsm', 'file.javascript', 'file.es', 'file.mjs', 'file.cjs', '.node_repl_history', '.bun_repl_history', 'deno_history.txt'],
     'javascript.glimmer': ['file.gjs'],
     javascriptreact: ['file.jsx'],
     jess: ['file.clp'],
