@@ -1133,6 +1133,10 @@ au BufNewFile,BufRead indent.pro		call dist#ft#ProtoCheck('indent')
 " IDL (Interactive Data Language), Prolog, Cproto or zsh module C
 au BufNewFile,BufRead *.pro			call dist#ft#ProtoCheck('idlang')
 
+" Idris2
+au BufNewFile,BufRead *.idr			setf idris2
+au BufNewFile,BufRead *.lidr			setf lidris2
+
 " Indent RC
 au BufNewFile,BufRead indentrc			setf indent
 
@@ -1151,6 +1155,9 @@ au BufRead,BufNewFile usw2kagt.log\c,usw2kagt.*.log\c,*.usw2kagt.log\c	setf usw2
 
 " Ipfilter
 au BufNewFile,BufRead ipf.conf,ipf6.conf,ipf.rules	setf ipfilter
+
+" Ipkg
+au BufNewFile,BufRead *.ipkg			setf ipkg
 
 " Informix 4GL (source - canonical, include file, I4GL+M4 preproc.)
 au BufNewFile,BufRead *.4gl,*.4gh,*.m4gl	setf fgl
@@ -1324,6 +1331,9 @@ au BufRead,BufNewFile *.ldg,*.ledger,*.journal			setf ledger
 
 " lf configuration (lfrc)
 au BufNewFile,BufRead lfrc			setf lf
+
+" Leo
+au BufNewFile,BufRead *.leo			setf leo
 
 " Less
 au BufNewFile,BufRead *.less			setf less
@@ -2588,6 +2598,9 @@ au BufNewFile,BufReadPost *.tsscl		setf tsscl
 
 " TSV Files
 au BufNewFile,BufRead *.tsv			setf tsv
+
+" Tutor mode
+au BufNewFile,BufReadPost *.tutor		setf tutor
 
 " TWIG files
 au BufNewFile,BufReadPost *.twig		setf twig

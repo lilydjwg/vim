@@ -762,7 +762,13 @@ RT_ALL =	\
 		runtime/tools/[a-z]*[a-z0-9] \
 		runtime/tutor/README.txt \
 		runtime/tutor/tutor \
+		runtime/tutor/en/vim-01-beginner.tutor \
+		runtime/tutor/en/vim-01-beginner.tutor.json \
+		runtime/tutor/tutor.tutor \
+		runtime/tutor/tutor.tutor.json \
 		runtime/tutor/tutor.vim \
+		runtime/tutor/tutor2 \
+		runtime/tutor/tutor2.utf-8 \
 		runtime/vimrc_example.vim \
 		runtime/pack/dist/opt/cfilter/plugin/cfilter.vim \
 		runtime/pack/dist/opt/comment/plugin/comment.vim \
