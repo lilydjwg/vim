@@ -501,6 +501,7 @@ $quote	eval.txt	/*$quote*
 'mesg'	vi_diff.txt	/*'mesg'*
 'mfd'	options.txt	/*'mfd'*
 'mh'	options.txt	/*'mh'*
+'mhi'	options.txt	/*'mhi'*
 'mis'	options.txt	/*'mis'*
 'mkspellmem'	options.txt	/*'mkspellmem'*
 'ml'	options.txt	/*'ml'*
@@ -531,6 +532,7 @@ $quote	eval.txt	/*$quote*
 'mousetime'	options.txt	/*'mousetime'*
 'mp'	options.txt	/*'mp'*
 'mps'	options.txt	/*'mps'*
+'msghistory'	options.txt	/*'msghistory'*
 'msm'	options.txt	/*'msm'*
 'mzq'	options.txt	/*'mzq'*
 'mzquantum'	options.txt	/*'mzquantum'*
@@ -7382,6 +7384,7 @@ ft-neomuttlog-syntax	syntax.txt	/*ft-neomuttlog-syntax*
 ft-neomuttrc-syntax	syntax.txt	/*ft-neomuttrc-syntax*
 ft-nroff-syntax	syntax.txt	/*ft-nroff-syntax*
 ft-ocaml-syntax	syntax.txt	/*ft-ocaml-syntax*
+ft-org-plugin	filetype.txt	/*ft-org-plugin*
 ft-pandoc-syntax	syntax.txt	/*ft-pandoc-syntax*
 ft-papp-syntax	syntax.txt	/*ft-papp-syntax*
 ft-pascal-syntax	syntax.txt	/*ft-pascal-syntax*
