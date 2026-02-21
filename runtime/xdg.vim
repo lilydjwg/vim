@@ -1,7 +1,7 @@
 " XDG Base Directory support
 " This script sets up paths for XDG compliance.
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2026 Feb 18
+" Last Change:	2026 Feb 19
 
 let s:config = empty($XDG_CONFIG_HOME) ? expand("~/.config") : expand("$XDG_CONFIG_HOME")
 let s:data   = empty($XDG_DATA_HOME)   ? expand("~/.local/share") : expand("$XDG_DATA_HOME")
@@ -21,9 +21,6 @@ if isdirectory(s:config .. '/vim')
     exe $"set packpath+={s:data}/vim/after"
   endif
 
-  " Use Data for the viminfo file
-  let &viminfofile = s:mkvimdir(s:data .. '/vim') .. '/viminfo'
-
   " These options are not set by default because they change the behavior of
   " where files are saved. Uncomment them if you want to fully move all
   " transient/persistent files to XDG directories.
@@ -31,12 +28,13 @@ if isdirectory(s:config .. '/vim')
   " while Swap/Backups use STATE_HOME as transient session state.
 
   " Persistent Data:
-  " let &undodir = s:mkvimdir(s:data .. '/vim/undo') .. '//'
-  " let &viewdir = s:mkvimdir(s:data .. '/vim/view') .. '//'
+  " let &undodir = s:mkvimdir(s:data .. '/vim/undo')
+  " let &viewdir = s:mkvimdir(s:data .. '/vim/view')
   " let g:netrw_home = s:mkvimdir(s:data .. '/vim')
   " call s:mkvimdir(s:data .. '/vim/spell')
 
   " Transient State:
+  let &viminfofile = s:mkvimdir(s:state .. '/vim') .. '/viminfo'
   " let &directory = s:mkvimdir(s:state .. '/vim/swap')   .. '//'
   " let &backupdir = s:mkvimdir(s:state .. '/vim/backup') .. '//'
 

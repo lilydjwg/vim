@@ -1432,10 +1432,10 @@ retry:
 				break;
 			    }
 
-			    mch_memmove(new_buffer, buffer, linerest);
+			    mch_memmove(new_buffer, buffer, linerest + conv_restlen);
 			    if (newptr != NULL)
-				mch_memmove(new_buffer + linerest, newptr,
-							      decrypted_size);
+				mch_memmove(new_buffer + linerest + conv_restlen,
+					newptr, decrypted_size);
 			    vim_free(newptr);
 			}
 
@@ -1445,7 +1445,7 @@ retry:
 			    buffer = new_buffer;
 			    new_buffer = NULL;
 			    line_start = buffer;
-			    ptr = buffer + linerest;
+			    ptr = buffer + linerest + conv_restlen;
 			    real_size = size;
 			}
 			size = decrypted_size;
@@ -3022,7 +3022,7 @@ check_for_cryptkey(
 	    int header_len;
 
 	    header_len = crypt_get_header_len(method);
-	    if (*sizep <= header_len)
+	    if (*sizep < header_len)
 		// invalid header, buffer can't be encrypted
 		return NULL;
 
