@@ -5896,6 +5896,7 @@ Select-mode-mapping	visual.txt	/*Select-mode-mapping*
 Session	starting.txt	/*Session*
 SessionLoad-variable	starting.txt	/*SessionLoad-variable*
 SessionLoadPost	autocmd.txt	/*SessionLoadPost*
+SessionLoadPre	autocmd.txt	/*SessionLoadPre*
 SessionWritePost	autocmd.txt	/*SessionWritePost*
 ShellCmdPost	autocmd.txt	/*ShellCmdPost*
 ShellFilterPost	autocmd.txt	/*ShellFilterPost*
@@ -6989,6 +6990,7 @@ dav	pi_netrw.txt	/*dav*
 davs	pi_netrw.txt	/*davs*
 daw	motion.txt	/*daw*
 dd	change.txt	/*dd*
+debug-adapter-protocol	channel.txt	/*debug-adapter-protocol*
 debug-gcc	debug.txt	/*debug-gcc*
 debug-highlight	debugger.txt	/*debug-highlight*
 debug-leaks	debug.txt	/*debug-leaks*

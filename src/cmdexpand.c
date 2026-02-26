@@ -3515,8 +3515,10 @@ ExpandFromContext(
     {
 	regmatch.regprog = vim_regcomp(pat, magic_isset() ? RE_MAGIC : 0);
 	if (regmatch.regprog == NULL)
+	{
+	    vim_free(tofree);
 	    return FAIL;
-
+	}
 	// set ignore-case according to p_ic, p_scs and pat
 	regmatch.rm_ic = ignorecase(pat);
     }

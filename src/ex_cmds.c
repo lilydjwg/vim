@@ -4130,8 +4130,11 @@ ex_substitute(exarg_T *eap)
 		vim_free(old_sub);
 		old_sub = vim_strsave(sub);
 		if (old_sub == NULL)
+		{
 		    // out of memory
+		    vim_free(sub);
 		    return;
+		}
 	    }
 	}
     }

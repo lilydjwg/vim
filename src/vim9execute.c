@@ -290,6 +290,7 @@ exe_newdict(int count, ectx_T *ectx)
 	    if (dict_add(dict, item) == FAIL)
 	    {
 		// can this ever happen?
+		dictitem_free(item);
 		dict_unref(dict);
 		return FAIL;
 	    }
