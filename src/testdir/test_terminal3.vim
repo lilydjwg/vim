@@ -1148,4 +1148,18 @@ func Test_terminal_split_utf8()
   exe buf .. "bwipe!"
 endfunc
 
+func Test_terminal_max_combining_chars()
+  " somehow doesn't work on MS-Windows
+  CheckUnix
+  let cmd = "cat samples/terminal_max_combining_chars.txt\<CR>"
+  let buf = Run_shell_in_terminal({'term_rows': 15, 'term_cols': 35})
+  call TermWait(buf)
+  call term_sendkeys(buf, cmd)
+  " last char is a space with many combining chars
+  call WaitForAssert({-> assert_match("AAAAAAAAAAAAAAAAAAAAAAAAAAAA.", term_getline(buf, 14))})
+
+  call term_sendkeys(buf, "exit\r")
+  exe buf . "bwipe!"
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab

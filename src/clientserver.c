@@ -740,6 +740,7 @@ build_drop_cmd(
 		);
 	if (p == NULL)
 	{
+	    vim_free(cdp.string);
 	    vim_free(ga.ga_data);
 	    return NULL;
 	}

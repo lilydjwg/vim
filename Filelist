@@ -213,6 +213,7 @@ SRC_ALL =	\
 		src/testdir/ru_RU/LC_MESSAGES/__PACKAGE__.po \
 		src/testdir/runtest.vim \
 		src/testdir/samples/*.html \
+		src/testdir/samples/*.swp \
 		src/testdir/samples/*.txt \
 		src/testdir/samples/*.vim \
 		src/testdir/samples/evil.zip \

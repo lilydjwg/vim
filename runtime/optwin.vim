@@ -1,7 +1,7 @@
 " These commands create the option window.
 "
 " Maintainer:	The Vim Project <https://github.com/vim/vim>
-" Last Change:	2025 Nov 27
+" Last Change:	2026 Mar 01
 " Former Maintainer:	Bram Moolenaar <Bram@vim.org>
 
 " If there already is an option window, jump to that one.
@@ -490,8 +490,10 @@ call append("$", " \tset ls=" . &ls)
 if has("statusline")
   call <SID>AddOption("statusline", gettext("alternate format to be used for a status line"))
   call <SID>OptionG("stl", &stl)
+  call append("$", "\t" .. s:local_to_window)
+  call <SID>AddOption("statuslineopt", gettext("optional settings for the status line"))
+  call <SID>OptionG("stlo", &stlo)
 endif
-call append("$", "\t" .. s:local_to_window)
 call <SID>AddOption("equalalways", gettext("make all windows the same size when adding/removing windows"))
 call <SID>BinOptionG("ea", &ea)
 call <SID>AddOption("eadirection", gettext("in which direction 'equalalways' works: \"ver\", \"hor\" or \"both\""))

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Vim\n"
 "Report-Msgid-Bugs-To: vim-dev@vim.org\n"
-"POT-Creation-Date: 2026-02-19 17:55+0000\n"
+"POT-Creation-Date: 2026-03-01 19:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1958,6 +1958,9 @@ msgid "???EMPTY BLOCK"
 msgstr ""
 
 msgid "???LINES MISSING"
+msgstr ""
+
+msgid "???ILLEGAL BLOCK NUMBER"
 msgstr ""
 
 msgid "???BLOCK MISSING"
@@ -8842,6 +8845,9 @@ msgstr ""
 msgid "E1571: Must specify at least one callback for redraw_listener_add"
 msgstr ""
 
+msgid "E1572: 'listchars' field \"leadtab\" requires \"tab\" to be specified"
+msgstr ""
+
 #. type of cmdline window or 0
 #. result of cmdline window or 0
 #. buffer of cmdline window or NULL
@@ -9541,6 +9547,9 @@ msgid "0, 1 or 2; when to use a status line for the last window"
 msgstr ""
 
 msgid "alternate format to be used for a status line"
+msgstr ""
+
+msgid "optional settings for the status line"
 msgstr ""
 
 msgid "make all windows the same size when adding/removing windows"

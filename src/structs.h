@@ -3916,6 +3916,9 @@ typedef struct
     int		tab3;
     int		trail;
     int		lead;
+    int		leadtab1;
+    int		leadtab2;
+    int		leadtab3;
     int		*multispace;
     int		*leadmultispace;
 #ifdef FEAT_CONCEAL
@@ -4050,8 +4053,11 @@ struct window_S
 				    // status/command/winbar line(s)
     int		w_prev_winrow;	    // previous winrow used for 'splitkeep'
     int		w_prev_height;	    // previous height used for 'splitkeep'
-
-    int		w_status_height;    // number of status lines (0 or 1)
+    int		w_status_height;    // number of status lines.
+				    // If 'statuslineopt' was changed, this
+				    // member will be the previous value until
+				    // call function
+				    // frame_change_statusline_height().
     int		w_wincol;	    // Leftmost column of window in screen.
     int		w_width;	    // Width of window, excluding separation.
     int		w_vsep_width;	    // Number of separator columns (0 or 1).
@@ -4085,6 +4091,7 @@ struct window_S
     int		w_popup_padding[4]; // popup padding top/right/bot/left
     int		w_popup_border[4];  // popup border top/right/bot/left
     char_u	*w_border_highlight[4];  // popup border highlight
+    int		w_border_highlight_isset; // borderhighlight was explicitly set
     int		w_border_char[8];   // popup border characters
     int		w_popup_shadow;     // popup shadow (right and bottom edges)
 

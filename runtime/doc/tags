@@ -1034,7 +1034,9 @@ $quote	eval.txt	/*$quote*
 'stal'	options.txt	/*'stal'*
 'startofline'	options.txt	/*'startofline'*
 'statusline'	options.txt	/*'statusline'*
+'statuslineopt'	options.txt	/*'statuslineopt'*
 'stl'	options.txt	/*'stl'*
+'stlo'	options.txt	/*'stlo'*
 'stmp'	options.txt	/*'stmp'*
 'stpl'	options.txt	/*'stpl'*
 'sts'	options.txt	/*'sts'*
@@ -4759,6 +4761,7 @@ E1569	builtin.txt	/*E1569*
 E157	sign.txt	/*E157*
 E1570	builtin.txt	/*E1570*
 E1571	builtin.txt	/*E1571*
+E1572	options.txt	/*E1572*
 E158	sign.txt	/*E158*
 E159	sign.txt	/*E159*
 E16	cmdline.txt	/*E16*
@@ -8849,6 +8852,7 @@ lcs-eol	options.txt	/*lcs-eol*
 lcs-extends	options.txt	/*lcs-extends*
 lcs-lead	options.txt	/*lcs-lead*
 lcs-leadmultispace	options.txt	/*lcs-leadmultispace*
+lcs-leadtab	options.txt	/*lcs-leadtab*
 lcs-multispace	options.txt	/*lcs-multispace*
 lcs-nbsp	options.txt	/*lcs-nbsp*
 lcs-precedes	options.txt	/*lcs-precedes*
@@ -10527,6 +10531,7 @@ static-tag	tagsrch.txt	/*static-tag*
 status-line	windows.txt	/*status-line*
 statusmsg-variable	eval.txt	/*statusmsg-variable*
 stl-%!	options.txt	/*stl-%!*
+stl-%@	options.txt	/*stl-%@*
 stl-%{	options.txt	/*stl-%{*
 str2blob()	builtin.txt	/*str2blob()*
 str2float()	builtin.txt	/*str2float()*

@@ -994,7 +994,7 @@ eval_dict(char_u **arg, typval_T *rettv, evalarg_T *evalarg, int literal)
 		{
 		    emsg(_(e_missing_matching_bracket_after_dict_key));
 		    clear_tv(&tvkey);
-		    return FAIL;
+		    goto failret;
 		}
 		++*arg;
 	    }
@@ -1370,7 +1370,11 @@ dict_extend_func(
 
     if (type != NULL && check_typval_arg_type(type, &argvars[1],
 							 func_name, 2) == FAIL)
+    {
+	if (is_new)
+	    dict_unref(d1);
 	return;
+    }
     dict_extend(d1, d2, action, func_name);
 
     if (is_new)

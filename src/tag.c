@@ -1901,6 +1901,9 @@ emacs_tags_new_filename(findtags_state_T *st)
 
     for (p = st->ebuf; *p && *p != ','; p++)
 	;
+    // invalid
+    if (*p == NUL)
+	return;
     *p = NUL;
 
     // check for an included tags file.
@@ -2019,6 +2022,9 @@ etag_fail:
     }
     else			    // second format: isolate tagname
     {
+	if (p_7f == lbuf)
+	    goto etag_fail;
+
 	// find end of tagname
 	for (p = p_7f - 1; !vim_iswordc(*p); --p)
 	    if (p == lbuf)

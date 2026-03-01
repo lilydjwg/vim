@@ -3570,12 +3570,13 @@ handle_pushline(int cols, const VTermScreenCell *cells, void *user)
     {
 	for (col = 0; col < len; col += cells[col].width)
 	{
-	    if (ga_grow(&ga, MB_MAXBYTES) == FAIL)
+	    if (ga_grow(&ga, VTERM_MAX_CHARS_PER_CELL * 4) == FAIL)
 	    {
 		ga.ga_len = 0;
 		break;
 	    }
-	    for (i = 0; (c = cells[col].chars[i]) > 0 || i == 0; ++i)
+	    for (i = 0; i < VTERM_MAX_CHARS_PER_CELL &&
+		    ((c = cells[col].chars[i]) > 0 || i == 0); ++i)
 		ga.ga_len += utf_char2bytes(c == NUL ? ' ' : c,
 			(char_u *)ga.ga_data + ga.ga_len);
 	    cell2cellattr(&cells[col], &p[col]);
@@ -6704,10 +6705,12 @@ f_term_getansicolors(typval_T *argvars, typval_T *rettv)
     state = vterm_obtain_state(term->tl_vterm);
     for (index = 0; index < 16; index++)
     {
+	size_t	hexbuflen;
+
 	vterm_state_get_palette_color(state, index, &color);
-	sprintf((char *)hexbuf, "#%02x%02x%02x",
-		color.red, color.green, color.blue);
-	if (list_append_string(list, hexbuf, 7) == FAIL)
+	hexbuflen = vim_snprintf_safelen((char *)hexbuf, sizeof(hexbuf),
+	    "#%02x%02x%02x", color.red, color.green, color.blue);
+	if (list_append_string(list, hexbuf, (int)hexbuflen) == FAIL)
 	    return;
     }
 }

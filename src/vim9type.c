@@ -2573,7 +2573,10 @@ type_name_list_or_dict(char *name, type_T *type, char **tofree)
     size_t len = STRLEN(name) + STRLEN(member_name) + 3;
     *tofree = alloc(len);
     if (*tofree == NULL)
+    {
+	vim_free(member_free);
 	return name;
+    }
 
     vim_snprintf(*tofree, len, "%s<%s>", name, member_name);
     vim_free(member_free);

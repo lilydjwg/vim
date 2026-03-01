@@ -627,6 +627,7 @@ screen_line(
 		&& ScreenLines[off_from] == ' '
 		&& (!enc_utf8 || ScreenLinesUC[off_from] == 0)
 		&& ScreenLines[off_to] == 0
+		&& (!enc_utf8 || ScreenLinesUC[off_to] == 0)
 		&& off_to > 0
 		&& enc_utf8 && ScreenLinesUC[off_to - 1] != 0
 		&& utf_char2cells(ScreenLinesUC[off_to - 1]) == 2)
@@ -639,7 +640,8 @@ screen_line(
 		&& (flags & SLF_POPUP)
 		&& ScreenLines[off_from] == ' '
 		&& (!enc_utf8 || ScreenLinesUC[off_from] == 0)
-		&& ScreenLines[off_to] != 0)
+		&& (ScreenLines[off_to] != 0
+		    || (enc_utf8 && ScreenLinesUC[off_to] != 0)))
 	{
 	    int bg_char_cells = 1;
 	    if (enc_utf8 && ScreenLinesUC[off_to] != 0)
@@ -652,8 +654,23 @@ screen_line(
 	    {
 		if (col + 1 >= endcol || off_from + 1 >= max_off_from
 						   || off_to + 1 >= max_off_to)
-		    // At the edge of the screen, skip wide char.
+		{
+		    // Wide char doesn't fit at the edge.  Replace with a
+		    // blended space so opacity is still applied.
+		    int char_attr = ScreenAttrs[off_from];
+		    int popup_attr = get_wcr_attr(screen_opacity_popup);
+		    int combined = hl_combine_attr(popup_attr, char_attr);
+		    int blend = screen_opacity_popup->w_popup_blend;
+		    ScreenLines[off_to] = ' ';
+		    if (enc_utf8)
+			ScreenLinesUC[off_to] = 0;
+		    ScreenAttrs[off_to] = hl_blend_attr(ScreenAttrs[off_to],
+						    combined, blend, TRUE);
+		    screen_char(off_to, row, col + coloff);
+		    opacity_blank = TRUE;
+		    redraw_this = FALSE;
 		    goto skip_opacity;
+		}
 		int next_off_from = off_from + 1;
 		if (!(ScreenLines[next_off_from] == ' '
 			&& (!enc_utf8 || ScreenLinesUC[next_off_from] == 0)))
@@ -679,6 +696,30 @@ screen_line(
 	    // For wide background character, also update the second cell.
 	    if (bg_char_cells == 2)
 		ScreenAttrs[off_to + 1] = ScreenAttrs[off_to];
+	    redraw_this = FALSE;
+	}
+	// When a popup space overlaps the second half of a destroyed wide
+	// character (e.g., the first half was overwritten by popup content),
+	// the underlying cell has ScreenLines == 0 and no valid wide char
+	// at the previous cell.  Apply opacity blending so that the cell
+	// matches surrounding opacity-blended cells instead of appearing
+	// as a solid-colored gap.
+	else if (screen_opacity_popup != NULL
+		&& (flags & SLF_POPUP)
+		&& ScreenLines[off_from] == ' '
+		&& (!enc_utf8 || ScreenLinesUC[off_from] == 0)
+		&& ScreenLines[off_to] == 0
+		&& (!enc_utf8 || ScreenLinesUC[off_to] == 0))
+	{
+	    int char_attr = ScreenAttrs[off_from];
+	    int popup_attr = get_wcr_attr(screen_opacity_popup);
+	    int combined = hl_combine_attr(popup_attr, char_attr);
+	    int blend = screen_opacity_popup->w_popup_blend;
+	    ScreenLines[off_to] = ' ';
+	    ScreenAttrs[off_to] = hl_blend_attr(ScreenAttrs[off_to],
+						combined, blend, TRUE);
+	    screen_char(off_to, row, col + coloff);
+	    opacity_blank = TRUE;
 	    redraw_this = FALSE;
 	}
 skip_opacity:
@@ -784,7 +825,11 @@ skip_opacity:
 		}
 	    }
 	    if (char_cells == 2)
+	    {
 		ScreenLines[off_to + 1] = ScreenLines[off_from + 1];
+		if (enc_utf8)
+		    ScreenLinesUC[off_to + 1] = 0;
+	    }
 
 #if defined(FEAT_GUI) || defined(UNIX)
 	    // The bold trick makes a single column of pixels appear in the
@@ -1143,6 +1188,7 @@ win_redr_custom(
     int		width;
     int		n;
     int		len;
+    int		stlh_cnt;
     int		fillchar;
     char_u	buf[MAXPATHL];
     char_u	*stl;
@@ -1233,64 +1279,80 @@ win_redr_custom(
     ewp = wp == NULL ? curwin : wp;
     p_crb_save = ewp->w_p_crb;
     ewp->w_p_crb = FALSE;
+    stlh_cnt = draw_ruler || stl == p_tal ? 1 : wp->w_status_height;
 
     // Make a copy, because the statusline may include a function call that
     // might change the option value and free the memory.
     stl = vim_strsave(stl);
-    width = build_stl_str_hl(ewp, buf, sizeof(buf),
-				(stl == NULL) ? (char_u *)"" : stl, opt_name, opt_scope,
-				fillchar, maxwidth, &hltab, &tabtab);
-    vim_free(stl);
+    char_u *stl_tmp = (stl == NULL) ? (char_u *)"" : stl;
+    int col_save = col;
+
+    for (int i = 0; i < stlh_cnt; i++)
+    {
+	col = col_save;
+	buf[0] = NUL;
+	width = build_stl_str_hl_mline(ewp, buf, sizeof(buf),
+			&stl_tmp,
+			opt_name, opt_scope,
+			fillchar, maxwidth, &hltab, &tabtab);
+
+	// Make all characters printable.
+	p = transstr(buf);
+	if (p != NULL)
+	{
+	    len = vim_snprintf((char *)buf, sizeof(buf), "%s", p);
+	    vim_free(p);
+	}
+	else
+	    len = (int)STRLEN(buf);
+
+	// fill up with "fillchar"
+	while (width < maxwidth && len < (int)sizeof(buf) - 1)
+	{
+	    len += (*mb_char2bytes)(fillchar, buf + len);
+	    ++width;
+	}
+	buf[len] = NUL;
+
+	/*
+	 * Draw each snippet with the specified highlighting.
+	 */
+	curattr = attr;
+	p = buf;
+	for (n = 0; hltab[n].start != NULL; n++)
+	{
+	    len = (int)(hltab[n].start - p);
+	    screen_puts_len(p, len, row + i, col, curattr);
+	    col += vim_strnsize(p, len);
+	    p = hltab[n].start;
+
+	    if (hltab[n].userhl == 0)
+		curattr = attr;
+	    else if (hltab[n].userhl < 0)
+		curattr = syn_id2attr(-hltab[n].userhl);
+# ifdef FEAT_TERMINAL
+	    else if (wp != NULL && wp != curwin && bt_terminal(wp->w_buffer)
+						    && wp->w_status_height != 0)
+		curattr = highlight_stltermnc[hltab[n].userhl - 1];
+	    else if (wp != NULL && bt_terminal(wp->w_buffer)
+						    && wp->w_status_height != 0)
+		curattr = highlight_stlterm[hltab[n].userhl - 1];
+# endif
+	    else if (wp != NULL && wp != curwin && wp->w_status_height != 0)
+		curattr = highlight_stlnc[hltab[n].userhl - 1];
+	    else
+		curattr = highlight_user[hltab[n].userhl - 1];
+	}
+	screen_puts(p, row + i, col, curattr);
+    }
     ewp->w_p_crb = p_crb_save;
 
-    // Make all characters printable.
-    p = transstr(buf);
-    if (p != NULL)
-    {
-	len = vim_snprintf((char *)buf, sizeof(buf), "%s", p);
-	vim_free(p);
-    }
-    else
-	len = (int)STRLEN(buf);
-
-    // fill up with "fillchar"
-    while (width < maxwidth && len < (int)sizeof(buf) - 1)
-    {
-	len += (*mb_char2bytes)(fillchar, buf + len);
-	++width;
-    }
-    buf[len] = NUL;
-
-    /*
-     * Draw each snippet with the specified highlighting.
-     */
-    curattr = attr;
-    p = buf;
-    for (n = 0; hltab[n].start != NULL; n++)
-    {
-	len = (int)(hltab[n].start - p);
-	screen_puts_len(p, len, row, col, curattr);
-	col += vim_strnsize(p, len);
-	p = hltab[n].start;
-
-	if (hltab[n].userhl == 0)
-	    curattr = attr;
-	else if (hltab[n].userhl < 0)
-	    curattr = syn_id2attr(-hltab[n].userhl);
-# ifdef FEAT_TERMINAL
-	else if (wp != NULL && wp != curwin && bt_terminal(wp->w_buffer)
-						   && wp->w_status_height != 0)
-	    curattr = highlight_stltermnc[hltab[n].userhl - 1];
-	else if (wp != NULL && bt_terminal(wp->w_buffer)
-						   && wp->w_status_height != 0)
-	    curattr = highlight_stlterm[hltab[n].userhl - 1];
-# endif
-	else if (wp != NULL && wp != curwin && wp->w_status_height != 0)
-	    curattr = highlight_stlnc[hltab[n].userhl - 1];
-	else
-	    curattr = highlight_user[hltab[n].userhl - 1];
-    }
-    screen_puts(p, row, col, curattr);
+    // Note: In the loop, build_stl_str_hl_mline() may replace stl_tmp with
+    // a newly allocated buffer (when "%!" evaluation occurs), freeing the
+    // original "stl" internally.  After the loop, stl_tmp must be freed
+    // instead of stl, as it holds the current buffer ownership.
+    if (stl != NULL)
+	vim_free(stl_tmp);
 
     if (wp == NULL)
     {
@@ -4940,6 +5002,7 @@ static struct charstab lcstab[] =
     CHARSTAB_ENTRY(&lcs_chars.prec,	    "precedes"),
     CHARSTAB_ENTRY(&lcs_chars.space,	    "space"),
     CHARSTAB_ENTRY(&lcs_chars.tab2,	    "tab"),
+    CHARSTAB_ENTRY(&lcs_chars.leadtab2,	    "leadtab"),
     CHARSTAB_ENTRY(&lcs_chars.trail,	    "trail"),
     CHARSTAB_ENTRY(&lcs_chars.lead,	    "lead"),
 #ifdef FEAT_CONCEAL
@@ -5011,6 +5074,8 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			*(tab[i].cp) = NUL;
 		lcs_chars.tab1 = NUL;
 		lcs_chars.tab3 = NUL;
+		lcs_chars.leadtab1 = NUL;
+		lcs_chars.leadtab3 = NUL;
 
 		if (multispace_len > 0)
 		{
@@ -5146,7 +5211,8 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 		    return field_value_err(errbuf, errbuflen,
 					 e_wrong_character_width_for_field_str,
 					 tab[i].name.string);
-		if (tab[i].cp == &lcs_chars.tab2)
+		if (tab[i].cp == &lcs_chars.tab2 ||
+		    tab[i].cp == &lcs_chars.leadtab2)
 		{
 		    if (*s == NUL)
 			return field_value_err(errbuf, errbuflen,
@@ -5177,9 +5243,14 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 			    lcs_chars.tab2 = c2;
 			    lcs_chars.tab3 = c3;
 			}
+			else if (tab[i].cp == &lcs_chars.leadtab2)
+			{
+			    lcs_chars.leadtab1 = c1;
+			    lcs_chars.leadtab2 = c2;
+			    lcs_chars.leadtab3 = c3;
+			}
 			else if (tab[i].cp != NULL)
 			    *(tab[i].cp) = c1;
-
 		    }
 		    p = s;
 		    break;
@@ -5197,6 +5268,9 @@ set_chars_option(win_T *wp, char_u *value, int is_listchars, int apply,
 		++p;
 	}
     }
+
+    if (is_listchars && lcs_chars.leadtab2 != NUL && lcs_chars.tab2 == NUL)
+	return e_leadtab_requires_tab;
 
     if (apply)
     {

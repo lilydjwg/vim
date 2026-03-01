@@ -97,6 +97,9 @@ update_screen(int type_arg)
 #endif
     int		no_update = FALSE;
     int		save_pum_will_redraw = pum_will_redraw;
+#ifdef FEAT_PROP_POPUP
+    int		did_redraw_window = FALSE;
+#endif
 
     // Don't do anything if the screen structures are (not yet) valid.
     if (!screen_valid(TRUE))
@@ -319,6 +322,9 @@ update_screen(int type_arg)
 	if (wp->w_redr_type != 0)
 	{
 	    cursor_off();
+#ifdef FEAT_PROP_POPUP
+	    did_redraw_window = TRUE;
+#endif
 #ifdef FEAT_GUI
 	    if (!did_one)
 	    {
@@ -363,7 +369,8 @@ update_screen(int type_arg)
 
 #ifdef FEAT_PROP_POPUP
     // Display popup windows on top of the windows and command line.
-    update_popups(win_update);
+    if (did_redraw_window || popup_need_redraw())
+	update_popups(win_update);
 #endif
 
 #ifdef FEAT_TERMINAL
@@ -450,6 +457,7 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
     int		row;
     int		fillchar;
     int		attr;
+    int		i;
     static int  busy = FALSE;
 
     // It's possible to get here recursively when 'statusline' (indirectly)
@@ -528,8 +536,6 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	}
 	else if (has_mbyte)
 	{
-	    int	i;
-
 	    // Count total number of display cells.
 	    plen = mb_string2cells(p, -1);
 
@@ -553,7 +559,8 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	}
 
 	screen_puts(p, row, wp->w_wincol, attr);
-	screen_fill(row, row + 1, plen + wp->w_wincol,
+	for (i = 0; i < wp->w_status_height; i++)
+	    screen_fill(row + i, row + i + 1, plen + wp->w_wincol,
 			this_ru_col + wp->w_wincol, fillchar, fillchar, attr);
 	if ((NameBufflen = get_keymap_str(wp, (char_u *)"<%s>", NameBuff, MAXPATHL)) > 0
 		&& (this_ru_col - plen) > (NameBufflen + 1))
@@ -583,7 +590,8 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	    fillchar = fillchar_status(&attr, wp);
 	else
 	    fillchar = fillchar_vsep(&attr, wp);
-	screen_putchar(fillchar, row, W_ENDCOL(wp), attr);
+	for (i = 0; i < wp->w_status_height; i++)
+	    screen_putchar(fillchar, row + i, W_ENDCOL(wp), attr);
     }
     busy = FALSE;
 }
