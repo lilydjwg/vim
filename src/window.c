@@ -1611,8 +1611,16 @@ win_init(win_T *newp, win_T *oldp, int flags UNUSED)
 #endif
 
     win_init_some(newp, oldp);
+
 #ifdef FEAT_TERMINAL
-    term_update_wincolor(newp);
+    {
+	// Make sure to also handle highlight overrides copied over from oldp.
+	bool pushed = push_highlight_overrides(newp->w_hl, newp->w_hl_len);
+	if (newp->w_buffer->b_term != NULL)
+	    term_init_default_colors(newp->w_buffer->b_term);
+	if (pushed)
+	    pop_highlight_overrides();
+    }
 #endif
 }
 
@@ -2522,7 +2530,7 @@ win_init_empty(win_T *wp)
     wp->w_s = &wp->w_buffer->b_s;
 #endif
 #ifdef FEAT_TERMINAL
-    term_reset_wincolor(wp);
+    term_reset_hlfwin(wp);
 #endif
 }
 
@@ -5978,6 +5986,8 @@ win_free(
     ruby_window_free(wp);
 #endif
 
+    vim_free(wp->w_hl);
+
     clear_winopt(&wp->w_onebuf_opt);
     clear_winopt(&wp->w_allbuf_opt);
 
@@ -7650,22 +7660,21 @@ frame_change_statusline_height_rec(frame_T *frp, bool actual_change)
 
 	if (wp->w_height > 0 && wp->w_status_height > 0)
 	{
+	    int win_free_height = frp->fr_height - WINBAR_HEIGHT(wp);
+
 	    if (actual_change)
 	    {
 		wp->w_status_height = stlo_mh;
-		if (wp->w_status_height > frp->fr_height - wp->w_winbar_height
-			- p_wmh)
+		if (wp->w_status_height > win_free_height - p_wmh)
 		{
-		    wp->w_status_height = frp->fr_height - wp->w_winbar_height
-			- p_wmh;
+		    wp->w_status_height = win_free_height - p_wmh;
 		}
-		win_new_height(wp, frp->fr_height - wp->w_status_height
-			- wp->w_winbar_height);
+		win_new_height(wp, win_free_height - wp->w_status_height);
 	    }
 	    else
 	    {
-		if (frp->fr_height - wp->w_winbar_height - p_wmh < stlh_effort)
-		    stlh_effort = frp->fr_height - wp->w_winbar_height - p_wmh;
+		if (win_free_height - p_wmh < stlh_effort)
+		    stlh_effort = win_free_height - p_wmh;
 	    }
 	}
     }

@@ -1035,6 +1035,7 @@ EXTERN char_u	*p_tenc;	// 'termencoding'
 #ifdef FEAT_TERMGUICOLORS
 EXTERN int	p_tgc;		// 'termguicolors'
 #endif
+EXTERN int	p_tsy;		// 'termsync'
 #ifdef FEAT_TERMINAL
 EXTERN long	p_twsl;		// 'termwinscroll'
 #endif
@@ -1389,6 +1390,7 @@ enum
     , WV_WFB
     , WV_WFH
     , WV_WFW
+    , WV_WHL
     , WV_WRAP
 #ifdef FEAT_SIGNS
     , WV_SCL

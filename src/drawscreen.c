@@ -100,6 +100,7 @@ update_screen(int type_arg)
 #ifdef FEAT_PROP_POPUP
     int		did_redraw_window = FALSE;
 #endif
+    bool	override_success;
 
     // Don't do anything if the screen structures are (not yet) valid.
     if (!screen_valid(TRUE))
@@ -158,6 +159,8 @@ update_screen(int type_arg)
 	return FAIL;
     }
     updating_screen = TRUE;
+
+    term_set_sync_output(TERM_SYNC_OUTPUT_ENABLE);
 
 #ifdef FEAT_PROP_POPUP
     // Update popup_mask if needed.  This may set w_redraw_top and w_redraw_bot
@@ -319,6 +322,8 @@ update_screen(int type_arg)
 #endif
     FOR_ALL_WINDOWS(wp)
     {
+	override_success = push_highlight_overrides(wp->w_hl, wp->w_hl_len);
+
 	if (wp->w_redr_type != 0)
 	{
 	    cursor_off();
@@ -353,6 +358,10 @@ update_screen(int type_arg)
 	    cursor_off();
 	    win_redr_status(wp, TRUE); // any popup menu will be redrawn below
 	}
+
+	if (override_success)
+	    pop_highlight_overrides();
+
     }
 #if defined(FEAT_SEARCH_EXTRA)
     end_search_hl();
@@ -426,6 +435,8 @@ update_screen(int type_arg)
     invoke_redraw_listener_start_or_end(false);
     redraw_listener_cleanup();
 #endif
+
+    term_set_sync_output(TERM_SYNC_OUTPUT_DISABLE);
 
     return OK;
 }
@@ -559,9 +570,12 @@ win_redr_status(win_T *wp, int ignore_pum UNUSED)
 	}
 
 	screen_puts(p, row, wp->w_wincol, attr);
-	for (i = 0; i < wp->w_status_height; i++)
-	    screen_fill(row + i, row + i + 1, plen + wp->w_wincol,
-			this_ru_col + wp->w_wincol, fillchar, fillchar, attr);
+	screen_fill(row, row + 1, plen + wp->w_wincol,
+		    this_ru_col + wp->w_wincol, fillchar, fillchar, attr);
+	// Fill extra status line rows entirely with fillchar.
+	for (i = 1; i < wp->w_status_height; i++)
+	    screen_fill(row + i, row + i + 1, wp->w_wincol,
+			W_ENDCOL(wp), fillchar, fillchar, attr);
 	if ((NameBufflen = get_keymap_str(wp, (char_u *)"<%s>", NameBuff, MAXPATHL)) > 0
 		&& (this_ru_col - plen) > (NameBufflen + 1))
 	    screen_puts(NameBuff, row, (int)(this_ru_col - NameBufflen
@@ -624,6 +638,7 @@ redraw_custom_statusline(win_T *wp)
     void
 showruler(int always)
 {
+    bool override_success;
     if (!always && !redrawing())
 	return;
     if (pum_visible())
@@ -632,12 +647,15 @@ showruler(int always)
 	curwin->w_redr_status = TRUE;
 	return;
     }
+    override_success = push_highlight_overrides(curwin->w_hl, curwin->w_hl_len);
 #if defined(FEAT_STL_OPT)
     if ((*p_stl != NUL || *curwin->w_p_stl != NUL) && curwin->w_status_height)
 	redraw_custom_statusline(curwin);
     else
 #endif
 	win_redr_ruler(curwin, always, FALSE);
+    if (override_success)
+	pop_highlight_overrides();
 
     if (need_maketitle
 #ifdef FEAT_STL_OPT
@@ -3379,7 +3397,12 @@ redraw_statuslines(void)
 
     FOR_ALL_WINDOWS(wp)
 	if (wp->w_redr_status)
+	{
+	    bool ret = push_highlight_overrides(wp->w_hl, wp->w_hl_len);
 	    win_redr_status(wp, FALSE);
+	    if (ret)
+		pop_highlight_overrides();
+	}
     if (redraw_tabline)
 	draw_tabline();
 
