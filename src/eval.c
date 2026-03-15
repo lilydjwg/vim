@@ -2553,8 +2553,15 @@ tv_op_blob(typval_T *tv1, typval_T *tv2, char_u *op)
     blob_T	*b2 = tv2->vval.v_blob;
     int		len = blob_len(b2);
 
-    for (int i = 0; i < len; i++)
-	ga_append(&b1->bv_ga, blob_get(b2, i));
+    if (len > 0 && ga_grow(&b1->bv_ga, len) == OK)
+    {
+	mch_memmove((char_u *)b1->bv_ga.ga_data + b1->bv_ga.ga_len,
+		    (char_u *)b2->bv_ga.ga_data, (size_t)len);
+	b1->bv_ga.ga_len += len;
+    }
+    else
+	for (int i = 0; i < len; i++)
+	    (void)ga_append(&b1->bv_ga, blob_get(b2, i));
 
     return OK;
 }
@@ -2633,6 +2640,28 @@ tv_op_number(typval_T *tv1, typval_T *tv2, char_u *op)
 }
 
 /*
+ * Append string "s2" to the string in "tv1".
+ * Returns OK if "tv1" was grown in place, FAIL otherwise.
+ */
+    static int
+grow_string_tv(typval_T *tv1, char_u *s2)
+{
+    if (tv1->v_type != VAR_STRING || tv1->vval.v_string == NULL)
+	return FAIL;
+
+    size_t len1 = STRLEN(tv1->vval.v_string);
+    size_t len2 = STRLEN(s2);
+    char_u *p = vim_realloc(tv1->vval.v_string, len1 + len2 + 1);
+
+    if (p == NULL)
+	return FAIL;
+
+    mch_memmove(p + len1, s2, len2 + 1);
+    tv1->vval.v_string = p;
+    return OK;
+}
+
+/*
  * Handle "str1 .= str2"
  * Returns OK or FAIL.
  */
@@ -2641,13 +2670,18 @@ tv_op_string(typval_T *tv1, typval_T *tv2, char_u *op UNUSED)
 {
     char_u	numbuf[NUMBUFLEN];
     char_u	*s;
+    char_u	*s2;
 
     if (tv2->v_type == VAR_FLOAT)
 	return FAIL;
 
     // str .= str
+    s2 = tv_get_string_buf(tv2, numbuf);
+    if (grow_string_tv(tv1, s2) == OK)
+	return OK;
+
     s = tv_get_string(tv1);
-    s = concat_str(s, tv_get_string_buf(tv2, numbuf));
+    s = concat_str(s, s2);
     clear_tv(tv1);
     tv1->v_type = VAR_STRING;
     tv1->vval.v_string = s;
@@ -4363,6 +4397,10 @@ eval_concat_str(typval_T *tv1, typval_T *tv2)
 	clear_tv(tv2);
 	return FAIL;
     }
+
+    // When possible, grow the existing string in place to avoid alloc/free.
+    if (grow_string_tv(tv1, s2) == OK)
+	return OK;
 
     p = concat_str(s1, s2);
     clear_tv(tv1);
@@ -6946,7 +6984,7 @@ var2fpos(
 	if (name[1] == '0')		// "w0": first visible line
 	{
 #ifdef FEAT_TERMINAL
-	    if (bt_terminal(curwin->w_buffer))
+	    if (bt_terminal(curwin->w_buffer) && curwin->w_buffer->b_term != NULL)
 		may_move_terminal_to_buffer(curwin->w_buffer->b_term, TRUE);
 #endif
 	    update_topline();
@@ -6958,7 +6996,7 @@ var2fpos(
 	else if (name[1] == '$')	// "w$": last visible line
 	{
 #ifdef FEAT_TERMINAL
-	    if (bt_terminal(curwin->w_buffer))
+	    if (bt_terminal(curwin->w_buffer) && curwin->w_buffer->b_term != NULL)
 		may_move_terminal_to_buffer(curwin->w_buffer->b_term, TRUE);
 #endif
 	    validate_botline();
