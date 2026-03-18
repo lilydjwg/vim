@@ -5436,9 +5436,13 @@ common_function(typval_T *argvars, typval_T *rettv, int is_funcref)
 	    else
 	    {
 		// generic function
-		STRCPY(IObuff, name);
-		STRCAT(IObuff, start_bracket);
-		rettv->vval.v_string = vim_strsave(IObuff);
+		size_t len = STRLEN(name) + STRLEN(start_bracket);
+		rettv->vval.v_string = alloc(len + 1);
+		if (rettv->vval.v_string != NULL)
+		{
+		    STRCPY(rettv->vval.v_string, name);
+		    STRCAT(rettv->vval.v_string, start_bracket);
+		}
 		vim_free(name);
 	    }
 	}
@@ -6676,6 +6680,13 @@ f_has(typval_T *argvars, typval_T *rettv)
 		0
 #endif
 		},
+	{"android",
+#ifdef __ANDROID__
+		1
+#else
+		0
+#endif
+		},
 	{"arp",
 #if defined(AMIGA) && defined(FEAT_ARP)
 		1
@@ -6755,6 +6766,13 @@ f_has(typval_T *argvars, typval_T *rettv)
 		},
 	{"sun",
 #ifdef SUN_SYSTEM
+		1
+#else
+		0
+#endif
+		},
+	{"termux",
+#ifdef __TERMUX__
 		1
 #else
 		0
