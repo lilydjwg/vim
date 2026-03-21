@@ -920,6 +920,14 @@ skip_opacity:
 	    // redraw that one if this one changed, no matter attributes.
 	    if (gui.in_use && changed_this)
 		redraw_next = TRUE;
+# ifdef FEAT_DIRECTX
+	    // DirectWrite subpixel rendering (especially with CFF/OTF
+	    // fonts) can extend pixels beyond cell boundaries to the
+	    // left.  Redraw the current character if the previous one
+	    // changed.
+	    if (gui.directx_enabled && changed_this)
+		redraw_this = TRUE;
+# endif
 #endif
 
 	    ScreenAttrs[off_to] = ScreenAttrs[off_from];
@@ -1451,9 +1459,6 @@ win_redr_custom(
     if (wp == NULL)
     {
 	// Fill the TabPageIdxs[] array for clicking in the tab pagesline.
-	int end_col = firstwin->w_wincol + topframe->fr_width;
-	if (end_col > Columns)
-	    end_col = Columns;
 	col = firstwin->w_wincol;
 	len = 0;
 	p = buf;
@@ -1461,14 +1466,12 @@ win_redr_custom(
 	for (n = 0; tabtab[n].start != NULL; n++)
 	{
 	    len += vim_strnsize(p, (int)(tabtab[n].start - p));
-	    while (col < len && col < end_col)
+	    while (col < len)
 		TabPageIdxs[col++] = fillchar;
-	    if (col >= end_col)
-		break;
 	    p = tabtab[n].start;
 	    fillchar = tabtab[n].userhl;
 	}
-	while (col < end_col)
+	while (col < firstwin->w_wincol + topframe->fr_width)
 	    TabPageIdxs[col++] = fillchar;
     }
 
@@ -1736,6 +1739,12 @@ screen_puts_len(
 		if (n & HL_BOLD)
 		    force_redraw_next = TRUE;
 	    }
+#endif
+#ifdef FEAT_DIRECTX
+	    // DirectWrite subpixel rendering can extend pixels beyond
+	    // cell boundaries.  Redraw the next character too.
+	    if (gui.directx_enabled && need_redraw)
+		force_redraw_next = TRUE;
 #endif
 	    // When at the end of the text and overwriting a two-cell
 	    // character with a one-cell character, need to clear the next
@@ -2668,6 +2677,12 @@ skip_opacity_fill:
 			force_next = FALSE;
 		}
 #endif // FEAT_GUI || defined(UNIX)
+#ifdef FEAT_DIRECTX
+		// DirectWrite subpixel rendering can extend pixels
+		// beyond cell boundaries.  Redraw the next character.
+		if (gui.directx_enabled)
+		    force_next = TRUE;
+#endif
 		ScreenLines[off] = c;
 		if (enc_utf8)
 		{

@@ -735,6 +735,60 @@ static char *(features[]) =
 static int included_patches[] =
 {   /* Add new patch number below this line */
 /**/
+    219,
+/**/
+    218,
+/**/
+    217,
+/**/
+    216,
+/**/
+    215,
+/**/
+    214,
+/**/
+    213,
+/**/
+    212,
+/**/
+    211,
+/**/
+    210,
+/**/
+    209,
+/**/
+    208,
+/**/
+    207,
+/**/
+    206,
+/**/
+    205,
+/**/
+    204,
+/**/
+    203,
+/**/
+    202,
+/**/
+    201,
+/**/
+    200,
+/**/
+    199,
+/**/
+    198,
+/**/
+    197,
+/**/
+    196,
+/**/
+    195,
+/**/
+    194,
+/**/
+    193,
+/**/
     192,
 /**/
     191,
@@ -1710,7 +1764,7 @@ intro_message(
 		else if (strstr(p, "Kuwasha") != NULL)
 		    p = N_("type  :help sponsor<Enter>    for information ");
 		else if (strstr(p, "Orphans") != NULL)
-		    p = N_("menu  Help->Sponsor  for information    ");
+		    p = N_("menu  Help->Sponsor           for information    ");
 	    }
 	    if (*p != NUL)
 		do_intro_line(row, (char_u *)_(p), i == 2, 0);
