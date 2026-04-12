@@ -945,27 +945,36 @@ skip_opacity:
 
 		popup_get_base_screen_cell(row, col + coloff,
 						NULL, &underlying_attr, NULL);
-		ScreenAttrs[off_to] = hl_blend_attr(underlying_attr,
-						combined, blend, FALSE);
 
-		// For double-wide characters, the second cell may have a
-		// different underlying attr (e.g. at popup boundary),
-		// so blend it independently.
+		// For double-wide characters, a terminal cannot render
+		// different background colors for the left and right
+		// halves.  When one half is over a lower opacity popup
+		// and the other is not, use the non-popup side's
+		// underlying attr for both to avoid color leaking.
 		if (char_cells == 2)
 		{
 		    int underlying_attr2 = 0;
+		    int scol1 = col + coloff;
+		    int over1 = popup_is_over_opacity(row, scol1);
+		    int over2 = popup_is_over_opacity(row, scol1 + 1);
 
-		    popup_get_base_screen_cell(row, col + coloff + 1,
+		    popup_get_base_screen_cell(row, scol1 + 1,
 						NULL, &underlying_attr2, NULL);
+		    if (over1 != over2)
+		    {
+			// One half is over a lower popup, the other is
+			// not.  Use the non-popup side for both.
+			if (over1)
+			    underlying_attr = underlying_attr2;
+			else
+			    underlying_attr2 = underlying_attr;
+		    }
 		    ScreenAttrs[off_to + 1] = hl_blend_attr(
 					underlying_attr2, combined, blend,
 					FALSE);
-		    if (blend == 100)
-			resolve_wide_char_opacity_attrs(row,
-				col + coloff, col + coloff + 1,
-				&ScreenAttrs[off_to],
-				&ScreenAttrs[off_to + 1]);
 		}
+		ScreenAttrs[off_to] = hl_blend_attr(underlying_attr,
+						combined, blend, FALSE);
 	    }
 	    else
 #endif
@@ -1296,6 +1305,7 @@ win_redr_custom(
     int		opt_scope = 0;
     stl_hlrec_T *hltab;
     stl_hlrec_T *tabtab;
+    stl_clickrec_T *clicktab;
     win_T	*ewp;
     int		p_crb_save;
     bool	override_success = false;
@@ -1396,7 +1406,8 @@ win_redr_custom(
 	width = build_stl_str_hl_mline(ewp, buf, sizeof(buf),
 			&stl_tmp,
 			opt_name, opt_scope,
-			fillchar, maxwidth, &hltab, &tabtab);
+			fillchar, maxwidth, &hltab, &tabtab,
+			&clicktab);
 
 	// Make all characters printable.
 	p = transstr(buf);
@@ -1473,6 +1484,101 @@ win_redr_custom(
 	}
 	while (col < firstwin->w_wincol + topframe->fr_width)
 	    TabPageIdxs[col++] = fillchar;
+    }
+
+    // Resolve click function regions for statusline or tabline.
+    if (!draw_ruler)
+    {
+	stl_click_region_T  **out_regions;
+	int		    *out_count;
+	int		    base_col;
+	int		    click_count = 0;
+
+	if (wp != NULL)
+	{
+	    out_regions = &wp->w_stl_click;
+	    out_count = &wp->w_stl_click_count;
+	    base_col = wp->w_wincol;
+	}
+	else
+	{
+	    // 'tabline': store regions in global state since there is no
+	    // associated window.
+	    out_regions = &tabline_stl_click;
+	    out_count = &tabline_stl_click_count;
+	    base_col = firstwin->w_wincol;
+	}
+
+	// Count the click regions.
+	for (n = 0; clicktab[n].start != NULL; n++)
+	    click_count++;
+
+	// Free old click regions.
+	if (*out_regions != NULL)
+	{
+	    for (n = 0; n < *out_count; n++)
+		vim_free((*out_regions)[n].funcname);
+	    VIM_CLEAR(*out_regions);
+	}
+	*out_count = 0;
+
+	if (click_count > 0)
+	{
+	    stl_click_region_T *regions;
+	    int		    rcount = 0;
+
+	    regions = ALLOC_MULT(stl_click_region_T, click_count);
+	    if (regions != NULL)
+	    {
+		char_u	*cur_funcname = NULL;
+		int	cur_minwid = 0;
+		int	region_start = base_col;
+
+		// Walk through click records converting buffer positions
+		// to screen columns.
+		len = 0;
+		p = buf;
+		for (n = 0; clicktab[n].start != NULL; n++)
+		{
+		    len += vim_strnsize(p,
+				       (int)(clicktab[n].start - p));
+		    p = clicktab[n].start;
+
+		    // Close previous region if there was one.
+		    if (cur_funcname != NULL)
+		    {
+			regions[rcount].col_start = region_start;
+			regions[rcount].col_end = base_col + len;
+			regions[rcount].funcname =
+					    vim_strsave(cur_funcname);
+			regions[rcount].minwid = cur_minwid;
+			rcount++;
+		    }
+
+		    cur_funcname = clicktab[n].funcname;
+		    cur_minwid = clicktab[n].minwid;
+		    region_start = base_col + len;
+		}
+
+		// Close final region if it extends to the end.
+		if (cur_funcname != NULL)
+		{
+		    regions[rcount].col_start = region_start;
+		    regions[rcount].col_end = base_col + maxwidth;
+		    regions[rcount].funcname =
+					vim_strsave(cur_funcname);
+		    regions[rcount].minwid = cur_minwid;
+		    rcount++;
+		}
+
+		*out_regions = regions;
+		*out_count = rcount;
+	    }
+	}
+
+	// Free the funcname strings allocated by build_stl_str_hl_local().
+	for (n = 0; clicktab[n].start != NULL; n++)
+	    vim_free(clicktab[n].funcname);
     }
 
 theend:
@@ -2251,11 +2357,28 @@ screen_char(unsigned off, int row, int col)
     // output the final blended result.
     // Also suppress if this is a wide character whose second cell
     // is under an opacity popup.
-    if (popup_is_under_opacity(row, col)
-	    || (enc_utf8 && ScreenLinesUC[off] != 0
+    if (popup_is_under_opacity(row, col))
+    {
+	// If this is a wide character whose left half is under an opacity
+	// popup but right half is not, clear the right half so the old
+	// blended value doesn't remain as a ghost after popup_move().
+	if (enc_utf8 && ScreenLinesUC[off] != 0
 		&& utf_char2cells(ScreenLinesUC[off]) == 2
 		&& col + 1 < screen_Columns
-		&& popup_is_under_opacity(row, col + 1)))
+		&& !popup_is_under_opacity(row, col + 1))
+	{
+	    int off2 = off + 1;
+	    ScreenLines[off2] = ' ';
+	    ScreenLinesUC[off2] = 0;
+	    screen_char(off2, row, col + 1);
+	}
+	screen_cur_col = 9999;
+	return;
+    }
+    if (enc_utf8 && ScreenLinesUC[off] != 0
+	    && utf_char2cells(ScreenLinesUC[off]) == 2
+	    && col + 1 < screen_Columns
+	    && popup_is_under_opacity(row, col + 1))
     {
 	screen_cur_col = 9999;
 	return;

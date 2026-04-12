@@ -19,6 +19,11 @@
  */
 static long mouse_hor_step = 6;
 static long mouse_vert_step = 3;
+static win_T *dragwin = NULL;	// window being dragged
+static int stl_click_handler(win_T *wp, int mcol, int which_button, int mods);
+static int stl_click_handler_regions(stl_click_region_T *regions,
+				    int region_count, int winid, int mcol,
+				    int which_button, int mods);
 
     void
 mouse_set_vert_scroll_step(long step)
@@ -500,6 +505,16 @@ do_mouse(
     // Check for clicking in the tab page line.
     if (TabPageIdxs != NULL && mouse_row == 0 && firstwin->w_winrow > 0)
     {
+	// Dispatch 'tabline' %[FuncName] click regions before falling through
+	// to tab-page selection.  On drag events fall through to the normal
+	// tab-drag handling.
+	if (is_click && !is_drag
+		&& stl_click_handler_regions(tabline_stl_click,
+					    tabline_stl_click_count,
+					    0, mouse_col, which_button,
+					    mod_mask))
+	    return FALSE;
+
 	tp_label.just_in = true;
 	tp_label.nr = TabPageIdxs[mouse_col];
 
@@ -759,6 +774,22 @@ do_mouse(
     moved = (jump_flags & CURSOR_MOVED);
     in_status_line = (jump_flags & IN_STATUS_LINE);
     in_sep_line = (jump_flags & IN_SEP_LINE);
+
+    // Check for statusline click handler early, before visual mode or
+    // other button-specific handling can interfere.
+    if (in_status_line && is_click && !is_drag
+	    && stl_click_handler(dragwin, mouse_col,
+						which_button, mod_mask))
+    {
+#ifdef FEAT_MOUSESHAPE
+	if (!drag_status_line)
+	{
+	    drag_status_line = TRUE;
+	    update_mouseshape(-1);
+	}
+#endif
+	return FALSE;
+    }
 
 #ifdef FEAT_NETBEANS_INTG
     if (isNetbeansBuffer(curbuf)
@@ -1621,7 +1652,141 @@ mouse_model_popup(void)
     return (p_mousem[0] == 'p');
 }
 
-static win_T *dragwin = NULL;	// window being dragged
+/*
+ * Call a click-region callback function.
+ * "regions"/"region_count" describe the resolved click regions,
+ * "winid" is stored as the "winid" key in the info dict (0 for tabline).
+ * Returns TRUE if the function was called and handled the click.
+ */
+    static int
+stl_click_handler_regions(
+	stl_click_region_T  *regions,
+	int		    region_count,
+	int		    winid,
+	int		    mcol,
+	int		    which_button,
+	int		    mods)
+{
+#ifdef FEAT_EVAL
+    int		n;
+    int		nclicks;
+    char_u	button_str[2];
+    char_u	mods_str[4];
+    int		mi = 0;
+    dict_T	*info;
+    typval_T	argvars[2];
+    typval_T	rettv;
+    funcexe_T	funcexe;
+    int		col = mcol;
+
+    if (regions == NULL || region_count == 0)
+	return FALSE;
+
+    // Find the click region at the given column.
+    for (n = 0; n < region_count; n++)
+    {
+	if (col >= regions[n].col_start && col < regions[n].col_end)
+	    break;
+    }
+    if (n >= region_count || regions[n].funcname == NULL)
+	return FALSE;
+
+    // Build the info dictionary.
+    info = dict_alloc();
+    if (info == NULL)
+	return FALSE;
+
+    dict_add_number(info, "minwid", regions[n].minwid);
+
+    // Determine number of clicks.
+    // MOD_MASK_2CLICK=0x20, MOD_MASK_3CLICK=0x40, MOD_MASK_4CLICK=0x60
+    nclicks = ((mods & MOD_MASK_MULTI_CLICK) >> 5) + 1;
+    if (nclicks > 3)
+	nclicks = 3;
+    dict_add_number(info, "nclicks", nclicks);
+
+    // Button.
+    if (which_button == MOUSE_LEFT)
+	button_str[0] = 'l';
+    else if (which_button == MOUSE_RIGHT)
+	button_str[0] = 'r';
+    else
+	button_str[0] = 'm';
+    button_str[1] = NUL;
+    dict_add_string(info, "button", button_str);
+
+    // Modifiers.
+    if (mods & MOD_MASK_SHIFT)
+	mods_str[mi++] = 's';
+    if (mods & MOD_MASK_CTRL)
+	mods_str[mi++] = 'c';
+    if (mods & MOD_MASK_ALT)
+	mods_str[mi++] = 'a';
+    mods_str[mi] = NUL;
+    dict_add_string(info, "mods", mods_str);
+
+    dict_add_number(info, "winid", winid);
+
+    // "area": which option the clicked region belongs to.  Lets a shared
+    // dispatcher distinguish 'statusline' from 'tabline' (and future areas)
+    // without having to overload winid == 0.
+    dict_add_string(info, "area",
+	    winid == 0 ? (char_u *)"tabline" : (char_u *)"statusline");
+
+    // Call the function with the info dict as argument.
+    argvars[0].v_type = VAR_DICT;
+    argvars[0].vval.v_dict = info;
+    ++info->dv_refcount;
+    argvars[1].v_type = VAR_UNKNOWN;
+
+    rettv.v_type = VAR_NUMBER;
+    rettv.vval.v_number = 0;
+
+    CLEAR_FIELD(funcexe);
+    funcexe.fe_evaluate = TRUE;
+    (void)call_func(regions[n].funcname, -1,
+					    &rettv, 1, argvars, &funcexe);
+
+    n = (int)rettv.vval.v_number;
+    clear_tv(&rettv);
+    dict_unref(info);
+
+    if (n != 0)
+    {
+	// Make sure the tabline gets redrawn too when the callback asks for
+	// a redraw (redraw_statuslines() only redraws the tabline when
+	// redraw_tabline is set).
+	if (winid == 0)
+	    redraw_tabline = TRUE;
+	redraw_statuslines();
+    }
+
+    return TRUE;
+#else
+    (void)regions;
+    (void)region_count;
+    (void)winid;
+    (void)mcol;
+    (void)which_button;
+    (void)mods;
+    return FALSE;
+#endif
+}
+
+/*
+ * Call a statusline click handler function for window "wp".
+ * Returns TRUE if the function was called and handled the click.
+ */
+    static int
+stl_click_handler(win_T *wp, int mcol, int which_button, int mods)
+{
+    if (wp == NULL)
+	return FALSE;
+    return stl_click_handler_regions(wp->w_stl_click, wp->w_stl_click_count,
+					wp->w_id, mcol, which_button, mods);
+}
+
+// dragwin is declared near the top of the file
 
 /*
  * Reset the window being dragged.  To be called when switching tab page.
