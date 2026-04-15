@@ -8366,7 +8366,7 @@ do_sleep(long msec, int hide_cursor)
 	// actual time passed
 	done = ELAPSED_FUNC(start_tv);
 #else
-	// guestimate time passed (will actually be more)
+	// guesstimate time passed (will actually be more)
 	done += wait_now;
 #endif
     }
@@ -9016,6 +9016,7 @@ ex_redrawstatus(exarg_T *eap UNUSED)
 	status_redraw_all();
     else
 	status_redraw_curbuf();
+    redraw_vseps = TRUE;
     if (msg_scrolled && (State & MODE_CMDLINE))
 	return;  // redraw later
 
