@@ -1788,4 +1788,60 @@ func Test_VertSplitNC_fillchars()
   call StopVimInTerminal(buf)
 endfunc
 
+" Test that 'winhighlight' of window left of separator does not apply when
+" drawing the window to the right of the separator.
+func Test_VertSplitNC_winhighlight()
+  CheckScreendump
+
+  let lines =<< trim END
+    vsplit
+    set winhighlight=StatusLine:ErrorMsg
+  END
+  call writefile(lines, 'Xtest_vertsplitNC_winhighlight', 'D')
+
+  let buf = RunVimInTerminal('-S Xtest_vertsplitNC_winhighlight', {'rows': 12})
+  call TermWait(buf)
+
+  call VerifyScreenDump(buf, 'Test_VertSplitNC_whl1', {})
+
+  call term_sendkeys(buf, "\<C-w>\<C-l>") " Go to window with empty winhighlight
+  call TermWait(buf)
+
+  call VerifyScreenDump(buf, 'Test_VertSplitNC_whl2', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+" Test that VertSplit (not VertSplitNC) is used for the separator rows
+" adjacent to a window with a winbar.
+func Test_VertSplitNC_winbar()
+  CheckScreendump
+
+  let lines =<< trim END
+    hi StatusLine ctermfg=White ctermbg=DarkBlue cterm=NONE
+    hi StatusLineNC ctermfg=Black ctermbg=Gray cterm=NONE
+    hi VertSplit ctermfg=Green ctermbg=NONE cterm=NONE
+    hi VertSplitNC ctermfg=DarkGray ctermbg=NONE cterm=NONE
+    call setline(1, repeat(['winbar test'], 20))
+    vsplit
+    wincmd w
+    nnoremenu 1.10 WinBar.Item :echo 'test'<CR>
+  END
+  call writefile(lines, 'Xtest_vertsplitNC_winbar', 'D')
+
+  let buf = RunVimInTerminal('-S Xtest_vertsplitNC_winbar', {'rows': 12})
+  call TermWait(buf)
+
+  " Right window (with winbar) is current: the separator should use
+  " VertSplit for all rows including the winbar row.
+  call VerifyScreenDump(buf, 'Test_VertSplitNC_winbar_1', {})
+
+  " Move to left window: the separator should use VertSplitNC.
+  call term_sendkeys(buf, "\<C-W>h")
+  call TermWait(buf)
+  call VerifyScreenDump(buf, 'Test_VertSplitNC_winbar_2', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
 " vim: shiftwidth=2 sts=2 expandtab
