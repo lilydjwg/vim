@@ -240,6 +240,9 @@ do_mouse(
     int		in_status_line;	// mouse in status line
     static int	in_tab_line = FALSE; // mouse clicked in tab line
     static int	in_tabpanel = FALSE; // mouse clicked in tabpanel
+#ifdef FEAT_TABPANEL
+    static bool	in_tabpanel_scrollbar = false; // dragging tabpanel scrollbar
+#endif
     int		in_sep_line;	// mouse in vertical separator line
     int		c1, c2;
 #if defined(FEAT_FOLDING)
@@ -346,6 +349,9 @@ do_mouse(
 	got_click = TRUE;
 	in_tab_line = FALSE;
 	in_tabpanel = FALSE;
+#ifdef FEAT_TABPANEL
+	in_tabpanel_scrollbar = false;
+#endif
     }
     else
     {
@@ -354,14 +360,30 @@ do_mouse(
 	if (!is_drag)			// release, reset got_click
 	{
 	    got_click = FALSE;
-	    if (in_tab_line || in_tabpanel)
+	    if (in_tab_line || in_tabpanel
+#ifdef FEAT_TABPANEL
+		    || in_tabpanel_scrollbar
+#endif
+		    )
 	    {
 		in_tab_line = FALSE;
 		in_tabpanel = FALSE;
+#ifdef FEAT_TABPANEL
+		in_tabpanel_scrollbar = false;
+#endif
 		return FALSE;
 	    }
 	}
     }
+
+#ifdef FEAT_TABPANEL
+    // Continue a scrollbar drag before any tab-selection handling.
+    if (is_drag && in_tabpanel_scrollbar)
+    {
+	tabpanel_drag_scrollbar(mouse_row);
+	return FALSE;
+    }
+#endif
 
     // CTRL right mouse button does CTRL-T
     if (is_click && (mod_mask & MOD_MASK_CTRL) && which_button == MOUSE_RIGHT)
@@ -494,6 +516,15 @@ do_mouse(
     if (mouse_col < firstwin->w_wincol
 		|| mouse_col >= firstwin->w_wincol + topframe->fr_width)
     {
+	// A click on the scrollbar column starts a drag interaction and
+	// preempts tab-selection.
+	if (is_click && !is_drag && mouse_on_tabpanel_scrollbar())
+	{
+	    in_tabpanel_scrollbar = TRUE;
+	    tabpanel_drag_scrollbar(mouse_row);
+	    return FALSE;
+	}
+
 	// Dispatch 'tabpanel' %[FuncName] click regions before falling through
 	// to tab-page selection.  On drag events fall through to the normal
 	// tab-drag handling.
@@ -1123,7 +1154,7 @@ do_mouse(
 		    find_end_of_word(&curwin->w_cursor);
 		}
 	    }
-	    curwin->w_set_curswant = TRUE;
+	    curwin->w_set_curswant = true;
 	}
 	if (is_click)
 	    redraw_curbuf_later(UPD_INVERTED);	// update the inversion
@@ -1276,6 +1307,17 @@ ins_mousescroll(int dir)
     cap.oap = &oa;
     cap.arg = dir;
 
+#ifdef FEAT_TABPANEL
+    if (mouse_row >= 0 && mouse_col >= 0
+	    && (dir == MSCR_UP || dir == MSCR_DOWN)
+	    && mouse_on_tabpanel())
+    {
+	(void)tabpanel_scroll(dir == MSCR_UP ? 1 : -1,
+		mouse_vert_step > 0 ? mouse_vert_step : 3);
+	return;
+    }
+#endif
+
     switch (dir)
     {
 	case MSCR_UP:
@@ -1329,7 +1371,7 @@ ins_mousescroll(int dir)
     int did_scroll = (orig_topline != curwin->w_topline
 		   || orig_leftcol != curwin->w_leftcol);
 
-    curwin->w_redr_status = TRUE;
+    curwin->w_redr_status = true;
     curwin = old_curwin;
     curbuf = curwin->w_buffer;
 
@@ -1731,7 +1773,7 @@ stl_click_handler_regions(
     else
 	button_str[0] = 'm';
     button_str[1] = NUL;
-    dict_add_string(info, "button", button_str);
+    dict_add_string_len(info, "button", button_str, 1);
 
     // Modifiers.
     if (mods & MOD_MASK_SHIFT)
@@ -1741,7 +1783,7 @@ stl_click_handler_regions(
     if (mods & MOD_MASK_ALT)
 	mods_str[mi++] = 'a';
     mods_str[mi] = NUL;
-    dict_add_string(info, "mods", mods_str);
+    dict_add_string_len(info, "mods", mods_str, mi);
 
     dict_add_number(info, "winid", winid);
 
@@ -2346,7 +2388,7 @@ retnomove:
     }
 
     curwin->w_curswant = col;
-    curwin->w_set_curswant = FALSE;	// May still have been TRUE
+    curwin->w_set_curswant = false;	// May still have been TRUE
     if (coladvance(col) == FAIL)	// Mouse click beyond end of line
     {
 	if (inclusive != NULL)
@@ -2409,6 +2451,17 @@ nv_mousescroll(cmdarg_T *cap)
 {
     win_T   *old_curwin = curwin;
 
+#ifdef FEAT_TABPANEL
+    if (mouse_row >= 0 && mouse_col >= 0
+	    && (cap->arg == MSCR_UP || cap->arg == MSCR_DOWN)
+	    && mouse_on_tabpanel())
+    {
+	(void)tabpanel_scroll(cap->arg == MSCR_UP ? 1 : -1,
+		mouse_vert_step > 0 ? mouse_vert_step : 3);
+	return;
+    }
+#endif
+
     if (mouse_row >= 0 && mouse_col >= 0)
     {
 	// Find the window at the mouse pointer coordinates.
@@ -2436,7 +2489,7 @@ nv_mousescroll(cmdarg_T *cap)
     // Call the common mouse scroll function shared with other modes.
     do_mousescroll(cap);
 
-    curwin->w_redr_status = TRUE;
+    curwin->w_redr_status = true;
     curwin = old_curwin;
     curbuf = curwin->w_buffer;
 }

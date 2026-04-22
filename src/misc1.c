@@ -621,7 +621,7 @@ check_status(buf_T *buf)
     FOR_ALL_WINDOWS(wp)
 	if (wp->w_buffer == buf && wp->w_status_height)
 	{
-	    wp->w_redr_status = TRUE;
+	    wp->w_redr_status = true;
 	    set_must_redraw(UPD_VALID);
 	}
 }
@@ -2284,7 +2284,7 @@ prepare_to_exit(void)
 #ifdef FEAT_GUI
     if (gui.in_use)
     {
-	gui.dying = TRUE;
+	gui.dying = true;
 	out_trash();	// trash any pending output
     }
     else

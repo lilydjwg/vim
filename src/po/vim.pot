@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Vim\n"
 "Report-Msgid-Bugs-To: vim-dev@vim.org\n"
-"POT-Creation-Date: 2026-04-15 19:10+0000\n"
+"POT-Creation-Date: 2026-04-21 19:33+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -5222,9 +5222,6 @@ msgstr ""
 msgid "E457: Can't read PostScript resource file \"%s\""
 msgstr ""
 
-msgid "E458: Cannot allocate colormap entry, some colors may be incorrect"
-msgstr ""
-
 msgid "E459: Cannot go back to previous directory"
 msgstr ""
 
@@ -9383,7 +9380,7 @@ msgstr ""
 msgid "number of screen lines to show around the cursor"
 msgstr ""
 
-msgid "keep 'scrolloff' context even at end of file"
+msgid "vertically center cursor even at end of file"
 msgstr ""
 
 msgid "long lines wrap"
@@ -9917,10 +9914,6 @@ msgid "Timeout to use when polling for data to read or write in wayland"
 msgstr ""
 
 msgid "Wayland seat to use"
-msgstr ""
-
-msgid ""
-"Enable wayland focus stealing functionality in order to access the clipboard"
 msgstr ""
 
 msgid "\"startsel\" and/or \"stopsel\"; what special keys can do"

@@ -650,7 +650,7 @@ update_curswant_force(void)
 	- curwin->w_virtcol_first_char
 #endif
 	;
-    curwin->w_set_curswant = FALSE;
+    curwin->w_set_curswant = false;
 }
 
 /*
@@ -766,7 +766,7 @@ set_topline(win_T *wp, linenr_T lnum)
     if (wp->w_botline > wp->w_buffer->b_ml.ml_line_count + 1)
 	wp->w_botline = wp->w_buffer->b_ml.ml_line_count + 1;
     wp->w_topline = lnum;
-    wp->w_topline_was_set = TRUE;
+    wp->w_topline_was_set = true;
 #ifdef FEAT_DIFF
     if (lnum != prev_topline)
 	// Keep the filler lines when the topline didn't change.
@@ -1184,9 +1184,9 @@ curwin_col_off2(void)
 curs_columns(
     int		may_scroll)	// when TRUE, may scroll horizontally
 {
-    int		diff;
+    long	diff;
     int		extra;		// offset for first screen line
-    int		off_left, off_right;
+    long	off_left, off_right;
     int		n;
     int		p_lines;
     int		width1;		// text width for first screen line
@@ -1306,13 +1306,12 @@ curs_columns(
 #endif
 	/*
 	 * If Cursor is left of the screen, scroll rightwards.
-	 * If Cursor is right of the screen, scroll leftwards
+	 * If Cursor is right of the screen, scroll leftwards.
 	 * If we get closer to the edge than 'sidescrolloff', scroll a little
-	 * extra
+	 * extra.
 	 */
-	off_left = (int)startcol - (int)curwin->w_leftcol - siso;
-	off_right = (int)endcol - (int)(curwin->w_leftcol + curwin->w_width
-								- siso) + 1;
+	off_left = startcol - curwin->w_leftcol - siso;
+	off_right = endcol - curwin->w_leftcol - (curwin->w_width - siso) + 1;
 	if (off_left < 0 || off_right > 0)
 	{
 	    if (off_left < 0)
@@ -1329,9 +1328,9 @@ curs_columns(
 		if (diff < p_ss)
 		    diff = p_ss;
 		if (off_left < 0)
-		    new_leftcol = curwin->w_leftcol - diff;
+		    new_leftcol = curwin->w_leftcol - (int)diff;
 		else
-		    new_leftcol = curwin->w_leftcol + diff;
+		    new_leftcol = curwin->w_leftcol + (int)diff;
 	    }
 	    if (new_leftcol < 0)
 		new_leftcol = 0;
@@ -3044,7 +3043,7 @@ scroll_cursor_halfway(int atend, int prefer_above)
 #ifdef FEAT_DIFF
     curwin->w_topfill = topfill;
     if (old_topline > curwin->w_topline + curwin->w_height)
-	curwin->w_botfill = FALSE;
+	curwin->w_botfill = false;
     check_topfill(curwin, FALSE);
 #endif
     curwin->w_valid &= ~(VALID_WROW|VALID_CROW|VALID_BOTLINE|VALID_BOTLINE_AP);
@@ -3458,7 +3457,7 @@ do_check_cursorbind(void)
 	    // Only scroll when 'scrollbind' hasn't done this.
 	    if (!curwin->w_p_scb)
 		update_topline();
-	    curwin->w_redr_status = TRUE;
+	    curwin->w_redr_status = true;
 	}
     }
 

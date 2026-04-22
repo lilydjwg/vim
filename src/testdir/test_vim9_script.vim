@@ -5847,4 +5847,151 @@ def Test_call_stack_string()
   g:StopVimInTerminal(buf)
 enddef
 
+def Test_g_variable_not_shadowed_by_function()
+  var lines =<< trim END
+    vim9script
+    g:F = 1
+    def F()
+      return 2
+    enddef
+    def Check()
+      var x = g:F
+      assert_equal(1, x)
+    enddef
+    Check()
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Test g: variable shadowed by script-local function in various expression contexts.
+def Test_g_variable_shadow_multi_context()
+  var lines =<< trim END
+    vim9script
+    g:F = 1
+    def F(): number
+      return 2
+    enddef
+
+    # 1. Assignment to local
+    def AssignCheck()
+      var x = g:F
+      assert_equal(1, x)
+    enddef
+
+    # 2. Function argument
+    def ArgCheck(val: number): number
+      return val * 10
+    enddef
+    def CallArg()
+      assert_equal(10, ArgCheck(g:F))
+    enddef
+
+    # 3. Return value
+    def ReturnCheck(): number
+      return g:F
+    enddef
+
+    # 4. Binary operation
+    def BinaryCheck(): number
+      return g:F + 5
+    enddef
+
+    # 5. List literal element
+    def ListCheck(): list<number>
+      return [g:F, 2, 3]
+    enddef
+
+    # 6. Dict literal value
+    def DictCheck(): dict<number>
+      return {val: g:F}
+    enddef
+
+    # 7. Conditional expression
+    def CondCheck(): string
+      return g:F == 1 ? 'yes' : 'no'
+    enddef
+
+    # 8. Loop condition (only evaluated once but still loads)
+    def LoopCheck(): number
+      var i = 0
+      while i < g:F
+        i += 1
+      endwhile
+      return i
+    enddef
+
+    AssignCheck()
+    CallArg()
+    assert_equal(1, ReturnCheck())
+    assert_equal(6, BinaryCheck())
+    assert_equal([1, 2, 3], ListCheck())
+    assert_equal({val: 1}, DictCheck())
+    assert_equal('yes', CondCheck())
+    assert_equal(1, LoopCheck())
+  END
+  v9.CheckScriptSuccess(lines)
+  unlet g:F
+enddef
+
+" Test that dead elseif conditions are skipped without errors inside a :def function
+def Test_skip_elseif_dead_branch()
+  var lines =<< trim END
+    vim9script
+    def CompileTest()
+      if true
+        echo 'ok'
+      else
+        var x = 0
+        if x > 0
+          echo 'pos'
+        elseif x < 0
+          echo 'neg'
+        endif
+      endif
+    enddef
+    CompileTest()
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+" Another variation: using has() in a dead branch that would fail if compiled
+def Test_skip_elseif_with_has_in_dead_branch()
+  var lines =<< trim END
+    vim9script
+    def HasTest()
+      if true
+        echo 'ok'
+      else
+        var x = 0
+        if x > 0
+          echo 'pos'
+        elseif has('clipboard')
+          echo 'neg'
+        endif
+      endif
+    enddef
+    HasTest()
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
+def Test_if_false_elseif_true_still_takes_elseif()
+  var lines =<< trim END
+    vim9script
+    var result = ''
+    def F()
+      if false
+        result = 'A'
+      elseif true
+        result = 'B'
+      else
+        result = 'C'
+      endif
+    enddef
+    F()
+    assert_equal('B', result)
+  END
+  v9.CheckScriptSuccess(lines)
+enddef
+
 " vim: ts=8 sw=2 sts=2 expandtab tw=80 fdm=marker

@@ -16,16 +16,16 @@
 #if defined(FEAT_PROP_POPUP)
 
 typedef struct {
-    char	*pp_name;
+    string_T	pp_name;
     poppos_T	pp_val;
 } poppos_entry_T;
 
 static poppos_entry_T poppos_entries[] = {
-    {"botleft", POPPOS_BOTLEFT},
-    {"topleft", POPPOS_TOPLEFT},
-    {"botright", POPPOS_BOTRIGHT},
-    {"topright", POPPOS_TOPRIGHT},
-    {"center", POPPOS_CENTER}
+    {STR_LITERAL_INIT("botleft"), POPPOS_BOTLEFT},
+    {STR_LITERAL_INIT("topleft"), POPPOS_TOPLEFT},
+    {STR_LITERAL_INIT("botright"), POPPOS_BOTRIGHT},
+    {STR_LITERAL_INIT("topright"), POPPOS_TOPRIGHT},
+    {STR_LITERAL_INIT("center"), POPPOS_CENTER}
 };
 
 #ifdef HAS_MESSAGE_WINDOW
@@ -474,7 +474,7 @@ get_pos_entry(dict_T *d, int give_error)
 	return POPPOS_NONE;
 
     for (nr = 0; nr < (int)ARRAY_LENGTH(poppos_entries); ++nr)
-	if (STRCMP(str, poppos_entries[nr].pp_name) == 0)
+	if (STRCMP(str, poppos_entries[nr].pp_name.string) == 0)
 	    return poppos_entries[nr].pp_val;
 
     if (give_error)
@@ -880,7 +880,7 @@ apply_general_options(win_T *wp, dict_T *dict)
 	    int		i;
 
 	    CHECK_LIST_MATERIALIZE(list);
-	    wp->w_border_highlight_isset = TRUE;
+	    wp->w_border_highlight_isset = true;
 	    // Clear all highlights if list is empty
 	    if (list->lv_len == 0)
 	    {
@@ -1566,7 +1566,7 @@ popup_adjust_position(win_T *wp)
     if (wp->w_buffer->b_term != NULL && !term_is_finished(wp->w_buffer))
 	// Terminal window with running job never has a scrollbar, adjusts to
 	// window height.
-	wp->w_has_scrollbar = FALSE;
+	wp->w_has_scrollbar = false;
 #endif
     maxwidth_no_scrollbar = maxwidth;
     if (wp->w_has_scrollbar)
@@ -1736,7 +1736,7 @@ popup_adjust_position(win_T *wp)
 	if (wp->w_buffer->b_term == NULL || term_is_finished(wp->w_buffer))
 #endif
 	{
-	    wp->w_has_scrollbar = TRUE;
+	    wp->w_has_scrollbar = true;
 	    if (width_with_scrollbar > 0)
 		wp->w_width = width_with_scrollbar;
 	}
@@ -2395,7 +2395,7 @@ popup_create(typval_T *argvars, typval_T *rettv, create_type_T type)
 	buf->b_locked = TRUE;	// prevent deleting the buffer
 
 	// Avoid that 'buftype' is reset when this buffer is entered.
-	buf->b_p_initialized = TRUE;
+	buf->b_p_initialized = true;
     }
     wp->w_p_wrap = TRUE;	// 'wrap' is default on
     wp->w_p_so = 0;		// 'scrolloff' zero
@@ -3385,7 +3385,7 @@ redraw_under_popup_area(int winrow, int wincol, int height, int width, int lefto
 		    redrawWinline(twp, lnum);
 		}
 		else if (line_cp == twp->w_height)
-		    twp->w_redr_status = TRUE;
+		    twp->w_redr_status = true;
 	    }
 	}
     }
@@ -3887,14 +3887,18 @@ f_popup_getoptions(typval_T *argvars, typval_T *rettv)
     for (i = 0; i < (int)ARRAY_LENGTH(poppos_entries); ++i)
 	if (wp->w_popup_pos == poppos_entries[i].pp_val)
 	{
-	    dict_add_string(dict, "pos",
-		    (char_u *)poppos_entries[i].pp_name);
+	    dict_add_string_len(dict, "pos",
+		poppos_entries[i].pp_name.string,
+		(int)poppos_entries[i].pp_name.length);
 	    break;
 	}
 
-    dict_add_string(dict, "close", (char_u *)(
-		wp->w_popup_close == POPCLOSE_BUTTON ? "button"
-		: wp->w_popup_close == POPCLOSE_CLICK ? "click" : "none"));
+    if (wp->w_popup_close == POPCLOSE_BUTTON)
+	dict_add_string_len(dict, "close", (char_u *)"button", STRLEN_LITERAL("button"));
+    else if (wp->w_popup_close == POPCLOSE_CLICK)
+	dict_add_string_len(dict, "close", (char_u *)"click", STRLEN_LITERAL("click"));
+    else
+	dict_add_string_len(dict, "close", (char_u *)"none", STRLEN_LITERAL("none"));
 
 #if defined(FEAT_TIMERS)
     dict_add_number(dict, "time", wp->w_popup_timer != NULL
@@ -4419,7 +4423,7 @@ redraw_win_under_opacity_popup(win_T *wp)
 		else if (line_cp == twp->w_height)
 		    // Status bar line: mark for redraw to prevent
 		    // opacity blend accumulation.
-		    twp->w_redr_status = TRUE;
+		    twp->w_redr_status = true;
 	    }
 	}
     }
@@ -4703,7 +4707,7 @@ may_update_popup_mask(int type)
 
 				if (line_cp >= wp->w_height)
 				    // In (or below) status line
-				    wp->w_redr_status = TRUE;
+				    wp->w_redr_status = true;
 				else
 				{
 				    // compute the position in the buffer line

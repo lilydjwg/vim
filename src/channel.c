@@ -1754,7 +1754,7 @@ channel_set_job(channel_T *channel, job_T *job, jobopt_T *options)
 	{
 	    // Special mode: send last-but-one line when appending a line
 	    // to the buffer.
-	    in_part->ch_bufref.br_buf->b_write_to_channel = TRUE;
+	    in_part->ch_bufref.br_buf->b_write_to_channel = true;
 	    in_part->ch_buf_append = TRUE;
 	    in_part->ch_buf_top =
 		in_part->ch_bufref.br_buf->b_ml.ml_line_count + 1;
@@ -2054,7 +2054,7 @@ channel_write_new_lines(buf_T *buf)
 	}
     }
     if (!found_one)
-	buf->b_write_to_channel = FALSE;
+	buf->b_write_to_channel = false;
 }
 
 /*
@@ -3069,7 +3069,7 @@ append_to_buffer(
 {
     aco_save_T	aco;
     linenr_T    lnum = buffer->b_ml.ml_line_count;
-    int		save_write_to = buffer->b_write_to_channel;
+    bool	save_write_to = buffer->b_write_to_channel;
     chanpart_T  *ch_part = &channel->ch_part[part];
     int		save_p_ma = buffer->b_p_ma;
     int		empty = (buffer->b_ml.ml_flags & ML_EMPTY) ? 1 : 0;
@@ -3089,7 +3089,7 @@ append_to_buffer(
     if (save_write_to)
     {
 	--lnum;
-	buffer->b_write_to_channel = FALSE;
+	buffer->b_write_to_channel = false;
     }
 
     // Append to the buffer
@@ -3168,7 +3168,7 @@ append_to_buffer(
 
 	// Find channels reading from this buffer and adjust their
 	// next-to-read line number.
-	buffer->b_write_to_channel = TRUE;
+	buffer->b_write_to_channel = true;
 	FOR_ALL_CHANNELS(ch)
 	{
 	    chanpart_T  *in_part = &ch->ch_part[PART_IN];
@@ -3668,46 +3668,82 @@ channel_part_info(channel_T *channel, dict_T *dict, char *name, ch_part_T part)
     chanpart_T *chanpart = &channel->ch_part[part];
     char	namebuf[20];  // longest is "sock_timeout"
     size_t	tail;
-    char	*status;
-    char	*s = "";
+    string_T	s;
 
     vim_strncpy((char_u *)namebuf, (char_u *)name, 4);
-    STRCAT(namebuf, "_");
     tail = STRLEN(namebuf);
+    STRCPY(namebuf + tail, "_");
+    tail += STRLEN_LITERAL("_");
 
     STRCPY(namebuf + tail, "status");
     if (chanpart->ch_fd != INVALID_FD)
-	status = "open";
+	STR_LITERAL_SET(s, "open");
     else if (channel_has_readahead(channel, part))
-	status = "buffered";
+	STR_LITERAL_SET(s, "buffered");
     else
-	status = "closed";
-    dict_add_string(dict, namebuf, (char_u *)status);
+	STR_LITERAL_SET(s, "closed");
+    dict_add_string_len(dict, namebuf, s.string, (int)s.length);
 
     STRCPY(namebuf + tail, "mode");
     switch (chanpart->ch_mode)
     {
-	case CH_MODE_NL: s = "NL"; break;
-	case CH_MODE_RAW: s = "RAW"; break;
-	case CH_MODE_JSON: s = "JSON"; break;
-	case CH_MODE_JS: s = "JS"; break;
-	case CH_MODE_LSP: s = "LSP"; break;
-	case CH_MODE_DAP: s = "DAP"; break;
+	case CH_MODE_NL:
+	    STR_LITERAL_SET(s, "NL");
+	    break;
+	case CH_MODE_RAW:
+	    STR_LITERAL_SET(s, "RAW");
+	    break;
+	case CH_MODE_JSON:
+	    STR_LITERAL_SET(s, "JSON");
+	    break;
+	case CH_MODE_JS:
+	    STR_LITERAL_SET(s, "JS");
+	    break;
+	case CH_MODE_LSP:
+	    STR_LITERAL_SET(s, "LSP");
+	    break;
+	case CH_MODE_DAP:
+	    STR_LITERAL_SET(s, "DAP");
+	    break;
+	default:
+	    STR_LITERAL_SET(s, "");
+	    break;
     }
-    dict_add_string(dict, namebuf, (char_u *)s);
+    dict_add_string_len(dict, namebuf, s.string, (int)s.length);
 
     STRCPY(namebuf + tail, "io");
     if (part == PART_SOCK)
-	s = "socket";
+    {
+	s.string = (char_u *)"socket";
+	s.length = STRLEN_LITERAL("socket");
+    }
     else switch (chanpart->ch_io)
     {
-	case JIO_NULL: s = "null"; break;
-	case JIO_PIPE: s = "pipe"; break;
-	case JIO_FILE: s = "file"; break;
-	case JIO_BUFFER: s = "buffer"; break;
-	case JIO_OUT: s = "out"; break;
+	case JIO_NULL:
+	    s.string = (char_u *)"null";
+	    s.length = STRLEN_LITERAL("null");
+	    break;
+	case JIO_PIPE:
+	    s.string = (char_u *)"pipe";
+	    s.length = STRLEN_LITERAL("pipe");
+	    break;
+	case JIO_FILE:
+	    s.string = (char_u *)"file";
+	    s.length = STRLEN_LITERAL("file");
+	    break;
+	case JIO_BUFFER:
+	    s.string = (char_u *)"buffer";
+	    s.length = STRLEN_LITERAL("buffer");
+	    break;
+	case JIO_OUT:
+	    s.string = (char_u *)"out";
+	    s.length = STRLEN_LITERAL("out");
+	    break;
+	default:
+	    s.string = (char_u *)"";
+	    s.length = 0;
     }
-    dict_add_string(dict, namebuf, (char_u *)s);
+    dict_add_string_len(dict, namebuf, s.string, (int)s.length);
 
     STRCPY(namebuf + tail, "timeout");
     dict_add_number(dict, namebuf, chanpart->ch_timeout);
@@ -5066,7 +5102,7 @@ ch_expr_common(typval_T *argvars, typval_T *rettv, int eval)
 		id = di->di_tv.vval.v_number;
 	}
 	if (ch_mode == CH_MODE_LSP && !dict_has_key(d, "jsonrpc"))
-	    dict_add_string(d, "jsonrpc", (char_u *)"2.0");
+	    dict_add_string_len(d, "jsonrpc", (char_u *)"2.0", STRLEN_LITERAL("2.0"));
 	text = json_encode_lsp_msg(&argvars[1]);
     }
     else

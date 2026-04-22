@@ -259,7 +259,7 @@ open_buffer(
     // The autocommands in readfile() may change the buffer, but only AFTER
     // reading the file.
     set_bufref(&old_curbuf, curbuf);
-    curbuf->b_modified_was_set = FALSE;
+    curbuf->b_modified_was_set = false;
 
     // mark cursor position as being invalid
     curwin->w_valid = 0;
@@ -278,7 +278,7 @@ open_buffer(
     {
 	int old_msg_silent = msg_silent;
 #ifdef UNIX
-	int save_bin = curbuf->b_p_bin;
+	int	save_bin = curbuf->b_p_bin;
 	int perm;
 #endif
 #ifdef FEAT_NETBEANS_INTG
@@ -824,7 +824,7 @@ aucmd_abort:
 	    buf->b_flags = BF_CHECK_RO | BF_NEVERLOADED;
 
 	    // Init the options when loaded again.
-	    buf->b_p_initialized = FALSE;
+	    buf->b_p_initialized = false;
 	}
 	buf_clear_file(buf);
 	if (del_buf)
@@ -847,7 +847,7 @@ buf_clear_file(buf_T *buf)
 {
     buf->b_ml.ml_line_count = 1;
     unchanged(buf, TRUE, TRUE);
-    buf->b_shortname = FALSE;
+    buf->b_shortname = false;
     buf->b_p_eof = FALSE;
     buf->b_start_eof = FALSE;
     buf->b_p_eol = TRUE;
@@ -2001,8 +2001,8 @@ enter_buffer(buf_T *buf)
     curwin->w_cursor.lnum = 1;
     curwin->w_cursor.col = 0;
     curwin->w_cursor.coladd = 0;
-    curwin->w_set_curswant = TRUE;
-    curwin->w_topline_was_set = FALSE;
+    curwin->w_set_curswant = true;
+    curwin->w_topline_was_set = false;
 
     // mark cursor position as being invalid
     curwin->w_valid = 0;
@@ -2014,7 +2014,7 @@ enter_buffer(buf_T *buf)
 	// ":ball" used in an autocommand.  If there already is a filetype we
 	// might prefer to keep it.
 	if (*curbuf->b_p_ft == NUL)
-	    curbuf->b_did_filetype = FALSE;
+	    curbuf->b_did_filetype = false;
 
 	open_buffer(FALSE, NULL, 0);
     }
@@ -2294,7 +2294,7 @@ buflist_new(
 	free_buffer_stuff(buf, FALSE);	// delete local variables et al.
 
 	// Init the options.
-	buf->b_p_initialized = FALSE;
+	buf->b_p_initialized = false;
 	buf_copy_options(buf, BCO_ENTER);
 
 #ifdef FEAT_KEYMAP
@@ -2374,15 +2374,15 @@ buflist_new(
     buf->b_fname = buf->b_sfname;
 #ifdef UNIX
     if (st.st_dev == (dev_T)-1)
-	buf->b_dev_valid = FALSE;
+	buf->b_dev_valid = false;
     else
     {
-	buf->b_dev_valid = TRUE;
+	buf->b_dev_valid = true;
 	buf->b_dev = st.st_dev;
 	buf->b_ino = st.st_ino;
     }
 #endif
-    buf->b_u_synced = TRUE;
+    buf->b_u_synced = true;
     buf->b_flags = BF_CHECK_RO | BF_NEVERLOADED;
     if (flags & BLN_DUMMY)
 	buf->b_flags |= BF_DUMMY;
@@ -2625,7 +2625,7 @@ buflist_getfile(
 	    curwin->w_cursor.col = col;
 	    check_cursor_col();
 	    curwin->w_cursor.coladd = 0;
-	    curwin->w_set_curswant = TRUE;
+	    curwin->w_set_curswant = true;
 	}
 	retval = OK;
     }
@@ -2655,7 +2655,7 @@ buflist_getfpos(void)
 	curwin->w_cursor.col = fpos->col;
 	check_cursor_col();
 	curwin->w_cursor.coladd = 0;
-	curwin->w_set_curswant = TRUE;
+	curwin->w_set_curswant = true;
     }
 }
 
@@ -3344,7 +3344,7 @@ get_winopts(buf_T *buf)
 #endif
 #ifdef FEAT_FOLDING
 	curwin->w_fold_manual = wp->w_fold_manual;
-	curwin->w_foldinvalid = TRUE;
+	curwin->w_foldinvalid = true;
 	cloneFoldGrowArray(&wp->w_folds, &curwin->w_folds);
 #endif
     }
@@ -3354,7 +3354,7 @@ get_winopts(buf_T *buf)
 	copy_winopt(&wip->wi_opt, &curwin->w_onebuf_opt);
 #ifdef FEAT_FOLDING
 	curwin->w_fold_manual = wip->wi_fold_manual;
-	curwin->w_foldinvalid = TRUE;
+	curwin->w_foldinvalid = true;
 	cloneFoldGrowArray(&wip->wi_folds, &curwin->w_folds);
 #endif
     }
@@ -3671,16 +3671,16 @@ setfname(
     buf->b_fname = buf->b_sfname;
 #ifdef UNIX
     if (st.st_dev == (dev_T)-1)
-	buf->b_dev_valid = FALSE;
+	buf->b_dev_valid = false;
     else
     {
-	buf->b_dev_valid = TRUE;
+	buf->b_dev_valid = true;
 	buf->b_dev = st.st_dev;
 	buf->b_ino = st.st_ino;
     }
 #endif
 
-    buf->b_shortname = FALSE;
+    buf->b_shortname = false;
 
     buf_name_changed(buf);
     return OK;
@@ -3894,12 +3894,12 @@ buf_setino(buf_T *buf)
 
     if (buf->b_fname != NULL && mch_stat((char *)buf->b_fname, &st) >= 0)
     {
-	buf->b_dev_valid = TRUE;
+	buf->b_dev_valid = true;
 	buf->b_dev = st.st_dev;
 	buf->b_ino = st.st_ino;
     }
     else
-	buf->b_dev_valid = FALSE;
+	buf->b_dev_valid = false;
 }
 
 /*
@@ -4946,6 +4946,9 @@ build_stl_str_hl_local(
 		    maxwid = 50;
 	    }
 	}
+	// Keep the uncapped value for %N[FuncName] click-region IDs; the 50
+	// cap below applies only when minwid is used as a padding width.
+	int raw_minwid = minwid * l;
 	minwid = (minwid > 50 ? 50 : minwid) * l;
 	if (*s == '(')
 	{
@@ -5306,7 +5309,11 @@ build_stl_str_hl_local(
 		{
 		    stl_items[curitem].stl_type = ClickFunc;
 		    stl_items[curitem].stl_start = p;
-		    stl_items[curitem].stl_minwid = minwid;
+		    // The stl_minwid field is overloaded: it may be the
+		    // "min" part of %<min>.<max> used for padding, or an
+		    // identifier passed to the %N[FuncName] callback.  Store
+		    // the uncapped value so IDs above 50 are preserved.
+		    stl_items[curitem].stl_minwid = raw_minwid;
 		    stl_items[curitem].stl_clickfunc =
 					      vim_strnsave(s, rb - s);
 		    s = rb + 1;

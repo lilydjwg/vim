@@ -3233,7 +3233,7 @@ struct file_buffer
 				// b_sfname
 
 #ifdef UNIX
-    int		b_dev_valid;	// TRUE when b_dev has a valid number
+    bool	b_dev_valid;	// true when b_dev has a valid number
     dev_t	b_dev;		// device number
     ino_t	b_ino;		// inode number
 #endif
@@ -3259,14 +3259,14 @@ struct file_buffer
     varnumber_T	b_last_changedtick_pum; // b:changedtick for TextChangedP
     varnumber_T	b_last_changedtick_i;   // b:changedtick for TextChangedI
 
-    int		b_saving;	// Set to TRUE if we are in the middle of
+    bool	b_saving;	// Set to true if we are in the middle of
 				// saving the buffer.
 
     /*
      * Changes to a buffer require updating of the display.  To minimize the
      * work, remember changes made and update everything at once.
      */
-    int		b_mod_set;	// TRUE when there are changes since the last
+    bool	b_mod_set;	// true when there are changes since the last
 				// time the display was updated
     linenr_T	b_mod_top;	// topmost lnum that was changed
     linenr_T	b_mod_bot;	// lnum below last changed line, AFTER the
@@ -3305,7 +3305,7 @@ struct file_buffer
      */
     pos_T	b_changelist[JUMPLISTSIZE];
     int		b_changelistlen;	// number of active entries
-    int		b_new_change;		// set by u_savecommon()
+    bool	b_new_change;		// set in u_savecommon()
 
     /*
      * Character table, only used in charset.c for 'iskeyword'
@@ -3327,12 +3327,12 @@ struct file_buffer
     pos_T	b_op_end;
 
 #ifdef FEAT_VIMINFO
-    int		b_marks_read;	// Have we read viminfo marks yet?
+    bool	b_marks_read;	// Have we read viminfo marks yet?
 #endif
 
-    int		b_modified_was_set;	// did ":set modified"
-    int		b_did_filetype;		// FileType event found
-    int		b_keep_filetype;	// value for did_filetype when starting
+    bool	b_modified_was_set;	// did ":set modified"
+    bool	b_did_filetype;		// FileType event found
+    bool	b_keep_filetype;	// value for did_filetype when starting
 					// to execute autocommands
 
     // Set by the apply_autocmds_group function if the given event is equal to
@@ -3341,7 +3341,7 @@ struct file_buffer
     //
     // Relying on this value requires one to reset it prior calling
     // apply_autocmds_group().
-    int		b_au_did_filetype;
+    bool	b_au_did_filetype;
 
     /*
      * The following only used in undo.c.
@@ -3351,7 +3351,7 @@ struct file_buffer
 				// if b_u_curhead is not NULL
     u_header_T	*b_u_curhead;	// pointer to current header
     int		b_u_numhead;	// current number of headers
-    int		b_u_synced;	// entry lists are synced
+    bool	b_u_synced;	// entry lists are synced
     long	b_u_seq_last;	// last used undo sequence number
     long	b_u_save_nr_last; // counter for last file write
     long	b_u_seq_cur;	// uh_seq of header below which we are now
@@ -3365,7 +3365,7 @@ struct file_buffer
     linenr_T	b_u_line_lnum;	// line number of line in u_line
     colnr_T	b_u_line_colnr;	// optional column number
 
-    int		b_scanned;	// ^N/^P have scanned this buffer
+    bool	b_scanned;	// ^N/^P have scanned this buffer
 
     // flags for use of ":lmap" and IM control
     long	b_p_iminsert;	// input mode for insert
@@ -3388,7 +3388,7 @@ struct file_buffer
      * They are here because their value depends on the type of file
      * or contents of the file being edited.
      */
-    int		b_p_initialized;	// set when options initialized
+    bool	b_p_initialized;	// set when options initialized
 
 #ifdef FEAT_EVAL
     sctx_T	b_p_script_ctx[BV_COUNT]; // SCTXs for buffer-local options
@@ -3611,7 +3611,7 @@ struct file_buffer
     list_T	*b_recorded_changes;
 #endif
 #ifdef FEAT_PROP_POPUP
-    int		b_has_textprop;	// TRUE when text props were added
+    bool	b_has_textprop;	// true when text props were added
     hashtab_T	*b_proptypes;	// text property types local to buffer
     proptype_T	**b_proparray;	// entries of b_proptypes sorted on tp_id
 #endif
@@ -3627,23 +3627,23 @@ struct file_buffer
     // When a buffer is created, it starts without a swap file.  b_may_swap is
     // then set to indicate that a swap file may be opened later.  It is reset
     // if a swap file could not be opened.
-    int		b_may_swap;
-    int		b_did_warn;	// Set to 1 if user has been warned on first
+    bool	b_may_swap;
+    bool	b_did_warn;	// Set to true if user has been warned on first
 				// change of a read-only file
 
     // Two special kinds of buffers:
     // help buffer  - used for help files, won't use a swap file.
     // spell buffer - used for spell info, never displayed and doesn't have a
     //		      file name.
-    int		b_help;		// TRUE for help file buffer (when set b_p_bt
+    bool	b_help;		// true for help file buffer (when set b_p_bt
 				// is "help")
 #ifdef FEAT_SPELL
-    int		b_spell;	// TRUE for a spell file buffer, most fields
+    bool	b_spell;	// true for a spell file buffer, most fields
 				// are not used!  Use the B_SPELL macro to
 				// access b_spell without #ifdef.
 #endif
 
-    int		b_shortname;	// this file has an 8.3 file name
+    bool	b_shortname;	// this file has an 8.3 file name
 
 #ifdef FEAT_JOB_CHANNEL
     char_u	*b_prompt_text;		// set by prompt_setprompt()
@@ -3685,18 +3685,18 @@ struct file_buffer
 #ifdef FEAT_SIGNS
     sign_entry_T *b_signlist;	   // list of placed signs
 # ifdef FEAT_NETBEANS_INTG
-    int		b_has_sign_column; // Flag that is set when a first sign is
+    bool	b_has_sign_column; // Flag that is set when a first sign is
 				   // added and remains set until the end of
 				   // the netbeans session.
 # endif
 #endif
 
 #ifdef FEAT_NETBEANS_INTG
-    int		b_netbeans_file;    // TRUE when buffer is owned by NetBeans
-    int		b_was_netbeans_file;// TRUE if b_netbeans_file was once set
+    bool	b_netbeans_file;    // true when buffer is owned by NetBeans
+    bool	b_was_netbeans_file;// true if b_netbeans_file was once set
 #endif
 #ifdef FEAT_JOB_CHANNEL
-    int		b_write_to_channel; // TRUE when appended lines are written to
+    bool	b_write_to_channel; // true when appended lines are written to
 				    // a channel.
 #endif
 
@@ -3711,7 +3711,7 @@ struct file_buffer
 				// window.
 #endif
 #ifdef FEAT_DIFF
-    int		b_diff_failed;	// internal diff failed for this buffer
+    bool	b_diff_failed;	// internal diff failed for this buffer
 #endif
 }; // file_buffer
 
@@ -4062,7 +4062,7 @@ struct window_S
 				    // used to try to stay in the same column
 				    // for up/down cursor motions.
 
-    int		w_set_curswant;	    // If set, then update w_curswant the next
+    bool	w_set_curswant;	    // If set, then update w_curswant the next
 				    // time through cursupdate() to the
 				    // current virtual column
 
@@ -4093,7 +4093,7 @@ struct window_S
      */
     linenr_T	w_topline;	    // buffer line number of the line at the
 				    // top of the window
-    char	w_topline_was_set;  // flag set to TRUE when topline is set,
+    bool	w_topline_was_set;  // flag set to true when topline is set,
 				    // e.g. by winrestview()
 
     linenr_T	w_botline;	    // number of the line below the bottom of
@@ -4102,9 +4102,9 @@ struct window_S
 #ifdef FEAT_DIFF
     int		w_topfill;	    // number of filler lines above w_topline
     int		w_old_topfill;	    // w_topfill at last redraw
-    int		w_botfill;	    // TRUE when filler lines are actually
+    bool	w_botfill;	    // true when filler lines are actually
 				    // below w_topline (at end of file)
-    int		w_old_botfill;	    // w_botfill at last redraw
+    bool	w_old_botfill;	    // w_botfill at last redraw
 #endif
     colnr_T	w_leftcol;	    // screen column number of the left most
 				    // character in the window; used when
@@ -4151,7 +4151,7 @@ struct window_S
     int		w_vsep_width;	    // Number of separator columns (0 or 1).
 
     pos_save_T	w_save_cursor;	    // backup of cursor pos and topline
-    int		w_do_win_fix_cursor;// if TRUE cursor may be invalid
+    bool	w_do_win_fix_cursor;// if true cursor may be invalid
 
 #ifdef FEAT_PROP_POPUP
     int		w_popup_flags;	    // POPF_ values
@@ -4159,7 +4159,7 @@ struct window_S
     int		w_popup_handled;    // POPUP_HANDLE[0-9] flags
     char_u	*w_popup_title;
     poppos_T	w_popup_pos;
-    int		w_popup_fixed;	    // do not shift popup to fit on screen
+    bool	w_popup_fixed;	    // do not shift popup to fit on screen
     int		w_popup_prop_type;  // when not zero: textprop type ID
     win_T	*w_popup_prop_win;  // window to search for textprop
     int		w_popup_prop_id;    // when not zero: textprop ID
@@ -4173,13 +4173,13 @@ struct window_S
     int		w_wantcol;	    // "col" for popup window
     int		w_firstline;	    // "firstline" for popup window
     int		w_want_scrollbar;   // when zero don't use a scrollbar
-    int		w_has_scrollbar;    // 1 if scrollbar displayed, 0 otherwise
+    bool	w_has_scrollbar;    // true if scrollbar displayed
     char_u	*w_scrollbar_highlight; // "scrollbarhighlight"
     char_u	*w_thumb_highlight; // "thumbhighlight"
     int		w_popup_padding[4]; // popup padding top/right/bot/left
     int		w_popup_border[4];  // popup border top/right/bot/left
     char_u	*w_border_highlight[4];  // popup border highlight
-    int		w_border_highlight_isset; // borderhighlight was explicitly set
+    bool	w_border_highlight_isset; // borderhighlight was explicitly set
     int		w_border_char[8];   // popup border characters
     int		w_popup_shadow;     // popup shadow (right and bottom edges)
 
@@ -4246,7 +4246,7 @@ struct window_S
      */
     int		w_cline_height;	    // current size of cursor line
 #ifdef FEAT_FOLDING
-    int		w_cline_folded;	    // cursor line is folded
+    bool	w_cline_folded;	    // cursor line is folded
 #endif
 
     int		w_cline_row;	    // starting row of the cursor line
@@ -4285,9 +4285,9 @@ struct window_S
 
 #ifdef FEAT_FOLDING
     garray_T	w_folds;	    // array of nested folds
-    char	w_fold_manual;	    // when TRUE: some folds are opened/closed
+    bool	w_fold_manual;	    // when true: some folds are opened/closed
 				    // manually
-    char	w_foldinvalid;	    // when TRUE: folding needs to be
+    bool	w_foldinvalid;	    // when true: folding needs to be
 				    // recomputed
 #endif
 #ifdef FEAT_LINEBREAK
@@ -4307,7 +4307,7 @@ struct window_S
 				    // w_redr_type is UPD_REDRAW_TOP
     linenr_T	w_redraw_top;	    // when != 0: first line needing redraw
     linenr_T	w_redraw_bot;	    // when != 0: last line needing redraw
-    int		w_redr_status;	    // if TRUE status line must be redrawn
+    bool	w_redr_status;	    // if true status line must be redrawn
 
     // remember what is shown in the ruler for this window (if 'ruler' set)
     pos_T	w_ru_cursor;	    // cursor position shown in ruler
@@ -4317,14 +4317,14 @@ struct window_S
 #ifdef FEAT_DIFF
     int		w_ru_topfill;	    // topfill shown in ruler
 #endif
-    char	w_ru_empty;	    // TRUE if ruler shows 0-1 (empty line)
+    bool	w_ru_empty;	    // true if ruler shows 0-1 (empty line)
 
     int		w_alt_fnum;	    // alternate file (for # and CTRL-^)
 
     alist_T	*w_alist;	    // pointer to arglist for this window
     int		w_arg_idx;	    // current index in argument list (can be
 				    // out of range!)
-    int		w_arg_idx_invalid;  // editing another file than w_arg_idx
+    bool	w_arg_idx_invalid;  // editing another file than w_arg_idx
 
     char_u	*w_localdir;	    // absolute path of local directory or
 				    // NULL

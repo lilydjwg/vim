@@ -3205,7 +3205,7 @@ do_ecmd(
     // Since we are starting to edit a file, consider the filetype to be
     // unset.  Helps for when an autocommand changes files and expects syntax
     // highlighting to work in the other file.
-    curbuf->b_did_filetype = FALSE;
+    curbuf->b_did_filetype = false;
 
 /*
  * other_file	oldbuf
@@ -3430,7 +3430,7 @@ do_ecmd(
 		curwin->w_cursor.col = solcol;
 		check_cursor_col();
 		curwin->w_cursor.coladd = 0;
-		curwin->w_set_curswant = TRUE;
+		curwin->w_set_curswant = true;
 	    }
 	    else
 		beginline(BL_SOL | BL_FIX);

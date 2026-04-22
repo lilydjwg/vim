@@ -2366,7 +2366,7 @@ apply_autocmds_group(
 
     // Remember that FileType was triggered.  Used for did_filetype().
     if (event == EVENT_FILETYPE)
-	curbuf->b_did_filetype = TRUE;
+	curbuf->b_did_filetype = true;
 
     tail = gettail(fname);
 
@@ -2475,7 +2475,7 @@ apply_autocmds_group(
 	restore_search_patterns();
 	if (did_save_redobuff)
 	    restoreRedobuff(&save_redo);
-	curbuf->b_did_filetype = FALSE;
+	curbuf->b_did_filetype = false;
 	while (au_pending_free_buf != NULL)
 	{
 	    buf_T *b = au_pending_free_buf->b_next;
@@ -2517,7 +2517,7 @@ BYPASS_AU:
 	aubuflocal_remove(buf);
 
     if (retval == OK && event == EVENT_FILETYPE)
-	curbuf->b_au_did_filetype = TRUE;
+	curbuf->b_au_did_filetype = true;
 
     return retval;
 }
@@ -3343,7 +3343,7 @@ f_autocmd_get(typval_T *argvars, typval_T *rettv)
     AutoCmd	*ac;
     list_T	*event_list;
     dict_T	*event_dict;
-    char_u	*event_name = NULL;
+    string_T	event_name = {NULL, 0};
     char_u	*pat = NULL;
     char_u	*name = NULL;
     int		group = AUGROUP_ALL;
@@ -3425,12 +3425,13 @@ f_autocmd_get(typval_T *argvars, typval_T *rettv)
 	if (event_arg != NUM_EVENTS && event != event_arg)
 	    continue;
 
-	event_name = event_nr2name(event);
+	event_name.string = event_nr2name(event);
+	event_name.length = STRLEN(event_name.string);
 
 	// iterate through all the patterns for this autocmd event
 	FOR_ALL_AUTOCMD_PATTERNS(event, ap)
 	{
-	    char_u	*group_name;
+	    string_T	group_name;
 
 	    if (ap->pat == NULL)		// pattern has been removed
 		continue;
@@ -3441,7 +3442,11 @@ f_autocmd_get(typval_T *argvars, typval_T *rettv)
 	    if (pat != NULL && STRCMP(pat, ap->pat) != 0)
 		continue;
 
-	    group_name = get_augroup_name(NULL, ap->group);
+	    group_name.string = get_augroup_name(NULL, ap->group);
+	    if (group_name.string == NULL)
+		STR_LITERAL_SET(group_name, "");
+	    else
+		group_name.length = STRLEN(group_name.string);
 
 	    // iterate through all the commands for this pattern and add one
 	    // item for each cmd.
@@ -3455,10 +3460,10 @@ f_autocmd_get(typval_T *argvars, typval_T *rettv)
 		    return;
 		}
 
-		if (dict_add_string(event_dict, "event", event_name) == FAIL
-			|| dict_add_string(event_dict, "group",
-					group_name == NULL ? (char_u *)""
-							  : group_name) == FAIL
+		if (dict_add_string_len(event_dict, "event",
+			event_name.string, (int)event_name.length) == FAIL
+			|| dict_add_string_len(event_dict, "group",
+			    group_name.string, (int)group_name.length) == FAIL
 			|| (ap->buflocal_nr != 0
 				&& (dict_add_number(event_dict, "bufnr",
 						    ap->buflocal_nr) == FAIL))

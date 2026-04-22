@@ -7917,7 +7917,7 @@ ex_syncbind(exarg_T *eap UNUSED)
 	    curwin->w_scbind_pos = topline;
 	    redraw_later(UPD_VALID);
 	    cursor_correct();
-	    curwin->w_redr_status = TRUE;
+	    curwin->w_redr_status = true;
 	}
     }
     curwin = save_curwin;
@@ -10368,7 +10368,7 @@ ex_setfiletype(exarg_T *eap)
 
     set_option_value_give_err((char_u *)"filetype", 0L, arg, OPT_LOCAL);
     if (arg != eap->arg)
-	curbuf->b_did_filetype = FALSE;
+	curbuf->b_did_filetype = false;
 }
 
     static void
