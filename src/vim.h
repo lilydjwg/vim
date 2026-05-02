@@ -904,6 +904,7 @@ extern int (*dyn_libintl_wputenv)(const wchar_t *envstring);
 #define WILD_NOSELECT		    0x4000
 #define WILD_MAY_EXPAND_PATTERN	    0x8000
 #define WILD_FUNC_TRIGGER	    0x10000 // called from wildtrigger()
+#define WILD_NOINSERT		    0x20000
 
 // Flags for expand_wildcards()
 #define EW_DIR		0x01	// include directory names
@@ -3096,5 +3097,18 @@ long elapsed(DWORD start_tick);
 
 // Flags used by getvcol()
 #define GETVCOL_END_EXCL_LBR	1
+
+// Used by expand_env_esc() callers that feed the result to
+// wildcard expansion, so that such characters embedded in
+// environment variable values are treated as literal.
+#ifdef VMS
+# define PATH_ESC_WILDCARDS	"*?%"
+#else
+# ifdef MSWIN
+#  define PATH_ESC_WILDCARDS	"*?["
+# else
+#  define PATH_ESC_WILDCARDS	"*?[{"
+# endif
+#endif
 
 #endif // VIM__H

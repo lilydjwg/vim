@@ -5249,6 +5249,32 @@ func Test_wildtrigger_update_screen()
   call StopVimInTerminal(buf)
 endfunc
 
+" Wrapped cmdline must not be truncated when wildtrigger() redraws on every
+" keystroke.
+func Test_wildtrigger_wrapped_cmdline()
+  CheckScreendump
+
+  let lines =<< trim [SCRIPT]
+    set wildmenu wildmode=noselect:lastused,full wildoptions=pum
+    cnoremap <F8> <C-R>=wildtrigger()[-1]<CR>
+  [SCRIPT]
+  call writefile(lines, 'XTest_wildtrigger_wrap', 'D')
+  let rows = 8
+  let cols = 30
+  let buf = RunVimInTerminal('-S XTest_wildtrigger_wrap', {'rows': rows, 'cols': cols})
+
+  call term_sendkeys(buf, ":e ")
+  for i in range(40)
+    call term_sendkeys(buf, "x\<F8>")
+  endfor
+
+  call WaitForTermCurPosAndLinesToMatch(buf, [rows, ((3 + 40) - cols + 1)])
+  call VerifyScreenDump(buf, 'Test_wildtrigger_wrapped_cmdline_1', {})
+
+  call term_sendkeys(buf, "\<Esc>")
+  call StopVimInTerminal(buf)
+endfunc
+
 " Issue #17969: With 'noselect', the popup menu should appear next to the
 " environment variable being expanded. Disable 'showtail' when completing
 " file paths when 'noselect' is present.
@@ -5398,6 +5424,139 @@ func Test_rulerformat_empty()
   endtry
   set ruler&
   set rulerformat&
+endfunc
+
+func Test_cmdline_complete_with_space()
+  call mkdir('Xspc', 'R')
+  let save_cwd = getcwd()
+  cd Xspc
+  call writefile([], 'foo bar')
+  call writefile([], 'baz')
+  call writefile([], 'bz')
+
+  " This should expand to foo\ bar, not add 3 space separated
+  " files: foo baz bz
+  call feedkeys(":badd foo b\<C-A>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"badd foo\ bar', @:)
+
+  call chdir(save_cwd)
+endfunc
+
+func Test_wildmode_noinsert()
+  command! -nargs=1 -complete=custom,T MyCmd echo
+  func T(a, c, p)
+    return "oneA\noneB\noneC"
+  endfunc
+
+  set wildmenu wildoptions=pum wildmode=noinsert,full wildchar=<Tab>
+  call feedkeys(":MyCmd o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+  call feedkeys(":MyCmd o\<Tab>\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneB', @:)
+  call feedkeys(":MyCmd o\<Tab>\<Tab>\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneC', @:)
+
+  call feedkeys(":MyCmd o\<Tab>\<C-Y>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneA', @:)
+
+  " CTRL-P from highlighted first item returns to original text
+  call feedkeys(":MyCmd o\<Tab>\<C-P>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+  " Another CTRL-P wraps to the last match
+  call feedkeys(":MyCmd o\<Tab>\<C-P>\<C-P>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneC', @:)
+
+  set wildoptions=
+  call feedkeys(":MyCmd o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+  call feedkeys(":MyCmd o\<Tab>\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneB', @:)
+
+  call feedkeys(":MyCmd o\<Tab>\<C-Y>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneA', @:)
+  call feedkeys(":MyCmd o\<Tab>\<C-E>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+
+  " 'nowildmenu' should make 'noinsert' ineffective
+  set nowildmenu
+  call feedkeys(":MyCmd o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneA', @:)
+
+  " 'noselect' takes precedence over 'noinsert'
+  set wildmenu wildoptions=pum wildmode=noselect:noinsert,full
+  call feedkeys(":MyCmd o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+  call feedkeys(":MyCmd o\<Tab>\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneA', @:)
+  call feedkeys(":MyCmd o\<Tab>\<C-Y>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+
+  set wildmode=noinsert
+  call feedkeys(":MyCmd o\<Tab>\<Tab>\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+
+  set wildmode=noinsert,full
+  call feedkeys(":MyCmd o\<Tab>\<C-N>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd oneB', @:)
+  call feedkeys(":MyCmd o\<Tab>\<C-E>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd o', @:)
+
+  " 'longest' takes precedence over 'noinsert'
+  set wildmode=noinsert:longest
+  call feedkeys(":MyCmd o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd one', @:)
+
+  set wildmode&
+  call feedkeys(":set wildmode=noi\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"set wildmode=noinsert', @:)
+
+  set wildmode=noinsert:lastused,full
+  call assert_equal('noinsert:lastused,full', &wildmode)
+  call assert_fails('set wildmode=noinser', 'E474:')
+
+  " Single match with 'noinsert': item shown highlighted, C-Y commits
+  command! -nargs=1 -complete=custom,T1 MyCmd1 echo
+  func T1(a, c, p)
+    return "oneA"
+  endfunc
+  set wildmenu wildoptions=pum wildmode=noinsert,full
+  call feedkeys(":MyCmd1 o\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd1 o', @:)
+  call feedkeys(":MyCmd1 o\<Tab>\<C-Y>\<C-B>\"\<CR>", 'xt')
+  call assert_equal('"MyCmd1 oneA', @:)
+  delcommand MyCmd1
+  delfunc T1
+
+  set wildmenu& wildoptions& wildmode& wildchar&
+  delcommand MyCmd
+  delfunc T
+endfunc
+
+func Test_cmdline_compl_env_var_wildcard()
+  CheckUnix
+
+  let d = tempname()
+  call mkdir(d .. '/[x]', 'pR')
+  call writefile(['hello'], d .. '/[x]/file.txt')
+  let $XWILD = d .. '/[x]'
+
+  call feedkeys(":e $XWILD/fi\<Tab>\<C-B>\"\<CR>", 'xt')
+  call assert_match('\[x\]/file\.txt$', @:)
+  call assert_equal([d .. '/[x]/file.txt'], glob('$XWILD/*', 0, 1))
+
+  edit $XWILD/file.txt
+  call assert_equal('hello', getline(1))
+  bwipe!
+
+  if has('profile')
+    let prof = d .. '/[x]/prof.out'
+    profile start $XWILD/prof.out
+    profile stop
+    call assert_true(filereadable(prof))
+    call delete(prof)
+  endif
+
+  unlet $XWILD
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

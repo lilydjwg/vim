@@ -346,7 +346,7 @@ nextwild(
 	    cmdline_orig.length = ccline->cmdlen;
     }
 
-    if (p != NULL && !got_int && !(options & WILD_NOSELECT))
+    if (p != NULL && !got_int && !(options & (WILD_NOSELECT | WILD_NOINSERT)))
     {
 	size_t	plen = STRLEN(p);
 	int	difflen;
@@ -380,7 +380,8 @@ nextwild(
 
     if (xp->xp_numfiles <= 0 && p == NULL)
 	beep_flush();
-    else if (xp->xp_numfiles == 1 && !(options & WILD_NOSELECT)
+    else if (xp->xp_numfiles == 1
+	    && !(options & (WILD_NOSELECT | WILD_NOINSERT))
 	    && !wild_navigate)
 	// free expanded pattern
 	(void)ExpandOne(xp, NULL, NULL, 0, WILD_FREE);
@@ -464,6 +465,7 @@ cmdline_pum_remove(cmdline_info_T *cclp UNUSED, int defer_redraw)
 	RedrawingDisabled = 0;
 #endif
 
+    term_set_sync_output(TERM_SYNC_OUTPUT_ENABLE);
     pum_undisplay();
     VIM_CLEAR(compl_match_array);
     compl_match_arraysize = 0;
@@ -477,6 +479,7 @@ cmdline_pum_remove(cmdline_info_T *cclp UNUSED, int defer_redraw)
     else
 	pum_call_update_screen();
     redrawcmd();
+    term_set_sync_output(TERM_SYNC_OUTPUT_DISABLE);
 
     // When a function is called (e.g. for 'foldtext') KeyTyped might be reset
     // as a side effect.
@@ -1253,7 +1256,7 @@ showmatches_oneline(
 		// Expansion was done before and special characters
 		// were escaped, need to halve backslashes.  Also
 		// $HOME has been replaced with ~/.
-		exp_path = expand_env_save_opt(matches[j], TRUE);
+		exp_path = expand_env_save_opt(matches[j], TRUE, NULL);
 		path = exp_path != NULL ? exp_path : matches[j];
 		halved_slash = backslash_halve_save(path);
 		isdir = mch_isdir(halved_slash != NULL ? halved_slash
@@ -1295,7 +1298,11 @@ showmatches_oneline(
  *   inserted as a normal character.
  */
     int
-showmatches(expand_T *xp, int display_wildmenu, int display_list, int noselect)
+showmatches(
+    expand_T	*xp,
+    int		display_wildmenu,
+    int		display_list,
+    int		wim_flags_arg)
 {
     cmdline_info_T	*ccline = get_cmdline_info();
     int		numMatches;
@@ -1306,6 +1313,9 @@ showmatches(expand_T *xp, int display_wildmenu, int display_list, int noselect)
     int		columns;
     int		attr;
     int		showtail;
+    int		noselect = (wim_flags_arg & WIM_NOSELECT);
+    int		noinsert = (wim_flags_arg & WIM_NOINSERT);
+    int		cmdline_unchanged = noselect || noinsert;
 
     if (xp->xp_numfiles == -1)
     {
@@ -1328,7 +1338,7 @@ showmatches(expand_T *xp, int display_wildmenu, int display_list, int noselect)
 	    && vim_strchr(p_wop, WOP_PUM) != NULL)
     {
 	int retval = cmdline_pum_create(ccline, xp, matches, numMatches,
-		showtail && !noselect);
+		showtail && !cmdline_unchanged);
 	if (retval == EXPAND_OK)
 	{
 	    compl_selected = noselect ? -1 : 0;
@@ -1832,9 +1842,7 @@ set_context_for_wildcard_arg(
 	// An argument can contain just about everything, except
 	// characters that end the command and white space.
 	else if (c == '|' || c == '\n' || c == '"' || (VIM_ISWHITE(c)
-#ifdef SPACE_IN_FILENAME
 		    && (!(eap != NULL && (eap->argt & EX_NOSPC)) || usefilter)
-#endif
 		    ))
 	{
 	    len = 0;  // avoid getting stuck when space is in 'isfname'
