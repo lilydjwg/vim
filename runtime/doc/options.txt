@@ -1,4 +1,4 @@
-*options.txt*	For Vim version 9.2.  Last change: 2026 May 03
+*options.txt*	For Vim version 9.2.  Last change: 2026 May 04
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -6799,9 +6799,6 @@ A jump table for the options with a short description can be found at |Q_op|.
 <	Replace the ';' with a ':' or whatever separator is used.  Note that
 	this doesn't work when $INCL contains a comma or white space.
 
-	This option cannot be set from a |modeline| or in the |sandbox|, for
-	security reasons.
-
 						*'perldll'*
 'perldll'		string	(default depends on the build)
 			global
@@ -10418,9 +10415,9 @@ A jump table for the options with a short description can be found at |Q_op|.
 	"noselect"	If 'wildmenu' is enabled, show the menu but do not
 			preselect the first item.
 	"noinsert"	If 'wildmenu' is enabled, show the menu and preselect
-			the first match, but do not insert it in the
-			command line.  If both "noinsert" and "noselect" are
-			present, "noselect" takes precedence.
+			the first match, but do not insert it in the command
+			line.  If both "noinsert" and "noselect" are present,
+			"noselect" takes precedence.
 	If only one match exists, it is completed fully, unless "noselect" or
 	"noinsert" is specified.
 
