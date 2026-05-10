@@ -4522,6 +4522,222 @@ func Test_popup_setoptions_other_tab()
   call prop_type_delete('textprop')
 endfunc
 
+func Test_popup_clipwindow_option()
+  " Default: clipwindow is off.
+  let id = popup_create('TEST', #{})
+  call assert_equal(0, popup_getoptions(id).clipwindow)
+  call popup_close(id)
+
+  " popup_create() honours the option.
+  let id = popup_create('TEST', #{clipwindow: v:true})
+  call assert_equal(1, popup_getoptions(id).clipwindow)
+
+  " popup_setoptions() can toggle it off and on.
+  call popup_setoptions(id, #{clipwindow: v:false})
+  call assert_equal(0, popup_getoptions(id).clipwindow)
+  call popup_setoptions(id, #{clipwindow: v:true})
+  call assert_equal(1, popup_getoptions(id).clipwindow)
+
+  call popup_close(id)
+endfunc
+
+func Test_popup_clipwindow_hide_when_prop_off_screen()
+  " A "clipwindow" popup attached to a textprop should be hidden once the
+  " host window scrolls so the textprop is far enough off-screen that even
+  " the partially-clipped popup would no longer overlap, and unhidden again
+  " when the prop scrolls back into reach.
+  call prop_type_add('clipprop', {})
+  new
+  call setline(1, range(1, 200)->mapnew({_, v -> 'line ' .. v}))
+  call prop_add(5, 1, #{type: 'clipprop', length: 5})
+  let host = win_getid()
+
+  let id = popup_create('attached', #{
+        \ textprop: 'clipprop',
+        \ textpropwin: host,
+        \ line: -1,
+        \ wrap: v:false,
+        \ fixed: v:true,
+        \ clipwindow: v:true,
+        \ })
+  redraw
+  call assert_equal(1, popup_getpos(id).visible)
+
+  " Scroll the host so the prop is far below topline; popup hides.
+  call win_execute(host, 'normal! Gzb')
+  redraw
+  call assert_equal(0, popup_getpos(id).visible)
+
+  " Scroll back so the prop is on the first visible line; popup unhides.
+  call win_execute(host, 'normal! ggzt')
+  redraw
+  call assert_equal(1, popup_getpos(id).visible)
+
+  call popup_close(id)
+  bwipe!
+  call prop_type_delete('clipprop')
+endfunc
+
+func Test_popup_clipwindow_top_clip()
+  CheckScreendump
+
+  let lines =<< trim END
+      vim9script
+      set nowrap
+      :botright new
+      :resize 6
+      setline(1, range(1, 30)->mapnew((_, v) => 'host line ' .. v))
+      prop_type_add('clipprop', {})
+      prop_add(2, 1, {type: 'clipprop', length: 4})
+      popup_create(['popup A', 'popup B', 'popup C'], {
+          textprop: 'clipprop',
+          line: -4,
+          col: 0,
+          border: [],
+          padding: [0, 1, 0, 1],
+          highlight: 'PmenuSel',
+          wrap: false,
+          fixed: true,
+          posinvert: false,
+          clipwindow: true,
+      })
+  END
+  call writefile(lines, 'XtestPopupClipwindowTop', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupClipwindowTop', #{rows: 14, cols: 40})
+  call VerifyScreenDump(buf, 'Test_popup_clipwindow_top_clip', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popup_clipwindow_bottom_clip()
+  CheckScreendump
+
+  let lines =<< trim END
+      vim9script
+      set nowrap
+      :topleft new
+      :resize 6
+      setline(1, range(1, 30)->mapnew((_, v) => 'host line ' .. v))
+      prop_type_add('clipprop', {})
+      prop_add(2, 1, {type: 'clipprop', length: 4})
+      popup_create(['popup A', 'popup B', 'popup C'], {
+          textprop: 'clipprop',
+          line: 1,
+          col: 0,
+          border: [],
+          padding: [0, 1, 0, 1],
+          highlight: 'PmenuSel',
+          wrap: false,
+          fixed: true,
+          posinvert: false,
+          clipwindow: true,
+      })
+  END
+  call writefile(lines, 'XtestPopupClipwindowBottom', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupClipwindowBottom', #{rows: 14, cols: 40})
+  call VerifyScreenDump(buf, 'Test_popup_clipwindow_bottom_clip', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popup_clipwindow_left_clip()
+  CheckScreendump
+
+  let lines =<< trim END
+      vim9script
+      set nowrap
+      :vert botright new
+      :vert resize 22
+      set laststatus=0
+      setline(1, repeat(['host content line abcdef'], 20))
+      prop_type_add('clipprop', {})
+      prop_add(5, 6, {type: 'clipprop', length: 4})
+      popup_create(['popup A', 'popup B', 'popup C'], {
+          textprop: 'clipprop',
+          line: 0,
+          col: -10,
+          border: [],
+          padding: [0, 1, 0, 1],
+          highlight: 'PmenuSel',
+          wrap: false,
+          fixed: true,
+          posinvert: false,
+          clipwindow: true,
+      })
+  END
+  call writefile(lines, 'XtestPopupClipwindowLeft', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupClipwindowLeft', #{rows: 14, cols: 50})
+  call VerifyScreenDump(buf, 'Test_popup_clipwindow_left_clip', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popup_clipwindow_right_clip()
+  CheckScreendump
+
+  let lines =<< trim END
+      vim9script
+      set nowrap
+      :vert topleft new
+      :vert resize 22
+      set laststatus=0
+      setline(1, repeat(['host content line abcdef'], 20))
+      prop_type_add('clipprop', {})
+      prop_add(5, 14, {type: 'clipprop', length: 4})
+      popup_create(['popup A', 'popup B', 'popup C'], {
+          textprop: 'clipprop',
+          line: 0,
+          col: 0,
+          border: [],
+          padding: [0, 1, 0, 1],
+          highlight: 'PmenuSel',
+          wrap: false,
+          fixed: true,
+          posinvert: false,
+          clipwindow: true,
+      })
+  END
+  call writefile(lines, 'XtestPopupClipwindowRight', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupClipwindowRight', #{rows: 14, cols: 50})
+  call VerifyScreenDump(buf, 'Test_popup_clipwindow_right_clip', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popup_clipwindow_hidden()
+  CheckScreendump
+
+  let lines =<< trim END
+      vim9script
+      set nowrap
+      :topleft new
+      :resize 6
+      setline(1, range(1, 50)->mapnew((_, v) => 'host line ' .. v))
+      prop_type_add('clipprop', {})
+      prop_add(2, 1, {type: 'clipprop', length: 4})
+      popup_create(['popup A', 'popup B', 'popup C'], {
+          textprop: 'clipprop',
+          line: -4,
+          col: 0,
+          border: [],
+          padding: [0, 1, 0, 1],
+          highlight: 'PmenuSel',
+          wrap: false,
+          fixed: true,
+          posinvert: false,
+          clipwindow: true,
+      })
+      # Scroll the host so the textprop is far below topline; the popup is
+      # then hidden because the prop has scrolled out of the host window.
+      win_execute(win_getid(), 'normal! Gzb')
+  END
+  call writefile(lines, 'XtestPopupClipwindowHidden', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupClipwindowHidden', #{rows: 14, cols: 40})
+  call VerifyScreenDump(buf, 'Test_popup_clipwindow_hidden', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
 func Test_popup_prop_not_visible()
   CheckScreendump
 

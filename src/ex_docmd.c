@@ -7066,7 +7066,7 @@ call_findfunc(char_u *pat, int cmdcomplete)
  * Returns OK on success and FAIL otherwise.
  */
     int
-expand_findfunc(char_u *pat, char_u ***files, int *numMatches)
+expand_findfunc(expand_T *xp, char_u *pat, char_u ***files, int *numMatches)
 {
     list_T	*l;
     int		len;
@@ -7086,26 +7086,7 @@ expand_findfunc(char_u *pat, char_u ***files, int *numMatches)
 	return FAIL;
     }
 
-    *files = ALLOC_MULT(char_u *, len);
-    if (*files == NULL)
-    {
-	list_free(l);
-	return FAIL;
-    }
-
-    // Copy all the List items
-    listitem_T *li;
-    int idx = 0;
-    FOR_ALL_LIST_ITEMS(l, li)
-    {
-	if (li->li_tv.v_type == VAR_STRING)
-	{
-	    (*files)[idx] = vim_strsave(li->li_tv.vval.v_string);
-	    idx++;
-	}
-    }
-
-    *numMatches = idx;
+    expand_process_user_list(l, files, numMatches, xp);
     list_free(l);
 
     return OK;
@@ -7138,8 +7119,16 @@ findfunc_find_file(char_u *findarg, int findarg_len, int count)
 	else
 	{
 	    listitem_T *li = list_find(fname_list, count - 1);
-	    if (li != NULL && li->li_tv.v_type == VAR_STRING)
-		ret_fname = vim_strsave(li->li_tv.vval.v_string);
+
+	    if (li != NULL)
+	    {
+		typval_T *tv = &li->li_tv;
+
+		if (tv->v_type == VAR_STRING && tv->vval.v_string != NULL)
+		    ret_fname = vim_strsave(tv->vval.v_string);
+		else if (tv->v_type == VAR_DICT && tv->vval.v_dict != NULL)
+		    ret_fname = dict_get_string(tv->vval.v_dict, "word", TRUE);
+	    }
 	}
     }
 

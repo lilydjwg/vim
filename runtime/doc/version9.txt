@@ -1,4 +1,4 @@
-*version9.txt*	For Vim version 9.2.  Last change: 2026 May 05
+*version9.txt*	For Vim version 9.2.  Last change: 2026 May 10
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -52588,6 +52588,7 @@ Popups ~
 - 'previewpopup' supports the same values as 'completepopup' (except for
   "align").
 - Support "opacity" setting for 'completepopup' option.
+- Support for clipping textproperty popups |popup-clipwindow|.
 
 Diff mode ~
 ---------
@@ -52668,6 +52669,8 @@ Functions: ~
 Autocommands: ~
 
 |SessionLoadPre|	before loading a |Session| file
+|TextPutPost|		after putting text
+|TextPutPre|		before putting text
 
 Options: ~
 

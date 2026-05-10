@@ -1554,6 +1554,7 @@ static char *modeline_whitelist[] =
     "filetype",
     "foldcolumn",
     "foldenable",
+    "foldmarker",
     "foldmethod",
     "modifiable",
     "readonly",
@@ -4526,7 +4527,6 @@ did_set_maxsearchcount(optset_T *args UNUSED)
     return errmsg;
 #undef MAX_SEARCH_COUNT
 }
-
 
 #if defined(BACKSLASH_IN_FILENAME)
 /*
