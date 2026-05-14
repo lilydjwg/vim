@@ -1,4 +1,4 @@
-*version9.txt*	For Vim version 9.2.  Last change: 2026 May 10
+*version9.txt*	For Vim version 9.2.  Last change: 2026 May 11
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -52627,6 +52627,8 @@ Other ~
 - |:command-completion-customlist| can return a list of dictionaries with
   kind/menu/info/abbr for the popup menu.
 - |C-indenting| detects comments better.
+- The |package-hlyank| can now optionally highlight the last put region as
+  well.
 
 Platform specific ~
 -----------------

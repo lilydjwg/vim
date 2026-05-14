@@ -1482,11 +1482,15 @@ popup_geom_restore(win_T *wp, popup_geom_save_T *sv)
 
 /*
  * Compute a screen row for a textprop that has scrolled above the host
- * window's top.  textpos2screenpos() cannot return a row above topline, so we
- * probe at topline to fill the screen_{scol,ccol,ecol} column mapping, then
- * extrapolate a (possibly-negative) row by counting how many buffer lines lie
- * between the prop and topline.  The popup_topoff clip path then turns the
+ * window's top.  textpos2screenpos() cannot return a row above topline, so
+ * compute the virtual column directly from the prop's *own* line and then
+ * extrapolate a (possibly-negative) row by counting how many buffer lines
+ * lie between the prop and topline.  The popup_topoff clip path turns the
  * negative row into a top-clip animation as the prop rolls off the top edge.
+ *
+ * Probing at topline with the prop's tp_col would inherit topline's tab
+ * stops / multi-byte widths, so the popup's wincol would jitter every time
+ * a wider/narrower line scrolled into the topmost position.
  */
     static void
 popup_screenpos_above_top(
@@ -1499,10 +1503,16 @@ popup_screenpos_above_top(
 	int	    *screen_ecol)
 {
     pos_T   probe = *pos;
+    colnr_T scol = 0, ccol = 0, ecol = 0;
+    int	    coloff;
 
-    probe.lnum = prop_win->w_topline;
-    textpos2screenpos(prop_win, &probe,
-			    screen_row, screen_scol, screen_ccol, screen_ecol);
+    probe.lnum = prop_lnum;
+    getvcol(prop_win, &probe, &scol, &ccol, &ecol, 0);
+    coloff = (int)win_col_off(prop_win) - (int)prop_win->w_leftcol
+					+ prop_win->w_wincol + 1;
+    *screen_scol = (int)scol + coloff;
+    *screen_ccol = (int)ccol + coloff;
+    *screen_ecol = (int)ecol + coloff;
     *screen_row = prop_win->w_winrow + 1
 				 - (int)(prop_win->w_topline - prop_lnum);
 }
@@ -3512,10 +3522,38 @@ f_popup_close(typval_T *argvars, typval_T *rettv UNUSED)
 	popup_close_and_callback(wp, &argvars[1]);
 }
 
+/*
+ * Clear popup_mask entries for the cells covered by "wp" so that
+ * screen_fill / screen_puts calls made before the next update_screen()
+ * (e.g. msg_clr_eos triggered by a status message) are not silently
+ * dropped by skip_for_popup().  Without this the popup's chars survive
+ * on screen until may_update_popup_mask() runs and the affected cells
+ * happen to be redrawn.
+ */
+    static void
+popup_clear_mask_for(win_T *wp)
+{
+    int r, c;
+    int row_start, col_start, row_end, col_end;
+
+    if (popup_mask == NULL || !popup_visible)
+	return;
+
+    row_start = MAX(wp->w_winrow, 0);
+    col_start = MAX(wp->w_wincol, 0);
+    row_end = MIN(wp->w_winrow + popup_height(wp), (int)screen_Rows);
+    col_end = MIN(wp->w_wincol + popup_width(wp), (int)screen_Columns);
+
+    for (r = row_start; r < row_end; ++r)
+	for (c = col_start; c < col_end; ++c)
+	    popup_mask[r * screen_Columns + c] = 0;
+}
+
     void
 popup_hide(win_T *wp)
 {
     popup_area_T	old_area;
+    int			was_visible = (wp->w_popup_flags & POPF_HIDDEN) == 0;
 
 #ifdef FEAT_TERMINAL
     if (error_if_term_popup_window())
@@ -3530,6 +3568,9 @@ popup_hide(win_T *wp)
     // Do not decrement b_nwindows, we still reference the buffer.
     if (wp->w_winrow + popup_height(wp) >= cmdline_row)
 	clear_cmdline = TRUE;
+
+    if (was_visible)
+	popup_clear_mask_for(wp);
 
     if (old_area.active)
 	popup_redraw_exposed_area(&old_area);
@@ -3715,6 +3756,7 @@ f_popup_setbuf(typval_T *argvars, typval_T *rettv UNUSED)
 popup_free(win_T *wp)
 {
     popup_area_T	old_area;
+    int			was_visible = (wp->w_popup_flags & POPF_HIDDEN) == 0;
 
     popup_save_area(wp, &old_area);
 
@@ -3722,6 +3764,9 @@ popup_free(win_T *wp)
     wp->w_buffer->b_locked = FALSE;
     if (wp->w_winrow + popup_height(wp) >= cmdline_row)
 	clear_cmdline = TRUE;
+
+    if (was_visible)
+	popup_clear_mask_for(wp);
 
     popup_redraw_exposed_area(&old_area);
 
