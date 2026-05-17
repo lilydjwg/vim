@@ -1690,6 +1690,15 @@ ml_recover(int checkext)
 			dp->db_txt_end = page_count * mfp->mf_page_size;
 		    }
 
+		    if (dp->db_txt_start < HEADER_SIZE
+			    || dp->db_txt_start > dp->db_txt_end)
+		    {
+			ml_append(lnum++, (char_u *)_("??? block header corrupted"),
+								    (colnr_T)0, TRUE);
+			++error;
+			has_error = TRUE;
+			dp->db_txt_start = dp->db_txt_end;
+		    }
 		    // Make sure there is a NUL at the end of the block so we
 		    // don't go over the end when copying text.
 		    *((char_u *)dp + dp->db_txt_end - 1) = NUL;
