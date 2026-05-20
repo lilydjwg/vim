@@ -318,7 +318,7 @@ func Test_set_completion()
 
   " Expand abbreviation of options.
   call feedkeys(":set ts\<C-A>\<C-B>\"\<CR>", 'tx')
-  call assert_equal('"set tabstop termsync thesaurus thesaurusfunc ttyscroll', @:)
+  call assert_equal('"set tabstop tagsecure termsync thesaurus thesaurusfunc ttyscroll', @:)
 
   " Expand current value
   call feedkeys(":set suffixes=\<C-A>\<C-B>\"\<CR>", 'tx')
@@ -1696,7 +1696,7 @@ endfunc
 
 " Test for changing options in a sandbox
 func Test_opt_sandbox()
-  for opt in ['backupdir', 'cdpath', 'exrc', 'findfunc']
+  for opt in ['backupdir', 'cdpath', 'exrc', 'findfunc', 'tagsecure']
     call assert_fails('sandbox set ' .. opt .. '?', 'E48:')
     call assert_fails('sandbox let &' .. opt .. ' = 1', 'E48:')
   endfor

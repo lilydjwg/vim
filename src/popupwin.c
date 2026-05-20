@@ -1356,15 +1356,15 @@ popup_get_clipwin(win_T *wp)
 //   clip_*_content : how many *content* rows/cols are clipped at each edge
 //                    (border/padding is consumed first; the rest comes off
 //                    w_height/w_width).  >= 0.
-//   eff_*_extra    : 0 when that edge is clipped (border+padding gone),
-//                    otherwise the original *_extra.
 //   eff_border[],
 //   eff_padding[]  : per-edge border/padding sizes (indexed [top,right,bot,left]
-//                    matching wp->w_popup_border / wp->w_popup_padding).  At a
-//                    clipped edge they collapse to 0; elsewhere they keep the
-//                    original size.  Drawing code can replace
+//                    matching wp->w_popup_border / wp->w_popup_padding).  The
+//                    clip consumes the border first, then the padding, so when
+//                    only the border is clipped the padding still survives.
+//                    Drawing code can replace
 //                    `wp->w_popup_border[N] > 0 && wp->w_popup_*clip == 0`
 //                    with a single `cl.eff_border[N] > 0` test.
+//   eff_*_extra    : eff_border + eff_padding at that edge (visible decoration).
 //   eff_height     : drawn extent = eff_top_extra + visible content + eff_bot_extra.
 //   eff_width      : drawn extent = eff_left_extra + visible content + eff_right_extra
 //                    (does NOT include w_leftcol or scrollbar; see callers).
@@ -1414,20 +1414,94 @@ popup_compute_clip(win_T *wp, popup_clip_T *cl)
     if (cl->clip_right_content < 0)
 	cl->clip_right_content = 0;
 
-    cl->eff_top_extra = wp->w_popup_topoff > 0 ? 0 : cl->top_extra;
-    cl->eff_bot_extra = wp->w_popup_bottomoff > 0 ? 0 : cl->bot_extra;
+    // Border is consumed before padding: when only the border row/column is
+    // clipped, the adjacent padding row/column is still visible.  Horizontal
+    // edges keep the previous all-or-nothing behaviour for now; the drawing
+    // code there still uses original w_popup_border / w_popup_padding offsets.
+    {
+	int clip = wp->w_popup_topoff;
+	int b = wp->w_popup_border[0];
+	int p = wp->w_popup_padding[0];
+	int rem;
+
+	if (clip >= b)
+	{
+	    cl->eff_border[0] = 0;
+	    rem = clip - b;
+	    cl->eff_padding[0] = (rem >= p) ? 0 : p - rem;
+	}
+	else
+	{
+	    cl->eff_border[0] = b;
+	    cl->eff_padding[0] = p;
+	}
+    }
+    {
+	int clip = wp->w_popup_bottomoff;
+	int b = wp->w_popup_border[2];
+	int p = wp->w_popup_padding[2];
+	int rem;
+
+	if (clip >= b)
+	{
+	    cl->eff_border[2] = 0;
+	    rem = clip - b;
+	    cl->eff_padding[2] = (rem >= p) ? 0 : p - rem;
+	}
+	else
+	{
+	    cl->eff_border[2] = b;
+	    cl->eff_padding[2] = p;
+	}
+    }
+    cl->eff_border[1] = wp->w_popup_rightclip > 0 ? 0 : wp->w_popup_border[1];
+    cl->eff_border[3] = wp->w_popup_leftclip > 0 ? 0 : wp->w_popup_border[3];
+    cl->eff_padding[1] = wp->w_popup_rightclip > 0 ? 0 : wp->w_popup_padding[1];
+    cl->eff_padding[3] = wp->w_popup_leftclip > 0 ? 0 : wp->w_popup_padding[3];
+
+    // When a clip on one edge runs past the content rows, the excess must
+    // eat into the OPPOSITE edge's decorations.  Otherwise the surviving
+    // padding/border can land outside the host (e.g. a popup whose body is
+    // wholly below the host still drew its top padding onto the status row).
+    {
+	int excess = wp->w_popup_bottomoff - cl->bot_extra - wp->w_height;
+	if (excess > 0)
+	{
+	    if (excess >= cl->eff_padding[0])
+	    {
+		excess -= cl->eff_padding[0];
+		cl->eff_padding[0] = 0;
+		if (excess >= cl->eff_border[0])
+		    cl->eff_border[0] = 0;
+		else
+		    cl->eff_border[0] -= excess;
+	    }
+	    else
+		cl->eff_padding[0] -= excess;
+	}
+    }
+    {
+	int excess = wp->w_popup_topoff - cl->top_extra - wp->w_height;
+	if (excess > 0)
+	{
+	    if (excess >= cl->eff_padding[2])
+	    {
+		excess -= cl->eff_padding[2];
+		cl->eff_padding[2] = 0;
+		if (excess >= cl->eff_border[2])
+		    cl->eff_border[2] = 0;
+		else
+		    cl->eff_border[2] -= excess;
+	    }
+	    else
+		cl->eff_padding[2] -= excess;
+	}
+    }
+
+    cl->eff_top_extra = cl->eff_border[0] + cl->eff_padding[0];
+    cl->eff_bot_extra = cl->eff_border[2] + cl->eff_padding[2];
     cl->eff_left_extra = wp->w_popup_leftclip > 0 ? 0 : cl->left_extra;
     cl->eff_right_extra = wp->w_popup_rightclip > 0 ? 0 : cl->right_extra;
-
-    cl->eff_border[0] = wp->w_popup_topoff > 0 ? 0 : wp->w_popup_border[0];
-    cl->eff_border[1] = wp->w_popup_rightclip > 0 ? 0 : wp->w_popup_border[1];
-    cl->eff_border[2] = wp->w_popup_bottomoff > 0 ? 0 : wp->w_popup_border[2];
-    cl->eff_border[3] = wp->w_popup_leftclip > 0 ? 0 : wp->w_popup_border[3];
-
-    cl->eff_padding[0] = wp->w_popup_topoff > 0 ? 0 : wp->w_popup_padding[0];
-    cl->eff_padding[1] = wp->w_popup_rightclip > 0 ? 0 : wp->w_popup_padding[1];
-    cl->eff_padding[2] = wp->w_popup_bottomoff > 0 ? 0 : wp->w_popup_padding[2];
-    cl->eff_padding[3] = wp->w_popup_leftclip > 0 ? 0 : wp->w_popup_padding[3];
 
     h = wp->w_height - cl->clip_top_content - cl->clip_bot_content;
     if (h < 0)
@@ -2172,10 +2246,14 @@ popup_adjust_position(win_T *wp)
     }
 
     if (adjust_height_for_top_aligned && wp->w_want_scrollbar
+			  && !(wp->w_popup_flags & POPF_CLIPWINDOW)
 			  && wp->w_winrow + wp->w_height + extra_height > Rows)
     {
 	// Bottom of the popup goes below the last line, reduce the height and
-	// add a scrollbar.
+	// add a scrollbar.  For "clipwindow" popups the host-window clip
+	// already truncates the popup to fit inside the host, so we must not
+	// also force a scrollbar here -- that would widen the popup by one
+	// column the moment its decoration crossed the screen edge.
 	wp->w_height = Rows - wp->w_winrow - extra_height;
 #ifdef FEAT_TERMINAL
 	if (wp->w_buffer->b_term == NULL || term_is_finished(wp->w_buffer))
@@ -6175,9 +6253,13 @@ update_popups(void (*win_update)(win_T *wp))
 
 	for (i = 0; i < 4; ++i)
 	{
-	    border_attr[i] = popup_attr;
 	    if (wp->w_border_highlight[i] != NULL)
 		border_attr[i] = syn_name2attr(wp->w_border_highlight[i]);
+	    else if (wp->w_hlfwin_id != 0
+				       || (wp->w_popup_flags & POPF_INFO))
+		border_attr[i] = popup_attr;
+	    else
+		border_attr[i] = HL_ATTR(HLF_POPB);
 
 	    // Apply blend to border attributes for popup with opacitys
 	    if ((wp->w_popup_flags & POPF_OPACITY) && wp->w_popup_blend > 0)
@@ -6194,6 +6276,16 @@ update_popups(void (*win_update)(win_T *wp))
 	title_wincol = wp->w_wincol + 1;
 	if (wp->w_popup_title != NULL)
 	{
+	    int	    title_attr;
+
+	    if (wp->w_popup_border[0] > 0 && wp->w_border_highlight[0] != NULL)
+		title_attr = border_attr[0];
+	    else if (wp->w_hlfwin_id != 0
+				       || (wp->w_popup_flags & POPF_INFO))
+		title_attr = popup_attr;
+	    else
+		title_attr = HL_ATTR(HLF_POPT);
+
 	    title_len = vim_strsize(wp->w_popup_title);
 
 	    // truncate the title if too long
@@ -6207,8 +6299,7 @@ update_popups(void (*win_update)(win_T *wp))
 		    trunc_string(wp->w_popup_title, title_text,
 					  total_width - 2, title_byte_len + 1);
 		    screen_puts(title_text, wp->w_winrow, title_wincol,
-				  wp->w_popup_border[0] > 0
-						? border_attr[0] : popup_attr);
+								   title_attr);
 		    vim_free(title_text);
 		}
 
@@ -6216,7 +6307,7 @@ update_popups(void (*win_update)(win_T *wp))
 	    }
 	    else
 		screen_puts(wp->w_popup_title, wp->w_winrow, title_wincol,
-		      wp->w_popup_border[0] > 0 ? border_attr[0] : popup_attr);
+								   title_attr);
 	}
 
 	wincol = wp->w_wincol - wp->w_popup_leftoff + wp->w_popup_leftclip;
@@ -6267,7 +6358,7 @@ update_popups(void (*win_update)(win_T *wp))
 	}
 	if (top_padding > 0)
 	{
-	    row = wp->w_winrow + wp->w_popup_border[0];
+	    row = wp->w_winrow + cl.eff_border[0];
 	    if (title_len > 0 && row == wp->w_winrow)
 	    {
 		// top padding and no border; do not draw over the title
@@ -6432,14 +6523,20 @@ update_popups(void (*win_update)(win_T *wp))
 
 	if (cl.eff_padding[2] > 0)
 	{
-	    // bottom padding
-	    row = wp->w_winrow + wp->w_popup_border[0]
-				       + wp->w_popup_padding[0] + wp->w_height;
+	    // bottom padding -- sits right after the visible content rows.
+	    // Derive the row from total_height so it always lands inside the
+	    // popup's drawn extent, including the corner case where the top
+	    // clip consumes more rows than the content itself (so the visible
+	    // content height is zero).  A formula based on
+	    // w_height - clip_top_content - clip_bot_content can go negative
+	    // there and would draw the padding above w_winrow.
+	    row = wp->w_winrow + total_height
+		    - cl.eff_padding[2] - cl.eff_border[2];
 	    if (screen_opacity_popup != NULL && saved_screen.lines != NULL)
-		fill_opacity_padding(row, row + wp->w_popup_padding[2],
+		fill_opacity_padding(row, row + cl.eff_padding[2],
 			padcol, padendcol, &saved_screen);
 	    else
-		screen_fill(row, row + wp->w_popup_padding[2],
+		screen_fill(row, row + cl.eff_padding[2],
 					   padcol, padendcol, ' ', ' ', popup_attr);
 	}
 

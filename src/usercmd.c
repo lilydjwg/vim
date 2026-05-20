@@ -344,15 +344,18 @@ set_context_in_user_cmdarg(
 	return set_context_in_map_cmd(xp, (char_u *)"map", arg, forceit, FALSE,
 							FALSE, CMD_map);
     // Find start of last argument.
-    p = arg;
-    while (*p)
+    if (!(argt & EX_ARGSPACE))
     {
-	if (*p == ' ')
-	    // argument starts after a space
-	    arg = p + 1;
-	else if (*p == '\\' && *(p + 1) != NUL)
-	    ++p; // skip over escaped character
-	MB_PTR_ADV(p);
+	p = arg;
+	while (*p)
+	{
+	    if (*p == ' ')
+		// argument starts after a space
+		arg = p + 1;
+	    else if (*p == '\\' && *(p + 1) != NUL)
+		++p; // skip over escaped character
+	    MB_PTR_ADV(p);
+	}
     }
     xp->xp_pattern = arg;
     xp->xp_context = context;
@@ -451,7 +454,7 @@ get_user_cmd_flags(expand_T *xp UNUSED, int idx)
     char_u *
 get_user_cmd_nargs(expand_T *xp UNUSED, int idx)
 {
-    static char *user_cmd_nargs[] = {"0", "1", "*", "?", "+"};
+    static char *user_cmd_nargs[] = {"0", "1", "_", "*", "?", "+"};
 
     if (idx < 0 || idx >= (int)ARRAY_LENGTH(user_cmd_nargs))
 	return NULL;
@@ -640,13 +643,14 @@ uc_list(char_u *name, size_t name_len)
 	    len = 0;
 
 	    // Arguments
-	    switch ((int)(a & (EX_EXTRA|EX_NOSPC|EX_NEEDARG)))
+	    switch ((int)(a & (EX_EXTRA|EX_NOSPC|EX_NEEDARG|EX_ARGSPACE)))
 	    {
 		case 0:				IObuff[len++] = '0'; break;
 		case (EX_EXTRA):		IObuff[len++] = '*'; break;
 		case (EX_EXTRA|EX_NOSPC):	IObuff[len++] = '?'; break;
 		case (EX_EXTRA|EX_NEEDARG):	IObuff[len++] = '+'; break;
 		case (EX_EXTRA|EX_NOSPC|EX_NEEDARG): IObuff[len++] = '1'; break;
+		case (EX_EXTRA|EX_NOSPC|EX_NEEDARG|EX_ARGSPACE): IObuff[len++] = '_'; break;
 	    }
 
 	    do
@@ -975,6 +979,8 @@ uc_scan_attr(
 		    *argt |= (EX_EXTRA | EX_NOSPC);
 		else if (*val == '+')
 		    *argt |= (EX_EXTRA | EX_NEEDARG);
+		else if (*val == '_')
+		    *argt |= (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE);
 		else
 		    goto wrong_nargs;
 	    }

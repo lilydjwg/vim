@@ -18,11 +18,9 @@ SRC_ALL =	\
 		.github/dependabot.yml \
 		.gitignore \
 		.hgignore \
-		.appveyor.yml \
 		.clang-format \
 		.codecov.yml \
 		.editorconfig \
-		ci/appveyor.bat \
 		ci/config.mk*.sed \
 		ci/gen_testset.py \
 		ci/if_ver*.vim \
@@ -500,6 +498,9 @@ SRC_UNIX =	\
 		src/gui_gtk_f.c \
 		src/gui_gtk_f.h \
 		src/gui_gtk_x11.c \
+		src/gui_gtk4.c \
+		src/gui_gtk4_f.c \
+		src/gui_gtk4_f.h \
 		src/gui_gtk_res.xml \
 		src/gui_motif.c \
 		src/gui_xmdlg.c \
@@ -529,6 +530,7 @@ SRC_UNIX =	\
 		src/proto/gui_gtk.pro \
 		src/proto/gui_gtk_x11.pro \
 		src/proto/gui_gtk_gresources.pro \
+		src/proto/gui_gtk4.pro \
 		src/proto/gui_motif.pro \
 		src/proto/gui_xmdlg.pro \
 		src/proto/gui_x11.pro \
@@ -1195,7 +1197,6 @@ LANG_DOS = \
 # be excluded from distribution tarballs and the like.
 # This excludes them from the CI check for unlisted files.
 IGNORE = \
-		.appveyor.yml \
 		.github/FUNDING.yml \
 		.github/labeler.yml \
 		.github/workflows/label.yml \
