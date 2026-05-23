@@ -112,13 +112,6 @@ vim_parse_geometry(const char *str, int *x, int *y,
     return mask;
 }
 
-#ifdef FEAT_SOCKETSERVER
-# include <glib-unix.h>
-
-// Used to track the source for the listening socket
-static guint socket_server_source_id = 0;
-#endif
-
 #if defined(FEAT_MOUSESHAPE)
 // Last set mouse pointer shape
 static int last_shape = 0;
@@ -290,6 +283,8 @@ static gboolean delete_event_cb(GtkWindow *window, gpointer data);
 static void drawarea_realize_cb(GtkWidget *widget, gpointer data);
 static void drawarea_unrealize_cb(GtkWidget *widget, gpointer data);
 static void drawarea_resize_cb(GtkDrawingArea *area, int width, int height, gpointer data);
+static void drawarea_scale_factor_cb(GObject *object, GParamSpec *pspec, gpointer data);
+static cairo_surface_t *create_backing_surface(int width, int height);
 
 /*
  * Parse the GUI related command-line arguments.  Any arguments used are
@@ -482,7 +477,7 @@ gui_mch_init(void)
 #ifdef FEAT_GUI_TABLINE
     gui.tabline = gtk_notebook_new();
     gtk_notebook_set_show_border(GTK_NOTEBOOK(gui.tabline), FALSE);
-    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(gui.tabline), FALSE);
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(gui.tabline), TRUE);
     gtk_notebook_set_scrollable(GTK_NOTEBOOK(gui.tabline), TRUE);
     gtk_widget_set_visible(gui.tabline, FALSE);
     gtk_box_append(GTK_BOX(vbox), gui.tabline);
@@ -523,6 +518,8 @@ gui_mch_init(void)
 		     G_CALLBACK(drawarea_unrealize_cb), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "resize",
 		     G_CALLBACK(drawarea_resize_cb), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "notify::scale-factor",
+		     G_CALLBACK(drawarea_scale_factor_cb), NULL);
 
     // Set up event controllers.
     {
@@ -531,7 +528,10 @@ gui_mch_init(void)
 			 G_CALLBACK(key_press_event), NULL);
 	g_signal_connect(key_ctrl, "key-released",
 			 G_CALLBACK(key_release_event), NULL);
-	gtk_widget_add_controller(gui.mainwin, key_ctrl);
+	gtk_widget_add_controller(gui.drawarea, key_ctrl);
+#ifdef FEAT_XIM
+	xim_init();
+#endif
     }
 
     {
@@ -772,15 +772,9 @@ gui_mch_set_shellsize(int width, int height,
 	int base_width UNUSED, int base_height UNUSED,
 	int direction UNUSED)
 {
-    // Only set window size if it hasn't been shown yet (initial sizing).
-    // After that, the window size is controlled by the user/WM and
-    // Vim adapts to it via form_size_allocate -> gui_resize_shell.
-    if (!gtk_widget_get_realized(gui.mainwin))
-    {
-	width += get_menu_tool_width();
-	height += get_menu_tool_height();
-	gtk_window_set_default_size(GTK_WINDOW(gui.mainwin), width, height);
-    }
+    width += get_menu_tool_width();
+    height += get_menu_tool_height();
+    gtk_window_set_default_size(GTK_WINDOW(gui.mainwin), width, height);
 }
 
     void
@@ -1106,6 +1100,10 @@ gui_mch_init_font(char_u *font_name, int fontset UNUSED)
     get_styled_font_variants();
     ascii_glyph_table_init();
 
+    // im window position depends on cursor size which depends on font metrics
+    // update the position after we've initialized font
+    im_set_position(gui.row, gui.col);
+
     return OK;
 }
 
@@ -1302,6 +1300,34 @@ set_cairo_source_from_pixel(cairo_t *cr, guicolor_T pixel)
 	    (pixel & 0xff) / 255.0);
 }
 
+    static int
+get_drawarea_scale(void)
+{
+    int scale = 1;
+
+    if (gui.drawarea != NULL)
+	scale = gtk_widget_get_scale_factor(gui.drawarea);
+    if (scale < 1)
+	scale = 1;
+    return scale;
+}
+
+    static cairo_surface_t *
+create_backing_surface(int width, int height)
+{
+    cairo_surface_t *surf;
+    int		    scale;
+
+    if (width <= 0 || height <= 0)
+	return NULL;
+
+    scale = get_drawarea_scale();
+    surf = cairo_image_surface_create(
+	    CAIRO_FORMAT_ARGB32, width * scale, height * scale);
+    cairo_surface_set_device_scale(surf, (double)scale, (double)scale);
+    return surf;
+}
+
     void
 gui_mch_clear_block(int row1, int col1, int row2, int col2)
 {
@@ -1352,7 +1378,9 @@ surface_copy_rect(int dest_x, int dest_y,
 	return;
 
     // Use a temporary surface to avoid overlap issues
-    tmp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+    tmp = create_backing_surface(width, height);
+    if (tmp == NULL)
+	return;
     cr = cairo_create(tmp);
     cairo_set_source_surface(cr, gui.surface, -src_x, -src_y);
     cairo_paint(cr);
@@ -1829,18 +1857,17 @@ drawarea_realize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
 
     if (gui.surface != NULL)
 	cairo_surface_destroy(gui.surface);
-    gui.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+    gui.surface = create_backing_surface(w, h);
 
     gui_mch_new_colors();
-
-#ifdef FEAT_XIM
-    xim_init();
-#endif
 }
 
     static void
 drawarea_unrealize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
 {
+#ifdef FEAT_XIM
+    im_shutdown();
+#endif
     if (gui.surface != NULL)
     {
 	cairo_surface_destroy(gui.surface);
@@ -1853,14 +1880,15 @@ drawarea_resize_cb(GtkDrawingArea *area UNUSED, int width, int height,
 	gpointer data UNUSED)
 {
     cairo_t *cr;
+    int	    scale = get_drawarea_scale();
 
     if (width <= 0 || height <= 0)
 	return;
 
     if (gui.surface != NULL)
     {
-	int sw = cairo_image_surface_get_width(gui.surface);
-	int sh = cairo_image_surface_get_height(gui.surface);
+	int sw = cairo_image_surface_get_width(gui.surface) / scale;
+	int sh = cairo_image_surface_get_height(gui.surface) / scale;
 
 	if (sw == width && sh == height)
 	    return;
@@ -1872,8 +1900,7 @@ drawarea_resize_cb(GtkDrawingArea *area UNUSED, int width, int height,
     // Do not copy old surface content: gui_resize_shell() will trigger
     // a full redraw, and stale content (e.g. intro screen text) would
     // otherwise remain as ghost artifacts.
-    gui.surface = cairo_image_surface_create(
-	    CAIRO_FORMAT_ARGB32, width, height);
+    gui.surface = create_backing_surface(width, height);
     cr = cairo_create(gui.surface);
     set_cairo_source_from_pixel(cr, gui.back_pixel);
     cairo_paint(cr);
@@ -1881,6 +1908,36 @@ drawarea_resize_cb(GtkDrawingArea *area UNUSED, int width, int height,
 
     // Notify Vim about the new size - this will cause a full redraw
     gui_resize_shell(width, height);
+}
+
+    static void
+drawarea_scale_factor_cb(GObject *object UNUSED,
+	GParamSpec *pspec UNUSED, gpointer data UNUSED)
+{
+    int	w, h;
+
+    if (gui.drawarea == NULL)
+	return;
+
+    w = gtk_widget_get_width(gui.drawarea);
+    h = gtk_widget_get_height(gui.drawarea);
+    if (w <= 0 || h <= 0)
+	return;
+
+    if (gui.surface != NULL)
+	cairo_surface_destroy(gui.surface);
+    gui.surface = create_backing_surface(w, h);
+
+    if (gui.surface != NULL)
+    {
+	cairo_t *cr = cairo_create(gui.surface);
+	set_cairo_source_from_pixel(cr, gui.back_pixel);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+    }
+    gtk_widget_queue_draw(gui.drawarea);
+    if (gui.in_use)
+	redraw_all_later(UPD_CLEAR);
 }
 
 #ifdef FEAT_DND
@@ -2265,7 +2322,7 @@ gui_mch_update_tabline(void)
 	    gtk_box_append(GTK_BOX(event_box), label);
 	    gtk_widget_set_visible(label, TRUE);
 	    gtk_notebook_insert_page(GTK_NOTEBOOK(gui.tabline),
-		    page, event_box, nr++);
+		    page, event_box, nr);
 	    gtk_notebook_set_tab_reorderable(GTK_NOTEBOOK(gui.tabline),
 		    page, TRUE);
 	}
@@ -2925,59 +2982,6 @@ gui_get_x11_windis(Window *win UNUSED, Display **dis UNUSED)
 {
     // GTK4: not applicable
     return FAIL;
-}
-
-#if defined(FEAT_SOCKETSERVER)
-
-/*
- * Callback for new events from the socket server listening socket.
- */
-    static int
-socket_server_poll_in(int fd UNUSED, GIOCondition cond,
-		      void *user_data UNUSED)
-{
-    if (cond & G_IO_IN)
-	socket_server_accept_client();
-    else if (cond & (G_IO_ERR | G_IO_HUP))
-    {
-	socket_server_uninit();
-	return FALSE;
-    }
-
-    return TRUE;
-}
-
-#endif // FEAT_SOCKETSERVER
-
-/*
- * Initialize socket server for use in the GUI (does not actually initialize
- * the socket server, only attaches a source).
- */
-    void
-gui_gtk_init_socket_server(void)
-{
-#if defined(FEAT_SOCKETSERVER)
-    if (socket_server_source_id > 0)
-	return;
-    // Register source for file descriptor to global default context
-    socket_server_source_id = g_unix_fd_add(socket_server_get_fd(),
-	    G_IO_IN | G_IO_ERR | G_IO_HUP, socket_server_poll_in, NULL);
-#endif
-}
-
-/*
- * Remove the source for the socket server listening socket.
- */
-    void
-gui_gtk_uninit_socket_server(void)
-{
-#if defined(FEAT_SOCKETSERVER)
-    if (socket_server_source_id > 0)
-    {
-	g_source_remove(socket_server_source_id);
-	socket_server_source_id = 0;
-    }
-#endif
 }
 
     void
@@ -3791,15 +3795,17 @@ gui_mch_set_text_area_pos(int x, int y, int w, int h)
     // Update surface to match new text area size
     if (w > 0 && h > 0)
     {
+	int scale = get_drawarea_scale();
+
 	if (gui.surface != NULL)
 	{
-	    int sw = cairo_image_surface_get_width(gui.surface);
-	    int sh = cairo_image_surface_get_height(gui.surface);
+	    int sw = cairo_image_surface_get_width(gui.surface) / scale;
+	    int sh = cairo_image_surface_get_height(gui.surface) / scale;
 	    if (sw == w && sh == h)
 		return;
 	    cairo_surface_destroy(gui.surface);
 	}
-	gui.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+	gui.surface = create_backing_surface(w, h);
     }
 }
 

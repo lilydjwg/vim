@@ -1139,7 +1139,7 @@ EXTERN char e_cant_read_postscript_resource_file_str[]
 	INIT(= N_("E457: Can't read PostScript resource file \"%s\""));
 #endif
 // E458 unused
-#if defined(UNIX) || defined(FEAT_SESSION)
+#if defined(UNIX) || defined(FEAT_SESSION) || defined(FEAT_SOCKETSERVER)
 EXTERN char e_cannot_go_back_to_previous_directory[]
 	INIT(= N_("E459: Cannot go back to previous directory"));
 #endif
@@ -3564,7 +3564,8 @@ EXTERN char e_abstract_cannot_be_used_in_interface[]
 	INIT(= N_("E1404: Abstract cannot be used in an interface"));
 EXTERN char e_using_class_as_value_str[]
 	INIT(= N_("E1405: Class \"%s\" cannot be used as a value"));
-// E1406 unused
+EXTERN char e_public_and_protected_member_have_same_name_str_str[]
+	INIT(= N_("E1406: Public and protected member have the same name: %s and _%s"));
 EXTERN char e_using_typealias_as_var_val[]
 	INIT(= N_("E1407: Cannot use a Typealias as a variable or value"));
 EXTERN char e_final_variable_not_supported_in_interface[]
@@ -3776,16 +3777,14 @@ EXTERN char e_diff_anchors_with_hidden_windows[]
 	INIT(= N_("E1562: Diff anchors cannot be used with hidden diff windows"));
 #endif
 #ifdef FEAT_SOCKETSERVER
-EXTERN char e_socket_path_too_big[]
-	INIT(= N_("E1563: Socket path is too big"));
 EXTERN char e_socket_name_no_slashes[]
-	INIT(= N_("E1564: Socket name cannot have slashes in it without being a path"));
+	INIT(= N_("E1564: Socket name '%s' cannot have slashes in it without being a path"));
 EXTERN char e_socket_server_not_online[]
 	INIT(= N_("E1565: Socket server is not online, call remote_startserver() first"));
 EXTERN char e_socket_server_failed_connecting[]
-	INIT(= N_("E1566: Failed connecting to socket %s: %s"));
-EXTERN char e_socket_server_unavailable[]
-	INIT(= N_("E1567: Cannot start socket server, socket path is unavailable"));
+	INIT(= N_("E1566: Failed connecting to socket '%s'"));
+EXTERN char e_socket_server_version_mismatch[]
+	INIT(= N_("E1567: Socket server protocol version mismatch, check what Vim version you are using"));
 #endif
 EXTERN char e_osc_response_timed_out[]
 	INIT(= N_("E1568: OSC command response timed out: %.*s"));
@@ -3813,3 +3812,7 @@ EXTERN char e_tag_file_entry_must_not_be_url[]
 	INIT(= N_("E1576: Tag file entry must not be a URL"));
 EXTERN char e_invalid_format_string_single_percent_s[]
 	INIT(= N_("E1577: Invalid format string, only one \"%s\" is allowed"));
+#ifdef FEAT_SPELL
+EXTERN char e_too_many_postponed_prefixes_spell[]
+	INIT(= N_("E1578: Too many postponed prefixes and/or compound flags"));
+#endif

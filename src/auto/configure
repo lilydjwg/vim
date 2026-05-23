@@ -850,7 +850,6 @@ enable_netbeans
 enable_channel
 enable_terminal
 enable_autoservername
-enable_socketserver
 enable_multibyte
 enable_rightleft
 enable_arabic
@@ -1532,7 +1531,6 @@ Optional Features:
   --disable-channel       Disable process communication support.
   --enable-terminal       Enable terminal emulation support.
   --enable-autoservername Automatically define servername at vim startup.
-  --enable-socketserver Use sockets for clientserver communication.
   --enable-multibyte      Include multibyte editing support.
   --disable-rightleft     Do not include Right-to-Left language support.
   --disable-arabic        Do not include Arabic language support.
@@ -5193,7 +5191,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam \
 
             CPPFLAGS="$CPPFLAGS -DMACOS_X_DARWIN"
 
-               if test -z "$with_x" -a "X$enable_gui" != Xmotif -a "X$enable_gui" != Xgtk2 -a "X$enable_gui" != Xgtk3; then
+               if test -z "$with_x" -a "X$enable_gui" != Xmotif -a "X$enable_gui" != Xgtk2 -a "X$enable_gui" != Xgtk3 -a "X$enable_gui" != Xgtk4; then
       with_x=no
      fi
   fi
@@ -9077,36 +9075,6 @@ if test "$enable_autoservername" = "yes"; then
 
 fi
 
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking --enable-socketserver argument" >&5
-printf %s "checking --enable-socketserver argument... " >&6; }
-# Check whether --enable-socketserver was given.
-if test ${enable_socketserver+y}
-then :
-  enableval=$enable_socketserver; enable_socketserver=$enableval
-else case e in #(
-  e) if test "x$features" = xtiny
-then :
-  enable_socketserver=no_msg
-			 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: cannot use socketserver with tiny features" >&5
-printf "%s\n" "cannot use socketserver with tiny features" >&6; }
-else case e in #(
-  e) enable_socketserver=yes ;;
-esac
-fi ;;
-esac
-fi
-
-
-if test "$enable_socketserver" = "yes"; then
-  printf "%s\n" "#define WANT_SOCKETSERVER 1" >>confdefs.h
-
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-printf "%s\n" "yes" >&6; }
-elif test "$enable_socketserver" = "no"; then
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
-printf "%s\n" "no" >&6; }
-fi
-
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking --enable-multibyte argument" >&5
 printf %s "checking --enable-multibyte argument... " >&6; }
 # Check whether --enable-multibyte was given.
@@ -9296,8 +9264,11 @@ CPPFLAGS=$cppflags_save
 CFLAGS=$cflags_save
 fi
 
+if test "x$enable_gui" = "xgtk4"; then
+  with_x=no
+fi
 test -z "$with_x" && with_x=yes
-test "${enable_gui-yes}" != no -a "x$MACOS_X" != "xyes" -a "x$QNX" != "xyes" && with_x=yes
+test "${enable_gui-yes}" != no -a "x$MACOS_X" != "xyes" -a "x$QNX" != "xyes" -a "x$enable_gui" != "xgtk4" && with_x=yes
 if test "$with_x" = no; then
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: defaulting to: don't HAVE_X11" >&5
 printf "%s\n" "defaulting to: don't HAVE_X11" >&6; }
@@ -10465,11 +10436,11 @@ printf "%s\n" "#define SIZEOF_WCHAR_T $ac_cv_sizeof_wchar_t" >>confdefs.h
   fi
 fi
 
-if test "x$with_x" = xno -a "x$with_x_arg" = xyes; then
+if test "x$with_x" = xno -a "x$with_x_arg" = xyes -a "x$enable_gui" != "xgtk4"; then
     as_fn_error $? "could not configure X" "$LINENO" 5
 fi
 
-test "x$with_x" = xno -a "x$HAIKU" != "xyes" -a "x$MACOS_X" != "xyes" -a "x$QNX" != "xyes" && enable_gui=no
+test "x$with_x" = xno -a "x$HAIKU" != "xyes" -a "x$MACOS_X" != "xyes" -a "x$QNX" != "xyes" -a "x$enable_gui" != xgtk4 && enable_gui=no
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking --enable-gui argument" >&5
 printf %s "checking --enable-gui argument... " >&6; }
@@ -11921,7 +11892,7 @@ printf "%s\n" "$NARROW_PROTO" >&6; }
 
 fi
 
-if test "$enable_xsmp" = "yes"; then
+if test "$enable_xsmp" = "yes" -a "x$with_x" != "xno"; then
   cppflags_save=$CPPFLAGS
   CPPFLAGS="$CPPFLAGS $X_CFLAGS"
   ac_fn_c_check_header_compile "$LINENO" "X11/SM/SMlib.h" "ac_cv_header_X11_SM_SMlib_h" "$ac_includes_default"
