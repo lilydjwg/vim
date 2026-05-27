@@ -280,11 +280,13 @@ static gboolean drop_cb(GtkDropTarget *target, const GValue *value, double x, do
 #endif
 static void mainwin_destroy_cb(GObject *object, gpointer data);
 static gboolean delete_event_cb(GtkWindow *window, gpointer data);
+static void mainwin_fullscreened_cb(GObject *obj, GParamSpec *pspec, gpointer user_data);
 static void drawarea_realize_cb(GtkWidget *widget, gpointer data);
 static void drawarea_unrealize_cb(GtkWidget *widget, gpointer data);
 static void drawarea_resize_cb(GtkDrawingArea *area, int width, int height, gpointer data);
 static void drawarea_scale_factor_cb(GObject *object, GParamSpec *pspec, gpointer data);
 static cairo_surface_t *create_backing_surface(int width, int height);
+static void clipboard_changed_cb(GdkClipboard *clipboard, gpointer user_data);
 
 /*
  * Parse the GUI related command-line arguments.  Any arguments used are
@@ -448,6 +450,8 @@ gui_mch_init(void)
 
     g_signal_connect(G_OBJECT(gui.mainwin), "close-request",
 		     G_CALLBACK(delete_event_cb), NULL);
+    g_signal_connect(G_OBJECT(gui.mainwin), "notify::fullscreened",
+		     G_CALLBACK(mainwin_fullscreened_cb), NULL);
 
     // A vertical box holds the menubar, toolbar and main text window.
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -588,6 +592,19 @@ gui_mch_init(void)
 
     // Create a blank (invisible) cursor for hiding the mouse pointer.
     gui.blank_pointer = gdk_cursor_new_from_name("none", NULL);
+
+    {
+	GdkDisplay   *display = gtk_widget_get_display(gui.mainwin);
+	GdkClipboard *primary = gdk_display_get_primary_clipboard(display);
+	GdkClipboard *board = gdk_display_get_clipboard(display);
+
+	if (primary != NULL)
+	    g_signal_connect(primary, "changed",
+		    G_CALLBACK(clipboard_changed_cb), &clip_star);
+	if (board != NULL)
+	    g_signal_connect(board, "changed",
+		    G_CALLBACK(clipboard_changed_cb), &clip_plus);
+    }
 
     return OK;
 }
@@ -731,6 +748,26 @@ gui_mch_unmaximize(void)
 {
     if (gui.mainwin != NULL)
 	gtk_window_unmaximize(GTK_WINDOW(gui.mainwin));
+}
+
+    void
+gui_mch_set_fullscreen(int flag)
+{
+    if (gui.mainwin == NULL)
+	return;
+    if (flag)
+	gtk_window_fullscreen(GTK_WINDOW(gui.mainwin));
+    else
+	gtk_window_unfullscreen(GTK_WINDOW(gui.mainwin));
+}
+
+    static void
+mainwin_fullscreened_cb(GObject *obj,
+	GParamSpec *pspec UNUSED, gpointer user_data UNUSED)
+{
+    // Force a redraw of the drawing area when entering fullscreen mode.
+    if (gtk_window_is_fullscreen(GTK_WINDOW(obj)))
+	gui_focus_change(TRUE);
 }
 
 /*
@@ -2158,12 +2195,58 @@ gui_mch_set_foreground(void)
     gtk_window_present(GTK_WINDOW(gui.mainwin));
 }
 
+    static int
+query_pointer_pos(int *x, int *y)
+{
+    GtkNative	    *native;
+    GdkSurface	    *surface;
+    GdkDisplay	    *display;
+    GdkSeat	    *seat;
+    GdkDevice	    *pointer;
+    double	     sx, sy, nx, ny;
+    graphene_point_t src, dst;
+
+    if (gui.drawarea == NULL)
+	return FALSE;
+    native = gtk_widget_get_native(gui.drawarea);
+    if (native == NULL)
+	return FALSE;
+    surface = gtk_native_get_surface(native);
+    if (surface == NULL)
+	return FALSE;
+    display = gtk_widget_get_display(gui.drawarea);
+    if (display == NULL)
+	return FALSE;
+    seat = gdk_display_get_default_seat(display);
+    if (seat == NULL)
+	return FALSE;
+    pointer = gdk_seat_get_pointer(seat);
+    if (pointer == NULL)
+	return FALSE;
+
+    if (!gdk_surface_get_device_position(surface, pointer, &sx, &sy, NULL))
+	return FALSE;
+
+    gtk_native_get_surface_transform(native, &nx, &ny);
+    src.x = (float)(sx - nx);
+    src.y = (float)(sy - ny);
+    if (!gtk_widget_compute_point(GTK_WIDGET(native), gui.drawarea,
+		&src, &dst))
+	return FALSE;
+
+    *x = (int)dst.x;
+    *y = (int)dst.y;
+    return TRUE;
+}
+
     void
 gui_mch_getmouse(int *x, int *y)
 {
-    *x = 0;
-    *y = 0;
-    // GTK4: No reliable way to query pointer position synchronously.
+    if (!query_pointer_pos(x, y))
+    {
+	*x = 0;
+	*y = 0;
+    }
 }
 
     void
@@ -3130,6 +3213,8 @@ clip_mch_request_selection(Clipboard_T *cbd)
 	g_main_context_iteration(NULL, TRUE);
 }
 
+static int in_clipboard_set = FALSE;
+
 /*
  * Send the current selection to the clipboard.
  */
@@ -3174,12 +3259,26 @@ clip_mch_set_selection(Clipboard_T *cbd)
 	{
 	    mch_memmove(nul_str, str, len);
 	    nul_str[len] = NUL;
+	    in_clipboard_set = TRUE;
 	    gdk_clipboard_set_text(clipboard, (const char *)nul_str);
+	    in_clipboard_set = FALSE;
 	    vim_free(nul_str);
 	}
     }
 
     vim_free(str);
+}
+
+    static void
+clipboard_changed_cb(GdkClipboard *clipboard, gpointer user_data)
+{
+    Clipboard_T *cbd = (Clipboard_T *)user_data;
+
+    if (in_clipboard_set)
+	return;
+    if (gdk_clipboard_is_local(clipboard))
+	return;
+    clip_lose_selection(cbd);
 }
 
 /*
@@ -3205,8 +3304,12 @@ clip_mch_lose_selection(Clipboard_T *cbd)
     if (clipboard == NULL)
 	return;
 
-    // Setting NULL content provider releases ownership.
-    gdk_clipboard_set_content(clipboard, NULL);
+    // Only release ownership if we still own it.  Otherwise we would
+    // clobber another application's clipboard content with NULL, which
+    // happens when this is called from clipboard_changed_cb after a
+    // foreign app took the selection.
+    if (gdk_clipboard_is_local(clipboard))
+	gdk_clipboard_set_content(clipboard, NULL);
 }
 
 // Balloon eval - use GTK4 tooltip
@@ -3649,20 +3752,128 @@ gui_mch_destroy_menu(vimmenu_T *menu)
 popupmenu_closed_cb(GtkPopover *popover, gpointer data UNUSED)
 {
     gtk_widget_unparent(GTK_WIDGET(popover));
+    if (gui.drawarea != NULL)
+	gtk_widget_queue_draw(gui.drawarea);
+}
+
+typedef struct {
+    GtkPopover *popover;
+    vimmenu_T  *menu;
+} popup_item_data_T;
+
+    static void
+popup_item_clicked_cb(GtkButton *button UNUSED, gpointer data)
+{
+    popup_item_data_T *d = data;
+
+    if (d->popover != NULL)
+	gtk_popover_popdown(d->popover);
+    if (d->menu != NULL)
+    {
+	gui_menu_cb(d->menu);
+	gui_mch_flush();
+    }
+}
+
+    static void
+popup_item_data_free(gpointer data, GClosure *closure UNUSED)
+{
+    g_free(data);
 }
 
     void
 gui_mch_show_popupmenu(vimmenu_T *menu)
 {
-    GMenu *gmenu;
-    GtkWidget *popover;
+    GtkWidget	    *popover;
+    GtkWidget	    *box;
+    GtkWidget	    *parent;
+    GdkRectangle    rect;
+    vimmenu_T	    *child;
+    int		    mode;
+    int		    natural_width = 0;
 
-    if (menu == NULL || menu->submenu_id == NULL)
+    if (menu == NULL || menu->children == NULL)
 	return;
 
-    gmenu = (GMenu *)(gpointer)menu->submenu_id;
-    popover = gtk_popover_menu_new_from_model(G_MENU_MODEL(gmenu));
-    gtk_widget_set_parent(popover, gui.drawarea);
+    // Attach the popover to drawarea's parent (the GtkOverlay) rather than
+    // to drawarea itself. GtkDrawingArea is a leaf widget whose snapshot
+    // does not iterate children, and parenting a popover to it has been
+    // observed to leave the drawing area blank while the popover is open.
+    parent = gtk_widget_get_parent(gui.drawarea);
+    if (parent == NULL)
+	parent = gui.drawarea;
+
+    // Build the popover by hand instead of using gtk_popover_menu_new_from_model.
+    // GtkPopoverMenu relies on the "menu.<name>" action-group lookup walking up
+    // the parent chain, which has been observed to silently fail on some
+    // compositors when the popover is parented via gtk_widget_set_parent. Wiring
+    // each menu item to a plain "clicked" signal sidesteps that entirely.
+    popover = gtk_popover_new();
+    gtk_widget_set_parent(popover, parent);
+    gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
+    gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_BOTTOM);
+    gtk_widget_add_css_class(popover, "menu");
+
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_popover_set_child(GTK_POPOVER(popover), box);
+
+    mode = get_menu_mode_flag();
+
+    for (child = menu->children; child != NULL; child = child->next)
+    {
+	GtkWidget	    *item;
+	char_u		    *label;
+	popup_item_data_T   *cb_data;
+
+	if (menu_is_separator(child->name))
+	{
+	    item = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+	    gtk_box_append(GTK_BOX(box), item);
+	    continue;
+	}
+
+	label = CONVERT_TO_UTF8(child->dname);
+	item = gtk_button_new_with_mnemonic(
+		label != NULL ? (const char *)label : "");
+	CONVERT_TO_UTF8_FREE(label);
+
+	gtk_widget_add_css_class(item, "flat");
+	gtk_widget_add_css_class(item, "model");
+	gtk_button_set_has_frame(GTK_BUTTON(item), FALSE);
+	gtk_widget_set_halign(item, GTK_ALIGN_FILL);
+	{
+	    GtkWidget *btn_label = gtk_button_get_child(GTK_BUTTON(item));
+	    if (GTK_IS_LABEL(btn_label))
+		gtk_label_set_xalign(GTK_LABEL(btn_label), 0.0);
+	}
+
+	if (!(child->modes & child->enabled & mode))
+	    gtk_widget_set_sensitive(item, FALSE);
+
+	cb_data = g_new0(popup_item_data_T, 1);
+	cb_data->popover = GTK_POPOVER(popover);
+	cb_data->menu = child;
+	g_signal_connect_data(item, "clicked",
+		G_CALLBACK(popup_item_clicked_cb),
+		cb_data, popup_item_data_free, 0);
+
+	gtk_box_append(GTK_BOX(box), item);
+    }
+
+    if (!query_pointer_pos(&rect.x, &rect.y))
+    {
+	rect.x = 0;
+	rect.y = 0;
+    }
+    // GtkPopover with GTK_POS_BOTTOM centres horizontally on the pointing-to
+    // rectangle. Use the box's natural width so the popover's left edge ends
+    // up at the cursor (down-and-to-the-right of the pointer).
+    gtk_widget_measure(box, GTK_ORIENTATION_HORIZONTAL, -1,
+	    NULL, &natural_width, NULL, NULL);
+    rect.width = natural_width > 0 ? natural_width : 1;
+    rect.height = 1;
+    gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
+
     g_signal_connect(popover, "closed",
 	    G_CALLBACK(popupmenu_closed_cb), NULL);
     gtk_popover_popup(GTK_POPOVER(popover));

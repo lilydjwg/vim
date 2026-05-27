@@ -1591,6 +1591,7 @@ $quote	eval.txt	/*$quote*
 --clean	starting.txt	/*--clean*
 --clientserver	remote.txt	/*--clientserver*
 --cmd	starting.txt	/*--cmd*
+--display	starting.txt	/*--display*
 --echo-wid	starting.txt	/*--echo-wid*
 --gui-dialog-file	starting.txt	/*--gui-dialog-file*
 --help	starting.txt	/*--help*
@@ -7745,6 +7746,7 @@ ft_hare.txt	ft_hare.txt	/*ft_hare.txt*
 ft_mp.txt	ft_mp.txt	/*ft_mp.txt*
 ft_ps1.txt	ft_ps1.txt	/*ft_ps1.txt*
 ft_raku.txt	ft_raku.txt	/*ft_raku.txt*
+ft_recommended_style	usr_51.txt	/*ft_recommended_style*
 ft_rust.txt	ft_rust.txt	/*ft_rust.txt*
 ft_sql.txt	ft_sql.txt	/*ft_sql.txt*
 ftdetect	filetype.txt	/*ftdetect*
@@ -8257,6 +8259,7 @@ gui-font	gui.txt	/*gui-font*
 gui-fontwide	gui.txt	/*gui-fontwide*
 gui-footer	debugger.txt	/*gui-footer*
 gui-fork	gui_x11.txt	/*gui-fork*
+gui-fullscreen	gui.txt	/*gui-fullscreen*
 gui-functions	usr_41.txt	/*gui-functions*
 gui-gnome	gui_x11.txt	/*gui-gnome*
 gui-gnome-session	gui_x11.txt	/*gui-gnome-session*
@@ -8286,7 +8289,6 @@ gui-vert-scroll	gui.txt	/*gui-vert-scroll*
 gui-w32	gui_w32.txt	/*gui-w32*
 gui-w32-cmdargs	gui_w32.txt	/*gui-w32-cmdargs*
 gui-w32-dialogs	gui_w32.txt	/*gui-w32-dialogs*
-gui-w32-fullscreen	gui_w32.txt	/*gui-w32-fullscreen*
 gui-w32-printing	gui_w32.txt	/*gui-w32-printing*
 gui-w32-start	gui_w32.txt	/*gui-w32-start*
 gui-w32-title-bar	gui_w32.txt	/*gui-w32-title-bar*
@@ -10561,6 +10563,7 @@ static-tag	tagsrch.txt	/*static-tag*
 status-line	windows.txt	/*status-line*
 statusmsg-variable	eval.txt	/*statusmsg-variable*
 stl-%!	options.txt	/*stl-%!*
+stl-%0{	options.txt	/*stl-%0{*
 stl-%@	options.txt	/*stl-%@*
 stl-%[FuncName]	options.txt	/*stl-%[FuncName]*
 stl-%{	options.txt	/*stl-%{*

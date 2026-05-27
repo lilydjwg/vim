@@ -474,8 +474,10 @@ im_preedit_window_open(void)
 	gchar		   *css = NULL;
 	const char * const fontname
 			   = pango_font_description_get_family(gui.norm_font);
-	gint	fontsize
-		= pango_font_description_get_size(gui.norm_font) / PANGO_SCALE;
+	// Since font sizes can be specified as non-integer values like 10.5,
+	// they must be handled as floating-point (gdouble).
+	gdouble	fontsize
+		= (gdouble)pango_font_description_get_size(gui.norm_font) / PANGO_SCALE;
 	gchar	*fontsize_propval = NULL;
 
 	if (!pango_font_description_get_size_is_absolute(gui.norm_font))
@@ -488,7 +490,7 @@ im_preedit_window_open(void)
 	    fontsize = dpi * fontsize / 72;
 	}
 	if (fontsize > 0)
-	    fontsize_propval = g_strdup_printf("%dpx", fontsize);
+	    fontsize_propval = g_strdup_printf("%dpx", (gint)(fontsize + 0.5));
 	else
 	    fontsize_propval = g_strdup_printf("inherit");
 
@@ -1750,7 +1752,8 @@ xim_real_init(Window x11_window, Display *x11_display)
 
     if (gui.rsrc_input_method != NULL && *gui.rsrc_input_method != NUL)
     {
-	strcpy(tmp, gui.rsrc_input_method);
+	vim_strncpy((char_u *)tmp, (char_u *)gui.rsrc_input_method,
+	    sizeof(tmp) - 1);
 	for (ns = s = tmp; ns != NULL && *s != NUL;)
 	{
 	    s = (char *)skipwhite((char_u *)s);
@@ -1817,7 +1820,8 @@ xim_real_init(Window x11_window, Display *x11_display)
     }
 
     found = False;
-    strcpy(tmp, gui.rsrc_preedit_type_name);
+    vim_strncpy((char_u *)tmp, (char_u *)gui.rsrc_preedit_type_name,
+	    sizeof(tmp) - 1);
     for (s = tmp; s && !found; )
     {
 	while (*s && SAFE_isspace(*s))
