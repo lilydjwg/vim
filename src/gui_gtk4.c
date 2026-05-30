@@ -278,6 +278,10 @@ static void focus_out_event(GtkEventControllerFocus *controller, gpointer data);
 #ifdef FEAT_DND
 static gboolean drop_cb(GtkDropTarget *target, const GValue *value, double x, double y, gpointer data);
 #endif
+#ifdef FEAT_GUI_TABLINE
+static void on_select_tab(GtkNotebook *notebook, gpointer *page, gint idx, gpointer data);
+static void on_tab_reordered(GtkNotebook *notebook, gpointer *page, gint idx, gpointer data);
+#endif
 static void mainwin_destroy_cb(GObject *object, gpointer data);
 static gboolean delete_event_cb(GtkWindow *window, gpointer data);
 static void mainwin_fullscreened_cb(GObject *obj, GParamSpec *pspec, gpointer user_data);
@@ -287,6 +291,9 @@ static void drawarea_resize_cb(GtkDrawingArea *area, int width, int height, gpoi
 static void drawarea_scale_factor_cb(GObject *object, GParamSpec *pspec, gpointer data);
 static cairo_surface_t *create_backing_surface(int width, int height);
 static void clipboard_changed_cb(GdkClipboard *clipboard, gpointer user_data);
+#ifdef FEAT_MENU
+static void show_menubar_popover(void);
+#endif
 
 /*
  * Parse the GUI related command-line arguments.  Any arguments used are
@@ -485,14 +492,19 @@ gui_mch_init(void)
     gtk_notebook_set_scrollable(GTK_NOTEBOOK(gui.tabline), TRUE);
     gtk_widget_set_visible(gui.tabline, FALSE);
     gtk_box_append(GTK_BOX(vbox), gui.tabline);
+
+    g_signal_connect(G_OBJECT(gui.tabline), "switch-page",
+		     G_CALLBACK(on_select_tab), NULL);
+    g_signal_connect(G_OBJECT(gui.tabline), "page-reordered",
+		     G_CALLBACK(on_tab_reordered), NULL);
 #endif
 
     // The form widget manages absolute positioning of scrollbars.
     gui.formwin = gui_gtk_form_new();
     gtk_widget_set_name(gui.formwin, "vim-gtk-form");
     // formwin is overlaid on top of drawarea for scrollbar positioning.
-    // Disable input targeting so mouse events pass through to drawarea.
-    gtk_widget_set_can_target(gui.formwin, FALSE);
+    // GtkForm's contains() returns FALSE so empty-area clicks fall through
+    // to the drawarea, while the scrollbar children still receive events.
 
     // The drawing area for the editor content.
     // Placed in an overlay so it fills the formwin, with scrollbars on top.
@@ -1580,6 +1592,19 @@ key_press_event(GtkEventControllerKey *controller UNUSED,
     }
 #endif
 
+#ifdef FEAT_MENU
+    if (key_sym == GDK_KEY_F10 && gui.menubar != NULL)
+    {
+	static char_u k10[] = {K_SPECIAL, 'k', ';', 0};
+
+	if (check_map(k10, State, FALSE, TRUE, FALSE, NULL, NULL) == NULL)
+	{
+	    show_menubar_popover();
+	    return TRUE;
+	}
+    }
+#endif
+
     len = keyval_to_string(key_sym, string2);
 
     if (len > 1 && input_conv.vc_type != CONV_NONE)
@@ -1774,6 +1799,9 @@ button_release_event(GtkGestureClick *gesture, int n_press UNUSED,
     gui_send_mouse_event(MOUSE_RELEASE, (int)x, (int)y, FALSE, vim_modifiers);
 }
 
+static double prev_mouse_x = -1.0;
+static double prev_mouse_y = -1.0;
+
     static void
 motion_notify_event(GtkEventControllerMotion *controller UNUSED,
 	double x, double y, gpointer data UNUSED)
@@ -1793,8 +1821,14 @@ motion_notify_event(GtkEventControllerMotion *controller UNUSED,
 	}
     }
 
-    if (p_mh)
+    // Only unhide if mouse actually moved. GTK seems to send a motion event
+    // when switching tabs, causing the cursor to unhide.
+    if (p_mh && fabs(prev_mouse_x - x) > 0.05
+	    && fabs(prev_mouse_y - y) > 0.05)
 	gui_mch_mousehide(FALSE);
+
+    prev_mouse_x = x;
+    prev_mouse_y = y;
 }
 
     static void
@@ -1803,6 +1837,9 @@ enter_notify_event(GtkEventControllerMotion *controller UNUSED,
 {
     if (blink_state == BLINK_NONE)
 	gui_mch_start_blink();
+
+    prev_mouse_x = x;
+    prev_mouse_y = y;
 
     // Make sure keyboard input goes to the drawing area.
     if (!gtk_widget_has_focus(gui.drawarea))
@@ -1912,39 +1949,94 @@ drawarea_unrealize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
     }
 }
 
+// Debounced resize: drawarea_resize_cb only resizes the backing surface
+// (preserving old content) and (re)arms a short timeout. The actual
+// gui_resize_shell() runs from drawarea_resize_apply_cb once the user has
+// stopped dragging for ~100 ms, by which time no input is pending and
+// update_screen() will not bail in screenclear()'s wake.
+static guint drawarea_resize_timeout_id = 0;
+static int drawarea_resize_pending_w = 0;
+static int drawarea_resize_pending_h = 0;
+
+    static gboolean
+drawarea_resize_apply_cb(gpointer data UNUSED)
+{
+    int width = drawarea_resize_pending_w;
+    int height = drawarea_resize_pending_h;
+
+    drawarea_resize_timeout_id = 0;
+
+    if (width <= 0 || height <= 0)
+	return G_SOURCE_REMOVE;
+    if (updating_screen)
+    {
+	drawarea_resize_timeout_id = g_timeout_add(50,
+		drawarea_resize_apply_cb, NULL);
+	return G_SOURCE_REMOVE;
+    }
+
+    gui.force_redraw = TRUE;
+    gui_resize_shell(width, height);
+    if (gui.in_use)
+	redraw_all_later(UPD_CLEAR);
+    return G_SOURCE_REMOVE;
+}
+
     static void
 drawarea_resize_cb(GtkDrawingArea *area UNUSED, int width, int height,
 	gpointer data UNUSED)
 {
     cairo_t *cr;
-    int	    scale = get_drawarea_scale();
+    cairo_surface_t *old_surface;
+    int scale = get_drawarea_scale();
 
     if (width <= 0 || height <= 0)
 	return;
 
+    drawarea_resize_pending_w = width;
+    drawarea_resize_pending_h = height;
+
+    // Keep the backing surface in sync with the drawing area so GTK keeps
+    // showing the previous frame. Re-creating it preserves the old
+    // contents.
     if (gui.surface != NULL)
     {
 	int sw = cairo_image_surface_get_width(gui.surface) / scale;
 	int sh = cairo_image_surface_get_height(gui.surface) / scale;
-
-	if (sw == width && sh == height)
-	    return;
-
-	cairo_surface_destroy(gui.surface);
+	if (sw != width || sh != height)
+	{
+	    old_surface = gui.surface;
+	    gui.surface = create_backing_surface(width, height);
+	    if (gui.surface != NULL)
+	    {
+		cr = cairo_create(gui.surface);
+		set_cairo_source_from_pixel(cr, gui.back_pixel);
+		cairo_paint(cr);
+		cairo_set_source_surface(cr, old_surface, 0, 0);
+		cairo_paint(cr);
+		cairo_destroy(cr);
+	    }
+	    cairo_surface_destroy(old_surface);
+	}
+    }
+    else
+    {
+	gui.surface = create_backing_surface(width, height);
+	if (gui.surface != NULL)
+	{
+	    cr = cairo_create(gui.surface);
+	    set_cairo_source_from_pixel(cr, gui.back_pixel);
+	    cairo_paint(cr);
+	    cairo_destroy(cr);
+	}
     }
 
-    // Create a fresh surface filled with the background color.
-    // Do not copy old surface content: gui_resize_shell() will trigger
-    // a full redraw, and stale content (e.g. intro screen text) would
-    // otherwise remain as ghost artifacts.
-    gui.surface = create_backing_surface(width, height);
-    cr = cairo_create(gui.surface);
-    set_cairo_source_from_pixel(cr, gui.back_pixel);
-    cairo_paint(cr);
-    cairo_destroy(cr);
-
-    // Notify Vim about the new size - this will cause a full redraw
-    gui_resize_shell(width, height);
+    // Debounce: (re)arm the apply timeout, so gui_resize_shell() only
+    // runs once the resize stream settles.
+    if (drawarea_resize_timeout_id != 0)
+	g_source_remove(drawarea_resize_timeout_id);
+    drawarea_resize_timeout_id = g_timeout_add(100,
+	    drawarea_resize_apply_cb, NULL);
 }
 
     static void
@@ -2077,6 +2169,18 @@ gui_mch_update(void)
 	g_main_context_iteration(NULL, TRUE);
 }
 
+#ifdef FEAT_JOB_CHANNEL
+    static timeout_cb_type
+channel_poll_cb(gpointer data UNUSED)
+{
+    // Using an event handler for a channel that may be disconnected does
+    // not work, it hangs.  Instead poll for messages.
+    channel_handle_events(TRUE);
+    parse_queued_messages();
+    return TRUE; // Keep repeating
+}
+#endif
+
     int
 gui_mch_wait_for_chars(long wtime)
 {
@@ -2084,6 +2188,9 @@ gui_mch_wait_for_chars(long wtime)
     guint	timer;
     static int	timed_out;
     int		retval = FAIL;
+#ifdef FEAT_JOB_CHANNEL
+    guint	channel_timer = 0;
+#endif
 
     timed_out = FALSE;
 
@@ -2092,6 +2199,13 @@ gui_mch_wait_for_chars(long wtime)
 						   input_timer_cb, &timed_out);
     else
 	timer = 0;
+
+#ifdef FEAT_JOB_CHANNEL
+    // If there is a channel with the keep_open flag we need to poll for input
+    // on them.
+    if (channel_any_keep_open())
+	channel_timer = timeout_add(20, channel_poll_cb, NULL);
+#endif
 
     focus = gui.in_focus;
 
@@ -2148,6 +2262,10 @@ gui_mch_wait_for_chars(long wtime)
 theend:
     if (timer != 0 && !timed_out)
 	timeout_remove(timer);
+#ifdef FEAT_JOB_CHANNEL
+    if (channel_timer != 0)
+	timeout_remove(channel_timer);
+#endif
 
     return retval;
 }
@@ -2440,6 +2558,39 @@ gui_mch_set_curtab(int nr)
 {
     if (gui.tabline != NULL)
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(gui.tabline), nr - 1);
+}
+
+/*
+ * Handle selecting one of the tabs.
+ */
+    static void
+on_select_tab(
+	GtkNotebook	*notebook UNUSED,
+	gpointer	*page UNUSED,
+	gint		idx,
+	gpointer	data UNUSED)
+{
+    if (!ignore_tabline_evt)
+	send_tabline_event(idx + 1);
+}
+
+/*
+ * Handle reordering the tabs (using D&D).
+ */
+    static void
+on_tab_reordered(
+	GtkNotebook	*notebook UNUSED,
+	gpointer	*page UNUSED,
+	gint		idx,
+	gpointer	data UNUSED)
+{
+    if (ignore_tabline_evt)
+	return;
+
+    if ((tabpage_index(curtab) - 1) < idx)
+	tabpage_move(idx + 1);
+    else
+	tabpage_move(idx);
 }
 #endif
 
@@ -3879,6 +4030,33 @@ gui_mch_show_popupmenu(vimmenu_T *menu)
     gtk_popover_popup(GTK_POPOVER(popover));
 }
 
+    static void
+show_menubar_popover(void)
+{
+    GMenu	    *gmenu;
+    GtkWidget	    *popover;
+    GdkRectangle    rect;
+
+    if (gui.menubar == NULL || gui.drawarea == NULL)
+	return;
+    gmenu = (GMenu *)g_object_get_data(G_OBJECT(gui.menubar), "vim-gmenu");
+    if (gmenu == NULL || g_menu_model_get_n_items(G_MENU_MODEL(gmenu)) == 0)
+	return;
+
+    popover = gtk_popover_menu_new_from_model(G_MENU_MODEL(gmenu));
+    gtk_widget_set_parent(popover, gui.drawarea);
+    gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
+    gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_BOTTOM);
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = 1;
+    rect.height = 1;
+    gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
+    g_signal_connect(popover, "closed",
+	    G_CALLBACK(popupmenu_closed_cb), NULL);
+    gtk_popover_popup(GTK_POPOVER(popover));
+}
+
 /*
  * ============================================================
  * Scrollbar functions
@@ -3892,10 +4070,10 @@ gui_mch_set_scrollbar_thumb(scrollbar_T *sb, long val, long size, long max)
 
     if (sb->id == NULL)
 	return;
-    if (!GTK_IS_WIDGET(sb->id) || !GTK_IS_RANGE(sb->id))
+    if (!GTK_IS_WIDGET(sb->id) || !GTK_IS_SCROLLBAR(sb->id))
 	return;
 
-    adj = gtk_range_get_adjustment(GTK_RANGE(sb->id));
+    adj = gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(sb->id));
     gtk_adjustment_set_lower(adj, 0.0);
     gtk_adjustment_set_upper(adj, (gdouble)max + 1);
     gtk_adjustment_set_value(adj, (gdouble)val);
@@ -3961,9 +4139,9 @@ gui_mch_create_scrollbar(scrollbar_T *sb, int orient)
     else
 	sb->id = gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, NULL);
 
-    if (sb->id != NULL && GTK_IS_RANGE(sb->id))
+    if (sb->id != NULL && GTK_IS_SCROLLBAR(sb->id))
     {
-	GtkAdjustment *adj = gtk_range_get_adjustment(GTK_RANGE(sb->id));
+	GtkAdjustment *adj = gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(sb->id));
 
 	gtk_widget_set_visible(sb->id, FALSE);
 	gui_gtk_form_put(GTK_FORM(gui.formwin), sb->id, 0, 0);
@@ -4003,21 +4181,11 @@ gui_mch_set_text_area_pos(int x, int y, int w, int h)
     // form_size_allocate which gives drawarea the formwin's full size.
     gui_gtk_form_move(GTK_FORM(gui.formwin), gui.drawarea, x, y);
 
-    // Update surface to match new text area size
-    if (w > 0 && h > 0)
-    {
-	int scale = get_drawarea_scale();
-
-	if (gui.surface != NULL)
-	{
-	    int sw = cairo_image_surface_get_width(gui.surface) / scale;
-	    int sh = cairo_image_surface_get_height(gui.surface) / scale;
-	    if (sw == w && sh == h)
-		return;
-	    cairo_surface_destroy(gui.surface);
-	}
-	gui.surface = create_backing_surface(w, h);
-    }
+    // Surface sizing is owned by drawarea_resize_cb; don't recreate it
+    // here. Recreating on every text-area change wiped any preserved
+    // content whenever a sub-cell resize shifted the cell grid, and
+    // update_screen() may bail (char_avail()) during a drag and leave
+    // the fresh surface blank.
 }
 
 /*
