@@ -1132,7 +1132,7 @@ get_function_body(
 	    {
 		if (!nesting_inline[nesting] && nesting_def[nesting]
 								&& p < cmd + 6)
-		    semsg(_(e_command_cannot_be_shortened_str), "enddef");
+		    semsg(_(e_command_cannot_be_shortened_str), cmd);
 		if (nesting-- == 0)
 		{
 		    char_u *nextcmd = NULL;
@@ -5612,18 +5612,27 @@ define_function(
 
 	if (fudi.fd_dict != NULL)
 	{
+	    char_u *func_name = vim_strnsave(name, namelen);
+
+	    if (func_name == NULL)
+	    {
+		VIM_CLEAR(fp);
+		goto erret;
+	    }
 	    if (fudi.fd_di == NULL)
 	    {
 		// add new dict entry
 		fudi.fd_di = dictitem_alloc(fudi.fd_newkey);
 		if (fudi.fd_di == NULL)
 		{
+		    vim_free(func_name);
 		    VIM_CLEAR(fp);
 		    goto erret;
 		}
 		if (dict_add(fudi.fd_dict, fudi.fd_di) == FAIL)
 		{
 		    vim_free(fudi.fd_di);
+		    vim_free(func_name);
 		    VIM_CLEAR(fp);
 		    goto erret;
 		}
@@ -5632,7 +5641,7 @@ define_function(
 		// overwrite existing dict entry
 		clear_tv(&fudi.fd_di->di_tv);
 	    fudi.fd_di->di_tv.v_type = VAR_FUNC;
-	    fudi.fd_di->di_tv.vval.v_string = vim_strnsave(name, namelen);
+	    fudi.fd_di->di_tv.vval.v_string = func_name;
 
 	    // behave like "dict" was used
 	    flags |= FC_DICT;
@@ -6264,7 +6273,7 @@ ex_delfunction(exarg_T *eap)
     int		is_global = FALSE;
 
     p = eap->arg;
-    name = trans_function_name_ext(&p, &is_global, eap->skip, 0, &fudi,
+    name = trans_function_name_ext(&p, &is_global, eap->skip, TFN_NO_DECL, &fudi,
 							     NULL, NULL, NULL);
     vim_free(fudi.fd_newkey);
     if (name == NULL)
@@ -6814,7 +6823,7 @@ ex_call(exarg_T *eap)
 	return;
     }
 
-    tofree = trans_function_name_ext(&arg, NULL, FALSE, TFN_INT,
+    tofree = trans_function_name_ext(&arg, NULL, FALSE, TFN_INT | TFN_NO_DECL,
 			   &fudi, &partial, vim9script ? &type : NULL, &ufunc);
     if (fudi.fd_newkey != NULL)
     {

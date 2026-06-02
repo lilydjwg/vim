@@ -1594,6 +1594,9 @@ again:
 
     // Flush pending output before redrawing
     out_flush();
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4)
+    gui_gtk_init_decor_height();
+#endif
 
     /* round off */
     gui.num_cols = ((pixel_width - gui_get_base_width()) / (float)gui.char_width) + 0.2;
@@ -1700,6 +1703,11 @@ gui_set_shellsize(
 
     if (!gui.shell_created)
 	return;
+
+#if defined(FEAT_GUI_GTK) && defined(USE_GTK4)
+    // Get the scrollbar width + height if possible
+    gui_mch_update_scrollbar_size();
+#endif
 
 #if defined(MSWIN) || defined(FEAT_GUI_GTK)
     // If not setting to a user specified size and maximized, calculate the
