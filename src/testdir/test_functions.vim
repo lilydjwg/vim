@@ -4370,8 +4370,27 @@ func Test_slice()
 endfunc
 
 
+" Test for getbgcolor()
+" The actual value depends on terminal capability and highlight settings, so
+" only verify the documented shape: either [] or [r, g, b] with each
+" component an integer in 0..255.
+func Test_getbgcolor()
+  let bg = getbgcolor()
+  call assert_equal(v:t_list, type(bg))
+  if !empty(bg)
+    call assert_equal(3, len(bg))
+    for c in bg
+      call assert_equal(v:t_number, type(c))
+      call assert_true(c >= 0 && c <= 255, $'component out of range: {c}')
+    endfor
+  endif
+endfunc
+
 " Test for getcellpixels() for unix system
-" Pixel size of a cell is terminal-dependent, so in the test, only the list and size 2 are checked.
+" Pixel size of a cell is terminal-dependent.  When the host terminal of the
+" RunVimInTerminal vterm exposes neither ws_xpixel/ws_ypixel via TIOCGWINSZ
+" nor a CSI 14 t reply, getcellpixels() returns an empty list -- accept
+" both shapes here, just verify the syntax is a (possibly empty) list.
 func Test_getcellpixels_for_unix()
   CheckNotMSWindows
   CheckRunVimInTerminal
@@ -4384,7 +4403,7 @@ func Test_getcellpixels_for_unix()
   call term_sendkeys(buf, ":redi END\<CR>")
   call term_sendkeys(buf, "P")
 
-  call WaitForAssert({-> assert_match("\[\d+, \d+\]", term_getline(buf, 3))}, 1000)
+  call WaitForAssert({-> assert_match('\[\(\d\+,\s*\d\+\)\?\]', term_getline(buf, 3))}, 1000)
 
   call StopVimInTerminal(buf)
 endfunc
@@ -4494,6 +4513,20 @@ func Test_str2blob()
     call assert_equal(0zABBB0AABBB, str2blob(['«»', '«»'], {'encoding': 'latin1'}))
     call assert_equal(0zC2ABC2BB, str2blob(['«»'], {'encoding': 'utf8'}))
 
+    if has('iconv')
+      call assert_equal(0z480065006C006C006F00, str2blob(['Hello'], {'encoding': 'utf-16le'}))
+      call assert_equal(0z480065006C006C006F00, str2blob(['Hello'], {'encoding': 'utf16le'}))
+      call assert_equal(0z00480065006C006C006F, str2blob(['Hello'], {'encoding': 'utf-16be'}))
+      call assert_equal(0z48006900.0A004200.79006500, str2blob(['Hi', 'Bye'], {'encoding': 'utf-16le'}))
+      call assert_equal(0z61000A006200, str2blob(["a\nb"], {'encoding': 'utf-16le'}))
+      call assert_equal(0z, str2blob([''], {'encoding': 'utf-16le'}))
+      call assert_equal(0z0A00, str2blob(['', ''], {'encoding': 'utf-16le'}))
+      for enc in ['utf-16le', 'utf-16be', 'ucs-2le', 'utf-32le', 'utf-32be']
+        call assert_equal(['Hello', 'World'],
+              \ blob2str(str2blob(['Hello', 'World'], {'encoding': enc}), {'encoding': enc}), enc)
+      endfor
+    endif
+
     call assert_equal(0z62, str2blob(["b"], test_null_dict()))
     call assert_equal(0z63, str2blob(["c"], {'encoding': test_null_string()}))
 
@@ -4562,12 +4595,14 @@ func Test_blob2str()
     call assert_fails("call blob2str(0z6162, {'encoding': []})", 'E730: Using a List as a String')
     call assert_fails("call blob2str(0z6162, {'encoding': 'ab12xy'})", 'E1515: Unable to convert from ''ab12xy'' encoding')
 
-    #" UTF-16LE encoding
-    call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'utf-16le'}))
-    call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'utf16le'}))
-    #" UCS-2LE encoding
-    call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'ucs-2le'}))
-    call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'ucs2le'}))
+    if has("iconv")
+      #" UTF-16LE encoding
+      call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'utf-16le'}))
+      call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'utf16le'}))
+      #" UCS-2LE encoding
+      call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'ucs-2le'}))
+      call assert_equal(['Hello'], blob2str(0z480065006C006C006F00, {'encoding': 'ucs2le'}))
+    endif
   END
   call v9.CheckLegacyAndVim9Success(lines)
 endfunc

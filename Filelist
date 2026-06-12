@@ -3,7 +3,6 @@
 
 # Source files for all source archives.
 SRC_ALL =	\
-		.cirrus.yml \
 		.gitattributes \
 		.git-blame-ignore-revs \
 		.github/MAINTAINERS \
@@ -15,7 +14,6 @@ SRC_ALL =	\
 		.github/workflows/ci-windows.yml \
 		.github/workflows/ci.yml \
 		.github/workflows/codeql-analysis.yml \
-		.github/workflows/coverity.yml \
 		.github/workflows/link-check.yml \
 		.github/actions/build_vim_on_linux/action.yml \
 		.github/actions/test_artifacts/action.yml \
@@ -149,6 +147,9 @@ SRC_ALL =	\
 		src/session.c \
 		src/sha256.c \
 		src/sign.c \
+		src/sixel.c \
+		src/kitty.c \
+		src/cairo.c \
 		src/socketserver.c \
 		src/sound.c \
 		src/spell.c \
@@ -349,6 +350,9 @@ SRC_ALL =	\
 		src/proto/session.pro \
 		src/proto/sha256.pro \
 		src/proto/sign.pro \
+		src/proto/sixel.pro \
+		src/proto/kitty.pro \
+		src/proto/cairo.pro \
 		src/proto/socketserver.pro \
 		src/proto/sound.pro \
 		src/proto/spell.pro \
@@ -507,6 +511,8 @@ SRC_UNIX =	\
 		src/gui_gtk4.c \
 		src/gui_gtk4_f.c \
 		src/gui_gtk4_f.h \
+		src/gui_gtk4_cb.c \
+		src/gui_gtk4_cb.h \
 		src/gui_gtk_res.xml \
 		src/gui_motif.c \
 		src/gui_xmdlg.c \

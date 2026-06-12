@@ -98,7 +98,9 @@ enum
     TARGET_TEXT_URI_LIST,
     TARGET_TEXT_PLAIN,
     TARGET_TEXT_PLAIN_UTF8,
+    TARGET_VIM_MT,
     TARGET_VIM,
+    TARGET_VIMENC_MT,
     TARGET_VIMENC
 };
 
@@ -110,6 +112,8 @@ static const GtkTargetEntry selection_targets[] =
 {
     {VIMENC_ATOM_NAME,	0, TARGET_VIMENC},
     {VIM_ATOM_NAME,	0, TARGET_VIM},
+    {VIMENC_MIMETYPE_NAME,  0, TARGET_VIMENC_MT},
+    {VIM_MIMETYPE_NAME,	    0, TARGET_VIM_MT},
     {"text/html",	0, TARGET_HTML},
     {"UTF8_STRING",	0, TARGET_UTF8_STRING},
     {"COMPOUND_TEXT",	0, TARGET_COMPOUND_TEXT},
@@ -163,6 +167,10 @@ static GdkAtom html_atom = GDK_NONE;
 static GdkAtom utf8_string_atom = GDK_NONE;
 static GdkAtom vim_atom = GDK_NONE;	// Vim's own special selection format
 static GdkAtom vimenc_atom = GDK_NONE;	// Vim's extended selection format
+static GdkAtom vim_mt_atom = GDK_NONE;	// Vim's own special selection format
+					// (in mime type format)
+static GdkAtom vimenc_mt_atom = GDK_NONE;	// Vim's extended selection
+						// format (in mime type format)
 
 /*
  * Keycodes recognized by vim.
@@ -1452,12 +1460,14 @@ selection_received_cb(GtkWidget		*widget UNUSED,
 	return;
     }
 
-    if (gtk_selection_data_get_data_type(data) == vim_atom)
+    if (gtk_selection_data_get_data_type(data) == vim_atom
+	    || gtk_selection_data_get_data_type(data) == vim_mt_atom)
     {
 	motion_type = *text++;
 	--len;
     }
-    else if (gtk_selection_data_get_data_type(data) == vimenc_atom)
+    else if (gtk_selection_data_get_data_type(data) == vimenc_atom
+	    || gtk_selection_data_get_data_type(data) == vimenc_mt_atom)
     {
 	char_u		*enc;
 	vimconv_T	conv;
@@ -1562,6 +1572,8 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 	    && info != (guint)TARGET_UTF8_STRING
 	    && info != (guint)TARGET_VIMENC
 	    && info != (guint)TARGET_VIM
+	    && info != (guint)TARGET_VIMENC_MT
+	    && info != (guint)TARGET_VIM_MT
 	    && info != (guint)TARGET_COMPOUND_TEXT
 	    && info != (guint)TARGET_TEXT_PLAIN
 	    && info != (guint)TARGET_TEXT_PLAIN_UTF8
@@ -1579,7 +1591,7 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
     // (Not that pasting 2G of text is ever going to work, but... ;-)
     length = MIN(tmplen, (long_u)(G_MAXINT - 1));
 
-    if (info == (guint)TARGET_VIM)
+    if (info == (guint)TARGET_VIM || info == (guint)TARGET_VIM_MT)
     {
 	tmpbuf = alloc(length + 1);
 	if (tmpbuf != NULL)
@@ -1591,7 +1603,10 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 	++length;
 	vim_free(string);
 	string = tmpbuf;
-	type = vim_atom;
+	if (info == (guint)TARGET_VIM)
+	    type = vim_atom;
+	else
+	    type = vim_mt_atom;
     }
 
     else if (info == (guint)TARGET_HTML)
@@ -1635,7 +1650,7 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 	}
 	return;
     }
-    else if (info == (guint)TARGET_VIMENC)
+    else if (info == (guint)TARGET_VIMENC || info == (guint)TARGET_VIMENC_MT)
     {
 	int l = STRLEN(p_enc);
 
@@ -1650,7 +1665,10 @@ selection_get_cb(GtkWidget	    *widget UNUSED,
 	    vim_free(string);
 	    string = tmpbuf;
 	}
-	type = vimenc_atom;
+	if (info == (guint)TARGET_VIMENC)
+	    type = vimenc_atom;
+	else
+	    type = vimenc_mt_atom;
     }
 
     // gtk_selection_data_set_text() handles everything for us.  This is
@@ -4131,6 +4149,8 @@ gui_mch_init(void)
      */
     vim_atom = gdk_atom_intern(VIM_ATOM_NAME, FALSE);
     vimenc_atom = gdk_atom_intern(VIMENC_ATOM_NAME, FALSE);
+    vim_mt_atom = gdk_atom_intern(VIM_MIMETYPE_NAME, FALSE);
+    vimenc_mt_atom = gdk_atom_intern(VIMENC_MIMETYPE_NAME, FALSE);
     clip_star.gtk_sel_atom = GDK_SELECTION_PRIMARY;
     clip_plus.gtk_sel_atom = gdk_atom_intern("CLIPBOARD", FALSE);
 
@@ -6980,6 +7000,53 @@ gui_mch_clear_all(void)
     if (gtk_widget_get_window(gui.drawarea) != NULL)
 	gui_gtk_window_clear(gtk_widget_get_window(gui.drawarea));
 }
+
+#ifdef FEAT_IMAGE_CAIRO
+/*
+ * Thin GTK wrappers around the shared cairo backend in src/cairo.c.
+ * The heavy lifting (surface build / pixel conversion / composite)
+ * is generic Cairo code so a future GTK4 port can reuse the same
+ * src/cairo.c without copy-pasting.
+ */
+    void
+gui_mch_free_popup_image(win_T *wp)
+{
+    cairo_popup_image_free(wp);
+}
+
+    bool
+gui_mch_update_popup_image_pixels(win_T *wp)
+{
+    return cairo_popup_image_update(wp);
+}
+
+    void
+gui_mch_draw_popup_image(
+	win_T	*wp,
+	int	 row,
+	int	 col,
+	int	 src_x,
+	int	 src_y,
+	int	 draw_w,
+	int	 draw_h)
+{
+    int x, y;
+
+    if (wp->w_popup_image_data == NULL
+	    || wp->w_popup_image_w <= 0 || wp->w_popup_image_h <= 0
+	    || draw_w <= 0 || draw_h <= 0
+	    || gui.surface == NULL)
+	return;
+
+    x = FILL_X(col);
+    y = FILL_Y(row);
+    cairo_popup_image_paint(wp, gui.surface, x, y,
+					    src_x, src_y, draw_w, draw_h);
+
+    if (gui.drawarea != NULL)
+	gtk_widget_queue_draw_area(gui.drawarea, x, y, draw_w, draw_h);
+}
+#endif // FEAT_IMAGE_CAIRO
 
 #if !GTK_CHECK_VERSION(3,0,0)
 /*

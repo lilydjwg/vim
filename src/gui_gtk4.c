@@ -29,6 +29,7 @@
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
 #include "gui_gtk4_f.h"
+#include "gui_gtk4_cb.h"
 
 /*
  * Geometry string parser, replacing XParseGeometry to remove X11 dependency.
@@ -606,6 +607,9 @@ gui_mch_init(void)
 	    g_signal_connect(board, "changed",
 		    G_CALLBACK(clipboard_changed_cb), &clip_plus);
     }
+
+    gui.regular_provider = vim_content_provider_new(&clip_plus);
+    gui.primary_provider = vim_content_provider_new(&clip_star);
 
     return OK;
 }
@@ -1428,6 +1432,47 @@ gui_mch_clear_all(void)
     if (gui.drawarea != NULL)
 	gtk_widget_queue_draw(gui.drawarea);
 }
+
+#ifdef FEAT_IMAGE_CAIRO
+    void
+gui_mch_free_popup_image(win_T *wp)
+{
+    cairo_popup_image_free(wp);
+}
+
+    bool
+gui_mch_update_popup_image_pixels(win_T *wp)
+{
+    return cairo_popup_image_update(wp);
+}
+
+    void
+gui_mch_draw_popup_image(
+	win_T	*wp,
+	int	 row,
+	int	 col,
+	int	 src_x,
+	int	 src_y,
+	int	 draw_w,
+	int	 draw_h)
+{
+    int x, y;
+
+    if (wp->w_popup_image_data == NULL
+	    || wp->w_popup_image_w <= 0 || wp->w_popup_image_h <= 0
+	    || draw_w <= 0 || draw_h <= 0
+	    || gui.surface == NULL)
+	return;
+
+    x = FILL_X(col);
+    y = FILL_Y(row);
+    cairo_popup_image_paint(wp, gui.surface, x, y,
+					    src_x, src_y, draw_w, draw_h);
+
+    if (gui.drawarea != NULL)
+	gtk_widget_queue_draw(gui.drawarea);
+}
+#endif // FEAT_IMAGE_CAIRO
 
     static void
 surface_copy_rect(int dest_x, int dest_y,
@@ -3477,11 +3522,11 @@ get_menu_tool_height(void)
 }
 
 /*
- * Get the GdkClipboard for the given Clipboard_T.
+ * Get the GdkClipboard and GdkContentProvider for the given Clipboard_T.
  * clip_star (*) uses PRIMARY, clip_plus (+) uses CLIPBOARD.
  */
     static GdkClipboard *
-gtk4_get_clipboard(Clipboard_T *cbd)
+gtk4_get_clipboard(Clipboard_T *cbd, GdkContentProvider **provider)
 {
     GdkDisplay *display;
 
@@ -3493,64 +3538,80 @@ gtk4_get_clipboard(Clipboard_T *cbd)
 	return NULL;
 
     if (cbd == &clip_plus)
+    {
+	if (provider != NULL)
+	    *provider = gui.regular_provider;
 	return gdk_display_get_clipboard(display);
+    }
     else
+    {
+	if (provider != NULL)
+	    *provider = gui.primary_provider;
 	return gdk_display_get_primary_clipboard(display);
+    }
 }
 
 typedef struct {
     Clipboard_T *cbd;
     gboolean	done;
+    gboolean	abandoned;	// requester timed out, callback owns "crd"
 } ClipReadData;
 
 /*
- * Callback for gdk_clipboard_read_text_async().
+ * Callback for gdk_clipboard_read_async().
  */
     static void
-clip_read_text_cb(GObject *source, GAsyncResult *result, gpointer user_data)
+clip_read_cb(GdkClipboard *cb, GAsyncResult *result, ClipReadData *crd)
 {
-    GdkClipboard	*clipboard = GDK_CLIPBOARD(source);
-    ClipReadData	*crd = (ClipReadData *)user_data;
-    Clipboard_T		*cbd = crd->cbd;
-    char		*text;
-    GError		*error = NULL;
+    Clipboard_T	    *cbd = crd->cbd;
+    GError	    *error = NULL;
+    GInputStream    *in_stream;
+    const char	    *mime_type;
+    GByteArray	    *arr;
+    static char	    buf[512];
+    ssize_t	    r;
+    char_u	    *actual, *final;
+    long	    len;
+    int		    motion_type = MAUTO;
+    char_u	    *tofree = NULL;
 
-    text = gdk_clipboard_read_text_finish(clipboard, result, &error);
-    if (text != NULL)
+    in_stream = gdk_clipboard_read_finish(cb, result, &mime_type, &error);
+    if (in_stream == NULL)
     {
-	char_u	*tmpbuf = NULL;
-	char_u	*p;
-	int	len;
-	int	motion_type = MAUTO;
-
-	len = (int)STRLEN(text);
-
-	// Convert from UTF-8 to 'encoding' if needed.
-	if (input_conv.vc_type != CONV_NONE)
-	{
-	    tmpbuf = string_convert(&input_conv, (char_u *)text, &len);
-	    if (tmpbuf != NULL)
-		p = tmpbuf;
-	    else
-		p = (char_u *)text;
-	}
-	else
-	    p = (char_u *)text;
-
-	// Chop off any trailing NUL bytes.
-	while (len > 0 && p[len - 1] == NUL)
-	    --len;
-
-	clip_yank_selection(motion_type, p, (long)len, cbd);
-	vim_free(tmpbuf);
-	g_free(text);
+	g_error_free(error);
+	goto exit;
     }
+
+    arr = g_byte_array_new();
+
+    while ((r = g_input_stream_read(in_stream, buf, 512, NULL, NULL)) > 0)
+	g_byte_array_append(arr, (uint8_t *)buf, r);
+
+    if (r == -1)
+    {
+	g_byte_array_free(arr, TRUE);
+	goto exit;
+    }
+    assert(r == 0);
+
+    len = (long)arr->len;
+    actual = final = g_byte_array_free(arr, FALSE);
+
+    if (!crd->abandoned && clip_convert_data(&final, &len, &motion_type,
+	    STRCMP(mime_type, VIM_MIMETYPE_NAME) == 0,
+	    STRCMP(mime_type, VIMENC_MIMETYPE_NAME) == 0, &tofree) == OK)
+	clip_yank_selection(motion_type, final, len, cbd);
+    g_free(actual);
+    vim_free(tofree);
+
+exit:
+    if (in_stream != NULL)
+	g_object_unref(in_stream);
+    // free "crd" if the requester gave up, else mark the read complete
+    if (crd->abandoned)
+	vim_free(crd);
     else
-    {
-	if (error != NULL)
-	    g_error_free(error);
-    }
-    crd->done = TRUE;
+	crd->done = TRUE;
 }
 
 /*
@@ -3559,79 +3620,56 @@ clip_read_text_cb(GObject *source, GAsyncResult *result, gpointer user_data)
     void
 clip_mch_request_selection(Clipboard_T *cbd)
 {
+    static const char	*mimes_no_html[] = {
+	VIMENC_MIMETYPE_NAME,
+	VIM_MIMETYPE_NAME,
+	"text/plain;charset=utf-8",
+	"text/plain",
+	NULL
+    };
     GdkClipboard	*clipboard;
-    ClipReadData	crd;
+    ClipReadData	*crd;
     time_t		start;
 
-    clipboard = gtk4_get_clipboard(cbd);
+    clipboard = gtk4_get_clipboard(cbd, NULL);
     if (clipboard == NULL)
 	return;
 
-    crd.cbd = cbd;
-    crd.done = FALSE;
-    gdk_clipboard_read_text_async(clipboard, NULL, clip_read_text_cb, &crd);
+    // Heap-allocate: on a timeout this returns before the read completes,
+    // so "crd" must outlive this stack frame.
+    crd = ALLOC_ONE(ClipReadData);
+    if (crd == NULL)
+	return;
+    crd->cbd = cbd;
+    crd->done = FALSE;
+    crd->abandoned = FALSE;
+
+    gdk_clipboard_read_async(
+	    clipboard, clip_html ? supported_mimes : mimes_no_html,
+	    G_PRIORITY_HIGH, NULL, (GAsyncReadyCallback)clip_read_cb, crd);
 
     // Spin until the async callback fires, with a 3-second wall-clock
     // timeout as a safety net.
     start = time(NULL);
-    while (!crd.done && time(NULL) < start + 3)
+    while (!crd->done && time(NULL) < start + 3)
 	g_main_context_iteration(NULL, TRUE);
+
+    if (crd->done)
+	vim_free(crd);
+    else
+	// timed out: hand ownership to the callback, which frees "crd"
+	crd->abandoned = TRUE;
 }
 
 static int in_clipboard_set = FALSE;
 
 /*
- * Send the current selection to the clipboard.
+ * Send the current selection to the clipboard. Do nothing for because we
+ * subclass GdkContentProvider which will provide the data only when needed.
  */
     void
-clip_mch_set_selection(Clipboard_T *cbd)
+clip_mch_set_selection(Clipboard_T *cbd UNUSED)
 {
-    GdkClipboard	*clipboard;
-    char_u		*str = NULL;
-    long_u		len;
-    int			motion_type;
-
-    clipboard = gtk4_get_clipboard(cbd);
-    if (clipboard == NULL)
-	return;
-
-    // Get the selection text from the register.
-    clip_get_selection(cbd);
-    motion_type = clip_convert_selection(&str, &len, cbd);
-    if (motion_type < 0 || str == NULL)
-	return;
-
-    // Convert from 'encoding' to UTF-8 if needed.
-    if (output_conv.vc_type != CONV_NONE)
-    {
-	char_u	*conv_str;
-	int	conv_len = (int)len;
-
-	conv_str = string_convert(&output_conv, str, &conv_len);
-	if (conv_str != NULL)
-	{
-	    vim_free(str);
-	    str = conv_str;
-	    len = conv_len;
-	}
-    }
-
-    // Ensure NUL-terminated string for GTK.
-    {
-	char_u *nul_str = alloc(len + 1);
-
-	if (nul_str != NULL)
-	{
-	    mch_memmove(nul_str, str, len);
-	    nul_str[len] = NUL;
-	    in_clipboard_set = TRUE;
-	    gdk_clipboard_set_text(clipboard, (const char *)nul_str);
-	    in_clipboard_set = FALSE;
-	    vim_free(nul_str);
-	}
-    }
-
-    vim_free(str);
 }
 
     static void
@@ -3647,13 +3685,23 @@ clipboard_changed_cb(GdkClipboard *clipboard, gpointer user_data)
 }
 
 /*
- * Own the selection.  In GTK4, ownership is implicit when content is set
- * on the clipboard.  Return OK to indicate we can own it.
+ * Own the selection.
  */
     int
-clip_mch_own_selection(Clipboard_T *cbd UNUSED)
+clip_mch_own_selection(Clipboard_T *cbd)
 {
-    return OK;
+    GdkContentProvider	*cp;
+    GdkClipboard	*cb = gtk4_get_clipboard(cbd, &cp);
+    int			ret;
+
+    if (cb == NULL)
+	return FAIL;
+
+    in_clipboard_set = TRUE;
+    ret = gdk_clipboard_set_content(cb, cp);
+    in_clipboard_set = FALSE;
+
+    return ret ? OK : FAIL;
 }
 
 /*
@@ -3665,14 +3713,12 @@ clip_mch_lose_selection(Clipboard_T *cbd)
 {
     GdkClipboard *clipboard;
 
-    clipboard = gtk4_get_clipboard(cbd);
+    clipboard = gtk4_get_clipboard(cbd, NULL);
     if (clipboard == NULL)
 	return;
 
-    // Only release ownership if we still own it.  Otherwise we would
-    // clobber another application's clipboard content with NULL, which
-    // happens when this is called from clipboard_changed_cb after a
-    // foreign app took the selection.
+    // Only release ownership if we still own it. We don't want to clear the
+    // current selection when we aren't actually the source.
     if (gdk_clipboard_is_local(clipboard))
 	gdk_clipboard_set_content(clipboard, NULL);
 }
@@ -4567,97 +4613,269 @@ gui_mch_browsedir(char_u *title, char_u *initdir)
  * ============================================================
  */
 
-typedef struct {
-    int		response;
-    gboolean	done;
-} AlertDialogData;
+/*
+ * Split up button_string into individual button labels by inserting NUL bytes.
+ * Also replace the Vim-style mnemonic accelerator prefix '&' with '_'.
+ * "button_string" is duplicated; caller must free the duplicated string via
+ * *tofree.
+ */
+    static char **
+split_button_string(char_u *button_string, int *n_buttons, char **tofree)
+{
+    char	    **array;
+    char_u	    *p;
+    unsigned int    count = 1;
+
+    button_string = (char_u *)g_strdup((const char *)button_string);
+
+    for (p = button_string; *p != NUL; ++p)
+	if (*p == DLG_BUTTON_SEP)
+	    ++count;
+
+    array = g_malloc_n(count, sizeof(char *));
+    count = 0;
+
+    if (array != NULL)
+    {
+	array[count++] = (char *)button_string;
+	for (p = button_string; *p != NUL; )
+	{
+	    if (*p == DLG_BUTTON_SEP)
+	    {
+		*p++ = NUL;
+		array[count++] = (char *)p;
+	    }
+	    else if (*p == DLG_HOTKEY_CHAR)
+		*p++ = '_';
+	    else
+		MB_PTR_ADV(p);
+	}
+    }
+
+    *tofree = (char *)button_string;
+    *n_buttons = count;
+    return array;
+}
+
+/*
+ * Convert VIM_GENERIC, VIM_ERROR, etc into an icon name. Returns NULL for
+ * VIM_GENERIC.
+ */
+    static const char *
+dialog_type_to_icon(int type)
+{
+    switch (type)
+    {
+	case VIM_ERROR:
+	    return "dialog-error-symbolic";
+	case VIM_WARNING:
+	    return "dialog-warning-symbolic";
+	case VIM_INFO:
+	    return "dialog-information-symbolic";
+	case VIM_QUESTION:
+	    return "dialog-question-symbolic";
+	default:
+	    break;
+    }
+    return NULL;
+}
+
+// Data associated with each button in the dialog
+typedef struct
+{
+    int		but_idx;
+    int		*response;
+    gboolean	*done;
+} DialogButtonState;
 
     static void
-alert_dialog_cb(GObject *source, GAsyncResult *res, gpointer data)
+dialog_button_clicked_cb(GtkButton *button, DialogButtonState *state)
 {
-    AlertDialogData *add = (AlertDialogData *)data;
-    add->response = gtk_alert_dialog_choose_finish(
-		    GTK_ALERT_DIALOG(source), res, NULL);
-    add->done = TRUE;
+    *state->response = state->but_idx;
+    *state->done = TRUE;
+}
+
+    static gboolean
+dialog_key_pressed_cb(
+	GtkEventControllerKey	*controller,
+	guint			keyval,
+	guint			keycode,
+	GdkModifierType		state,
+	gboolean		*done)
+{
+    if (keyval == GDK_KEY_Escape)
+    {
+	*done = TRUE;
+	return TRUE;
+    }
+    return FALSE;
+}
+
+    static gboolean
+dialog_close_request_cb(GtkWindow *win, gboolean *win_closed)
+{
+    *win_closed = TRUE;
+    return FALSE;
 }
 
     int
 gui_mch_dialog(
-	int	type UNUSED,
+	int	type,
 	char_u	*title,
 	char_u	*message,
 	char_u	*buttons,
-	int	dfltbutton,
-	char_u	*textfield UNUSED,
+	int	def_but,
+	char_u	*textfield,
 	int	ex_cmd UNUSED)
 {
-    GtkAlertDialog	*dlg;
-    AlertDialogData	add;
-    char_u		*p;
-    char_u		*buf = NULL;
-    int			butcount = 0;
-    int			i;
-    const char		*btn_labels[64];
-    char_u		*btn_conv[64];
+    GtkWindow		*win = GTK_WINDOW(gtk_window_new());
+    GtkWidget		*vertbox;
+    GtkWidget		*message_box;
+    const char		*icon_name;
+    GtkWidget		*icon;
+    GtkWidget		*label;
+    GtkWidget		*entry = NULL;
+    char_u		*utf8_title;
+    char_u		*utf8_message;
+    GtkEventController *key_controller;
+    DialogButtonState	*but_states = NULL;
+    char		*tofree = NULL;
+    int			response = -1;
+    gboolean		done = FALSE;
+    gboolean		win_closed = FALSE;
 
-    title = CONVERT_TO_UTF8(title);
-    message = CONVERT_TO_UTF8(message);
+    utf8_title = CONVERT_TO_UTF8(title);
+    if (utf8_title != NULL)
+	gtk_window_set_title(win, (const char *)utf8_title);
+    CONVERT_TO_UTF8_FREE(utf8_title);
 
-    // Parse button labels from the "&Yes\n&No\n&Cancel" format
+    gtk_window_set_transient_for(win, GTK_WINDOW(gui.mainwin));
+    gtk_window_set_modal(win, TRUE);
+    gtk_window_set_default_size(win, 300, -1);
+    gtk_window_set_destroy_with_parent(win, TRUE);
+    g_signal_connect(win, "close-request",
+	    G_CALLBACK(dialog_close_request_cb), &win_closed);
+
+    // Create main vertical layout container
+    vertbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
+    gtk_window_set_child(win, vertbox);
+    gtk_widget_set_margin_top(vertbox, 24);
+    gtk_widget_set_margin_bottom(vertbox, 24);
+    gtk_widget_set_margin_start(vertbox, 12);
+    gtk_widget_set_margin_end(vertbox, 12);
+
+    // Add the message label
+    message_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+    gtk_widget_set_halign(message_box, GTK_ALIGN_CENTER);
+    gtk_box_append(GTK_BOX(vertbox), message_box);
+
+    // If type is not VIM_GENERIC, add an icon to make the dialog look nicer :)
+    icon_name = dialog_type_to_icon(type);
+    if (icon_name != NULL)
+    {
+	icon = gtk_image_new_from_icon_name(icon_name);
+	gtk_image_set_icon_size(GTK_IMAGE(icon), GTK_ICON_SIZE_LARGE);
+	gtk_box_append(GTK_BOX(message_box), icon);
+    }
+
+    utf8_message = CONVERT_TO_UTF8(message);
+    label = gtk_label_new((const char *)utf8_message);
+    CONVERT_TO_UTF8_FREE(utf8_message);
+    gtk_label_set_wrap(GTK_LABEL(label), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(label), 40);
+    gtk_box_append(GTK_BOX(message_box), label);
+
+    // Close the dialog when the <Esc> key is pressed. the GTK3 GUI also allows
+    // mnemonics without <Alt> key, but that behaviour comes from GTK+ 1.2 (from
+    // 1999!), so most users probably don't care...
+    key_controller = gtk_event_controller_key_new();
+    g_signal_connect(key_controller, "key-pressed", G_CALLBACK(dialog_key_pressed_cb), &done);
+    gtk_widget_add_controller(GTK_WIDGET(win), key_controller);
+
+    if (textfield != NULL)
+    {
+	// Add text entry so user can enter text
+	char_u *utf8_text = CONVERT_TO_UTF8(textfield);
+
+	entry = gtk_entry_new();
+
+	if (utf8_text != NULL)
+	    gtk_editable_set_text(GTK_EDITABLE(entry), (const char *)utf8_text);
+	else
+	    gtk_editable_set_text(GTK_EDITABLE(entry), "");
+	CONVERT_TO_UTF8_FREE(utf8_text);
+
+	// Make it so that pressing enter key will activate "def_but" button
+	// (which is set as the default widget).
+	gtk_entry_set_activates_default(GTK_ENTRY(entry), TRUE);
+	gtk_box_append(GTK_BOX(vertbox), entry);
+    }
+
     if (buttons != NULL)
     {
-	buf = vim_strsave(buttons);
-	if (buf != NULL)
+	GtkWidget   *but_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+	char	    **buttons_arr; // Note that array is allocated, not strings
+	int	    n_buttons;
+
+	gtk_widget_set_halign(but_box, GTK_ALIGN_CENTER);
+	gtk_box_set_homogeneous(GTK_BOX(but_box), TRUE);
+	gtk_box_append(GTK_BOX(vertbox), but_box);
+
+	buttons_arr = split_button_string(buttons, &n_buttons, &tofree);
+
+	but_states = g_malloc_n(n_buttons, sizeof(DialogButtonState));
+
+	for (int i = 0; i < n_buttons; i++)
 	{
-	    p = buf;
-	    while (*p != NUL && butcount < 63)
-	    {
-		char_u *start = p;
-		while (*p != NUL && *p != '\n')
-		    ++p;
-		if (*p == '\n')
-		    *p++ = NUL;
-		// Skip '&' mnemonic marker
-		if (*start == '&')
-		    ++start;
-		btn_conv[butcount] = CONVERT_TO_UTF8(start);
-		btn_labels[butcount] = (const char *)btn_conv[butcount];
-		butcount++;
-	    }
+	    char_u		*but_label;
+	    GtkWidget		*but;
+	    DialogButtonState	*but_state = but_states + i;
+
+	    but_label = CONVERT_TO_UTF8((char_u *)buttons_arr[i]);
+	    if (but_label == NULL)
+		continue;
+
+	    but = gtk_button_new_with_mnemonic((char *)but_label);
+	    if (i == def_but - 1)
+		gtk_window_set_default_widget(win, but);
+	    gtk_box_append(GTK_BOX(but_box), but);
+	    CONVERT_TO_UTF8_FREE(but_label);
+
+	    but_state->but_idx = i;
+	    but_state->response = &response;
+	    but_state->done = &done;
+
+	    g_signal_connect(but, "clicked",
+		    G_CALLBACK(dialog_button_clicked_cb), but_state);
 	}
+	g_free(buttons_arr);
     }
-    btn_labels[butcount] = NULL;
 
-    dlg = gtk_alert_dialog_new("%s", message ? (char *)message : "");
-    if (title != NULL)
-	gtk_alert_dialog_set_detail(dlg, (const char *)title);
-    gtk_alert_dialog_set_buttons(dlg, btn_labels);
-    gtk_alert_dialog_set_modal(dlg, TRUE);
+    gtk_window_present(win);
 
-    if (dfltbutton > 0 && dfltbutton <= butcount)
-	gtk_alert_dialog_set_default_button(dlg, dfltbutton - 1);
-    if (butcount > 0)
-	gtk_alert_dialog_set_cancel_button(dlg, butcount - 1);
-
-    add.response = -1;
-    add.done = FALSE;
-
-    gtk_alert_dialog_choose(dlg, GTK_WINDOW(gui.mainwin), NULL,
-	    alert_dialog_cb, &add);
-
-    while (!add.done)
+    while (!done && !win_closed)
 	g_main_context_iteration(NULL, TRUE);
 
-    g_object_unref(dlg);
+    if (done)
+    {
+	if (textfield != NULL)
+	{
+	    // Get the text the user entered
+	    char_u *text;
 
-    for (i = 0; i < butcount; i++)
-	CONVERT_TO_UTF8_FREE(btn_conv[i]);
-    vim_free(buf);
-    CONVERT_TO_UTF8_FREE(title);
-    CONVERT_TO_UTF8_FREE(message);
+	    text = (char_u *)gtk_editable_get_text(GTK_EDITABLE(entry));
+	    text = CONVERT_FROM_UTF8(text);
+	    vim_strncpy(textfield, text, IOSIZE - 1);
+	    CONVERT_FROM_UTF8_FREE(text);
+	}
 
-    // GTK returns 0-based index, Vim wants 1-based
-    return add.response >= 0 ? add.response + 1 : 0;
+	gtk_window_destroy(win);
+    }
+    g_free(but_states);
+    g_free(tofree);
+
+    // Vim buttons are indexed starting from one.
+    return response == -1 ? 0 : response + 1;
 }
 
 /*

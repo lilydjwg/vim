@@ -535,6 +535,31 @@ static char *(features[]) =
 #else
 	"-sodium",
 #endif
+#ifdef FEAT_IMAGE
+	"+image",
+#else
+	"-image",
+#endif
+#ifdef FEAT_IMAGE_SIXEL
+	"+image_sixel",
+#else
+	"-image_sixel",
+#endif
+#ifdef FEAT_IMAGE_KITTY
+	"+image_kitty",
+#else
+	"-image_kitty",
+#endif
+#ifdef FEAT_IMAGE_GDI
+	"+image_gdi",
+#else
+	"-image_gdi",
+#endif
+#ifdef FEAT_IMAGE_CAIRO
+	"+image_cairo",
+#else
+	"-image_cairo",
+#endif
 #ifdef FEAT_SOUND
 	"+sound",
 #else
@@ -729,6 +754,44 @@ static char *(features[]) =
 
 static int included_patches[] =
 {   /* Add new patch number below this line */
+/**/
+    623,
+/**/
+    622,
+/**/
+    621,
+/**/
+    620,
+/**/
+    619,
+/**/
+    618,
+/**/
+    617,
+/**/
+    616,
+/**/
+    615,
+/**/
+    614,
+/**/
+    613,
+/**/
+    612,
+/**/
+    611,
+/**/
+    610,
+/**/
+    609,
+/**/
+    608,
+/**/
+    607,
+/**/
+    606,
+/**/
+    605,
 /**/
     604,
 /**/
