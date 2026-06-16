@@ -560,6 +560,11 @@ static char *(features[]) =
 #else
 	"-image_cairo",
 #endif
+#ifdef FEAT_IMAGE_GDK
+	"+image_gdk",
+#else
+	"-image_gdk",
+#endif
 #ifdef FEAT_SOUND
 	"+sound",
 #else
@@ -754,6 +759,66 @@ static char *(features[]) =
 
 static int included_patches[] =
 {   /* Add new patch number below this line */
+/**/
+    653,
+/**/
+    652,
+/**/
+    651,
+/**/
+    650,
+/**/
+    649,
+/**/
+    648,
+/**/
+    647,
+/**/
+    646,
+/**/
+    645,
+/**/
+    644,
+/**/
+    643,
+/**/
+    642,
+/**/
+    641,
+/**/
+    640,
+/**/
+    639,
+/**/
+    638,
+/**/
+    637,
+/**/
+    636,
+/**/
+    635,
+/**/
+    634,
+/**/
+    633,
+/**/
+    632,
+/**/
+    631,
+/**/
+    630,
+/**/
+    629,
+/**/
+    628,
+/**/
+    627,
+/**/
+    626,
+/**/
+    625,
+/**/
+    624,
 /**/
     623,
 /**/
@@ -2349,7 +2414,11 @@ list_version(void)
     msg_puts(_("without GUI."));
 #elif defined(FEAT_GUI_GTK)
 # if defined(USE_GTK4)
+#  ifdef USE_GTK4_SNAPSHOT
+    msg_puts(_("with GTK4 GUI (hwaccel)."));
+#  else
     msg_puts(_("with GTK4 GUI."));
+#  endif
 # elif defined(USE_GTK3)
     msg_puts(_("with GTK3 GUI."));
 # elif defined(FEAT_GUI_GNOME)

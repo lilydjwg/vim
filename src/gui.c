@@ -1412,7 +1412,10 @@ gui_update_cursor(
 	    --gui.col;
 #endif
 
-#ifndef FEAT_GUI_MSWIN	    // doesn't seem to work for MSWindows
+	// Doesn't seem to work for MSWindows. Not necessary when using
+	// GtkSnapshot, because everything is drawn in order in the snapshot
+	// vfunc.
+#if !defined(FEAT_GUI_MSWIN) && !defined(USE_GTK4_SNAPSHOT)
 	gui.highlight_mask = ScreenAttrs[LineOffset[gui.row] + gui.col];
 	(void)gui_screenchar(LineOffset[gui.row] + gui.col,
 		GUI_MON_TRS_CURSOR | GUI_MON_NOCLEAR,
@@ -1605,6 +1608,10 @@ again:
     /* round off */
     gui.num_cols = ((pixel_width - gui_get_base_width()) / (float)gui.char_width) + 0.2;
     gui.num_rows = ((pixel_height - gui_get_base_height()) / (float)gui.char_height) + 0.2;
+
+#ifdef USE_GTK4_SNAPSHOT
+    gui_gtk4_update_size();
+#endif
 
     gui_position_components(pixel_width);
     gui_reset_scroll_region();
