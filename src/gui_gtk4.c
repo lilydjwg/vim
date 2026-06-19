@@ -33,6 +33,9 @@
 #ifdef USE_GTK4_SNAPSHOT
 # include "gui_gtk4_da.h"
 #endif
+#ifdef FEAT_TOOLBAR
+# include "gui_gtk4_tb.h"
+#endif
 
 /*
  * Geometry string parser, replacing XParseGeometry to remove X11 dependency.
@@ -280,12 +283,18 @@ static void enter_notify_event(GtkEventControllerMotion *controller, double x, d
 static gboolean scroll_event(GtkEventControllerScroll *controller, double dx, double dy, gpointer data);
 static void focus_in_event(GtkEventControllerFocus *controller, gpointer data);
 static void focus_out_event(GtkEventControllerFocus *controller, gpointer data);
+#ifdef FEAT_MENU
+static gboolean menubar_popover_closed_hook(GSignalInvocationHint *ihint, guint n_param_values, const GValue *param_values, gpointer data);
+#endif
 #ifdef FEAT_DND
 static gboolean drop_cb(GtkDropTarget *target, const GValue *value, double x, double y, gpointer data);
 #endif
 #ifdef FEAT_GUI_TABLINE
+static void tabline_enter_cb(GtkEventController *controller, double x, double y, void *udata);
 static void on_select_tab(GtkNotebook *notebook, gpointer *page, gint idx, gpointer data);
 static void on_tab_reordered(GtkNotebook *notebook, gpointer *page, gint idx, gpointer data);
+static GMenu *create_tabline_popup_menu(GActionGroup **agroup_store);
+static void tabline_menu_press_event(GtkGestureClick *gesture, int n_press, double x, double y, GtkWidget *popover);
 #endif
 static void mainwin_destroy_cb(GObject *object, gpointer data);
 static gboolean delete_event_cb(GtkWindow *window, gpointer data);
@@ -444,9 +453,9 @@ gui_mch_init_check(void)
 gui_mch_init(void)
 {
     // Allocate GdkRGBA color structs.
-    gui.fgcolor = g_new(GdkRGBA, 1);
-    gui.bgcolor = g_new(GdkRGBA, 1);
-    gui.spcolor = g_new(GdkRGBA, 1);
+    gui.fgcolor = g_new0(GdkRGBA, 1);
+    gui.bgcolor = g_new0(GdkRGBA, 1);
+    gui.spcolor = g_new0(GdkRGBA, 1);
 
     gui.def_norm_pixel = 0x00000000;	// black
     gui.def_back_pixel = 0x00ffffff;	// white
@@ -485,13 +494,28 @@ gui_mch_init(void)
 	gtk_widget_set_visible(gui.menubar, FALSE);
 	gtk_box_append(GTK_BOX(vbox), gui.menubar);
     }
+    // Return keyboard focus to the drawing area when a menubar popover
+    // closes (issue #20274).  GtkPopoverMenuBar owns its popovers
+    // privately, so attach via an emission hook on GtkPopover::closed
+    // and filter for popovers under our menubar inside the callback.
+    {
+	GTypeClass *cls = g_type_class_ref(GTK_TYPE_POPOVER);
+	guint sig_id = g_signal_lookup("closed", GTK_TYPE_POPOVER);
+
+	if (sig_id != 0)
+	    g_signal_add_emission_hook(sig_id, 0,
+		    menubar_popover_closed_hook, NULL, NULL);
+	if (cls != NULL)
+	    g_type_class_unref(cls);
+    }
 #endif
 
 #ifdef FEAT_TOOLBAR
-    gui.toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gui.toolbar = vim_toolbar_new();
     gtk_widget_set_name(gui.toolbar, "vim-toolbar");
     gtk_widget_set_visible(gui.toolbar, FALSE);
     gtk_box_append(GTK_BOX(vbox), gui.toolbar);
+    vim_toolbar_set_style(VIM_TOOLBAR(gui.toolbar), toolbar_flags, tbis_flags);
 #endif
 
 #ifdef FEAT_GUI_TABLINE
@@ -506,6 +530,47 @@ gui_mch_init(void)
 		     G_CALLBACK(on_select_tab), NULL);
     g_signal_connect(G_OBJECT(gui.tabline), "page-reordered",
 		     G_CALLBACK(on_tab_reordered), NULL);
+
+    {
+	GtkEventController *mcontroller = gtk_event_controller_motion_new();
+
+	g_signal_connect(mcontroller, "enter",
+		G_CALLBACK(tabline_enter_cb), NULL);
+
+	// Make sure that tabline_enter_cb() is always called before
+	// tabpage_enter_cb().
+	gtk_event_controller_set_propagation_phase(
+		mcontroller, GTK_PHASE_CAPTURE);
+	gtk_widget_add_controller(gui.tabline, mcontroller);
+    }
+
+    // Create right click popup menu for tabline
+    {
+	GtkGesture	*click;
+	GActionGroup	*agroup;
+	GMenu		*menu;
+	GtkWidget	*popover;
+
+	click = gtk_gesture_click_new();
+	menu = create_tabline_popup_menu(&agroup);
+	popover = gtk_popover_menu_new_from_model(G_MENU_MODEL(menu));
+	g_object_unref(menu);
+
+	gtk_widget_set_parent(popover, gui.tabline);
+	g_object_set_data(G_OBJECT(gui.tabline), "menu", popover);
+	gtk_widget_insert_action_group(gui.tabline, "tabline", agroup);
+	g_object_unref(agroup);
+
+	gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
+	gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_BOTTOM);
+
+	// Listen for anny mouse button
+	gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
+
+	g_signal_connect_object(click, "pressed",
+		G_CALLBACK(tabline_menu_press_event), popover, G_CONNECT_DEFAULT);
+	gtk_widget_add_controller(gui.tabline, GTK_EVENT_CONTROLLER(click));
+    }
 #endif
 
     // The form widget manages absolute positioning of scrollbars and the draw
@@ -743,7 +808,18 @@ gui_mch_open(void)
 gui_mch_exit(int rc UNUSED)
 {
     if (gui.mainwin != NULL)
+    {
+#ifdef FEAT_GUI_TABLINE
+	// Must unparent popover menu for tabline or we will get warning
+	gtk_widget_unparent(g_object_get_data(G_OBJECT(gui.tabline), "menu"));
+#endif
+#ifdef FEAT_BEVAL_GUI
+	// Make sure to destroy popover used for balloon eval, or we will get a
+	// warning from GTK that the draw area still has children left.
+	gui_mch_destroy_beval_area(balloonEval);
+#endif
 	gtk_window_destroy(GTK_WINDOW(gui.mainwin));
+    }
 }
 
     int
@@ -901,7 +977,12 @@ gui_mch_enable_menu(int showit)
 gui_mch_show_toolbar(int showit)
 {
     if (gui.toolbar != NULL)
+    {
 	gtk_widget_set_visible(gui.toolbar, showit);
+	if (showit)
+	    vim_toolbar_set_style(VIM_TOOLBAR(gui.toolbar),
+		    toolbar_flags, tbis_flags);
+    }
 }
 #endif
 
@@ -2127,6 +2208,48 @@ focus_out_event(GtkEventControllerFocus *controller UNUSED,
     }
 }
 
+#ifdef FEAT_MENU
+    static gboolean
+grab_drawarea_focus_idle(gpointer data UNUSED)
+{
+    if (gui.drawarea != NULL && !gtk_widget_has_focus(gui.drawarea))
+	gtk_widget_grab_focus(gui.drawarea);
+    return G_SOURCE_REMOVE;
+}
+
+    static gboolean
+menubar_popover_closed_hook(GSignalInvocationHint *ihint UNUSED,
+	guint n_param_values, const GValue *param_values,
+	gpointer data UNUSED)
+{
+    GObject	*obj;
+    GtkWidget	*popover;
+    GtkWidget	*parent;
+
+    if (n_param_values < 1 || gui.menubar == NULL || gui.drawarea == NULL)
+	return TRUE;
+    obj = g_value_get_object(&param_values[0]);
+    if (!GTK_IS_POPOVER(obj))
+	return TRUE;
+    popover = GTK_WIDGET(obj);
+
+    // Only react to popovers that descend from the menubar.
+    for (parent = gtk_widget_get_parent(popover);
+	    parent != NULL;
+	    parent = gtk_widget_get_parent(parent))
+    {
+	if (parent != gui.menubar)
+	    continue;
+	// Defer the grab to the next main loop iteration; calling it
+	// synchronously while GTK is still completing the popover close
+	// has no effect (issue #20274).
+	g_idle_add(grab_drawarea_focus_idle, NULL);
+	break;
+    }
+    return TRUE;	// keep the emission hook installed
+}
+#endif
+
 #ifndef USE_GTK4_SNAPSHOT
     static void
 drawarea_realize_cb(GtkWidget *widget UNUSED, gpointer data UNUSED)
@@ -2737,6 +2860,28 @@ gui_mch_showing_tabline(void)
 }
 
 static int ignore_tabline_evt = FALSE;
+// Page hovered over in tab line, zero indicates none
+static int tabpage_hover = 0;
+
+    static void
+tabpage_enter_cb(
+	GtkEventController  *controller UNUSED,
+	double		    x UNUSED,
+	double		    y UNUSED,
+	void		    *udata)
+{
+    tabpage_hover = GPOINTER_TO_INT(udata);
+}
+
+    static void
+tabline_enter_cb(
+	GtkEventController  *controller UNUSED,
+	double		    x UNUSED,
+	double		    y UNUSED,
+	void		    *udata UNUSED)
+{
+    tabpage_hover = 0;
+}
 
     void
 gui_mch_update_tabline(void)
@@ -2757,6 +2902,10 @@ gui_mch_update_tabline(void)
 
     for (tp = first_tabpage; tp != NULL; tp = tp->tp_next, ++nr)
     {
+	GtkNotebookPage	    *page_widget;
+	GtkWidget	    *tab_widget;
+	GtkEventController  *mcontroller;
+
 	if (tp == curtab)
 	    curtabidx = nr;
 
@@ -2778,9 +2927,18 @@ gui_mch_update_tabline(void)
 		    page, TRUE);
 	}
 
-	event_box = gtk_notebook_get_tab_label(GTK_NOTEBOOK(gui.tabline), page);
-	g_object_set_data(G_OBJECT(event_box), "tab_num",
+	// Attach motion event controller to detect which tab page is currently
+	// hovered over.
+	page_widget = gtk_notebook_get_page(GTK_NOTEBOOK(gui.tabline), page);
+	mcontroller = gtk_event_controller_motion_new();
+	g_signal_connect(mcontroller, "enter", G_CALLBACK(tabpage_enter_cb),
 		GINT_TO_POINTER(tab_num));
+	gtk_event_controller_set_propagation_phase(
+		mcontroller, GTK_PHASE_CAPTURE);
+	g_object_get(page_widget, "tab", &tab_widget, NULL);
+	gtk_widget_add_controller(tab_widget, mcontroller);
+
+	event_box = gtk_notebook_get_tab_label(GTK_NOTEBOOK(gui.tabline), page);
 	label = gtk_widget_get_first_child(event_box);
 	get_tabline_label(tp, FALSE);
 	labeltext = CONVERT_TO_UTF8(NameBuff);
@@ -2841,6 +2999,96 @@ on_tab_reordered(
 	tabpage_move(idx + 1);
     else
 	tabpage_move(idx);
+}
+
+/*
+ * Handle selecting an item in the tab line popup menu.
+ */
+    static void
+tabline_menu_action_cb(
+	GSimpleAction	*action UNUSED,
+	GVariant	*parameter UNUSED,
+	void		*udata)
+{
+    send_tabline_menu_event(tabpage_hover, GPOINTER_TO_INT(udata));
+}
+
+    static void
+add_tabline_menu_item(
+	GMenu	    *gmenu,
+	GActionMap  *amap,
+	const char  *name,
+	const char  *action,
+	int	    resp)
+{
+    GSimpleAction *act = g_simple_action_new(action, NULL);
+    char detailed[32];
+
+    g_signal_connect(act, "activate", G_CALLBACK(tabline_menu_action_cb),
+	    GINT_TO_POINTER(resp));
+    g_action_map_add_action(amap, G_ACTION(act));
+    g_object_unref(act);
+
+    vim_snprintf(detailed, sizeof(detailed), "tabline.%s", action);
+    g_menu_append(gmenu, name, detailed);
+}
+
+/*
+ * Create a menu for the tab line.
+ */
+    static GMenu *
+create_tabline_popup_menu(GActionGroup **agroup_store)
+{
+    GMenu		*gmenu = g_menu_new();
+    GSimpleActionGroup	*agroup = g_simple_action_group_new();
+
+    add_tabline_menu_item(gmenu, G_ACTION_MAP(agroup),
+	    _("Close Tab"), "close-tab", TABLINE_MENU_CLOSE);
+    add_tabline_menu_item(gmenu, G_ACTION_MAP(agroup),
+	    _("New Tab"), "new-tab", TABLINE_MENU_NEW);
+    add_tabline_menu_item(gmenu, G_ACTION_MAP(agroup),
+	    _("Open Tab..."), "open-tab", TABLINE_MENU_OPEN);
+
+    *agroup_store = G_ACTION_GROUP(agroup);
+    return gmenu;
+}
+
+    static void
+tabline_menu_press_event(
+	GtkGestureClick *gesture,
+	int		n_press UNUSED,
+	double		x,
+	double		y,
+	GtkWidget	*popover)
+{
+    guint but;
+
+    but = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
+    if (but == GDK_BUTTON_SECONDARY)
+    {
+	// Right mouse button pressed, popup menu
+	GdkRectangle rect;
+	rect.x = x;
+	rect.y = y;
+	rect.width = 1;
+	rect.height = 1;
+
+	gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
+	gtk_popover_popup(GTK_POPOVER(popover));
+    }
+    else if (but == GDK_BUTTON_PRIMARY)
+    {
+	if (tabpage_hover == 0)
+	    // Click after all tabs moves to next tab page.  When "x" is
+	    // small guess it's the left button.
+	    send_tabline_event(x < 50 ? -1 : 0);
+    }
+    else if (but == GDK_BUTTON_MIDDLE)
+    {
+	if (tabpage_hover != 0)
+	    // Middle mouse click on tabpage label closes that tab.
+	    send_tabline_menu_event(tabpage_hover, TABLINE_MENU_CLOSE);
+    }
 }
 #endif
 
@@ -3958,37 +4206,6 @@ clip_mch_lose_selection(Clipboard_T *cbd)
 	gdk_clipboard_set_content(clipboard, NULL);
 }
 
-// Balloon eval - use GTK4 tooltip
-    void
-gui_mch_post_balloon(BalloonEval *beval UNUSED, char_u *mesg)
-{
-    if (mesg != NULL && gui.drawarea != NULL)
-    {
-	char_u *text = CONVERT_TO_UTF8(mesg);
-	gtk_widget_set_tooltip_text(gui.drawarea, (const char *)text);
-	CONVERT_TO_UTF8_FREE(text);
-    }
-    else if (gui.drawarea != NULL)
-	gtk_widget_set_tooltip_text(gui.drawarea, NULL);
-}
-
-    BalloonEval *
-gui_mch_create_beval_area(void *target UNUSED, char_u *mesg UNUSED,
-	void (*mesgCB)(BalloonEval *, int) UNUSED, void *clientData UNUSED)
-{
-    return NULL;
-}
-
-    void
-gui_mch_enable_beval_area(BalloonEval *beval UNUSED)
-{
-}
-
-    void
-gui_mch_disable_beval_area(BalloonEval *beval UNUSED)
-{
-}
-
 // GTK4 does not have gtk_main_level/gtk_main_quit.
 // Provide compatibility stubs using a simple flag.
     guint
@@ -4264,7 +4481,7 @@ gui_mch_add_menu(vimmenu_T *menu, int idx UNUSED)
 }
 
     void
-gui_mch_add_menu_item(vimmenu_T *menu, int idx UNUSED)
+gui_mch_add_menu_item(vimmenu_T *menu, int idx)
 {
     vimmenu_T *parent = menu->parent;
 
@@ -4273,32 +4490,32 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx UNUSED)
     {
 	if (menu_is_separator(menu->name))
 	{
-	    GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
-	    gtk_box_append(GTK_BOX(gui.toolbar), sep);
-	    menu->id = sep;
+	    menu->id =
+		vim_toolbar_insert_separator(VIM_TOOLBAR(gui.toolbar), idx);
 	}
 	else
 	{
 	    GtkWidget	*btn;
 	    GtkWidget	*icon;
+	    char_u	*text;
 	    char_u	*tooltip;
 
-	    icon = create_toolbar_icon(menu);
-	    btn = gtk_button_new();
-	    gtk_button_set_child(GTK_BUTTON(btn), icon);
-	    gtk_widget_set_focusable(btn, FALSE);
-	    gtk_widget_add_css_class(btn, "flat");
-
+	    text    = CONVERT_TO_UTF8(menu->dname);
 	    tooltip = CONVERT_TO_UTF8(menu->strings[MENU_INDEX_TIP]);
-	    if (tooltip != NULL && utf_valid_string(tooltip, NULL))
-		gtk_widget_set_tooltip_text(btn, (const gchar *)tooltip);
-	    CONVERT_TO_UTF8_FREE(tooltip);
+	    if (tooltip != NULL && !utf_valid_string(tooltip, NULL))
+		CONVERT_TO_UTF8_FREE(tooltip);
+
+	    icon = create_toolbar_icon(menu);
+	    btn = vim_toolbar_insert_button(VIM_TOOLBAR(gui.toolbar),
+		    icon, (const char *)text, idx);
+	    gtk_widget_set_tooltip_text(btn, (const gchar *)tooltip);
 
 	    g_signal_connect(btn, "clicked",
 		    G_CALLBACK(toolbar_button_clicked_cb), menu);
 
-	    gtk_box_append(GTK_BOX(gui.toolbar), btn);
 	    menu->id = btn;
+	    CONVERT_TO_UTF8_FREE(text);
+	    CONVERT_TO_UTF8_FREE(tooltip);
 	}
 	return;
     }
@@ -4315,7 +4532,8 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx UNUSED)
 	{
 	    // GMenu doesn't have real separators; use a section
 	    GMenu *section = g_menu_new();
-	    g_menu_append_section(parent_menu, NULL, G_MENU_MODEL(section));
+	    g_menu_insert_section(parent_menu, idx, NULL,
+		    G_MENU_MODEL(section));
 	    g_object_unref(section);
 	    menu->id = NULL;
 	}
@@ -4344,7 +4562,7 @@ gui_mch_add_menu_item(vimmenu_T *menu, int idx UNUSED)
 
 	    label = CONVERT_TO_UTF8(menu->dname);
 	    vim_snprintf(detailed, sizeof(detailed), "menu.%s", action_name);
-	    g_menu_append(parent_menu, (const char *)label, detailed);
+	    g_menu_insert(parent_menu, idx, (const char *)label, detailed);
 	    CONVERT_TO_UTF8_FREE(label);
 
 	    menu->id = (GtkWidget *)1;  // non-NULL marker
@@ -4362,8 +4580,17 @@ gui_mch_toggle_tearoffs(int enable UNUSED)
 }
 
     void
-gui_mch_menu_set_tip(vimmenu_T *menu UNUSED)
+gui_mch_menu_set_tip(vimmenu_T *menu)
 {
+    char_u *tooltip;
+
+    if (menu->id == NULL || menu->parent == NULL || gui.toolbar == NULL)
+	return;
+
+    tooltip = CONVERT_TO_UTF8(menu->strings[MENU_INDEX_TIP]);
+    if (tooltip != NULL && utf_valid_string(tooltip, NULL))
+	gtk_widget_set_tooltip_text(menu->id, (const char *)tooltip);
+    CONVERT_TO_UTF8_FREE(tooltip);
 }
 
 /*
@@ -5023,7 +5250,8 @@ gui_mch_dialog(
     // mnemonics without <Alt> key, but that behaviour comes from GTK+ 1.2 (from
     // 1999!), so most users probably don't care...
     key_controller = gtk_event_controller_key_new();
-    g_signal_connect(key_controller, "key-pressed", G_CALLBACK(dialog_key_pressed_cb), &done);
+    g_signal_connect(key_controller, "key-pressed",
+	    G_CALLBACK(dialog_key_pressed_cb), &done);
     gtk_widget_add_controller(GTK_WIDGET(win), key_controller);
 
     if (textfield != NULL)

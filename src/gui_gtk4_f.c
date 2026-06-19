@@ -69,7 +69,7 @@ vim_form_dispose(GObject *obj)
     static void
 vim_form_class_init(VimFormClass *class)
 {
-    GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(class);
+    GtkWidgetClass  *widget_class = GTK_WIDGET_CLASS(class);
     GObjectClass    *obj_class = G_OBJECT_CLASS(class);
 
     widget_class->snapshot = vim_form_snapshot;
@@ -262,14 +262,27 @@ vim_form_measure(
 	int		*natural_baseline)
 {
     if (orientation == GTK_ORIENTATION_VERTICAL)
+    {
 	// Set minimum height of form widget to 4 rows.
-	*minimum = *natural = gui.char_height * 4;
+	if (minimum != NULL)
+	    *minimum  = gui.char_height * 4;
+	if (natural != NULL)
+	    *natural = gui.char_height * 4;
+    }
     else
-	// Set minimum width of form widget to 10 columns.
-	*minimum = *natural = gui.char_width * 10;
+    {
+	// Set minimum width of form widget to 20 columns. Any less and the draw
+	// area seems to glitch out...
+	if (minimum != NULL)
+	    *minimum  = gui.char_width * 20;
+	if (natural != NULL)
+	    *natural = gui.char_width * 20;
+    }
 
-    *minimum_baseline = -1;
-    *natural_baseline = -1;
+    if (minimum_baseline != NULL)
+	*minimum_baseline = -1;
+    if (natural_baseline != NULL)
+	*natural_baseline = -1;
 }
 
 
