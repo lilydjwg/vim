@@ -942,7 +942,9 @@ func Test_terminal_eof_arg()
     call WaitFor({-> getline('$') =~ 'hello'})
     call assert_equal('hello', getline('$'))
   endif
-  let exitval = bufnr()->term_getjob()->job_info().exitval
+  let job = bufnr()->term_getjob()
+  call WaitForAssert({-> assert_equal('dead', job_status(job))})
+  let exitval = job->job_info().exitval
   if !has('win32')
     call assert_equal(123, exitval)
   else
@@ -984,7 +986,9 @@ func Test_terminal_duplicate_eof_arg()
     call WaitFor({-> getline('$') =~ 'hello'})
     call assert_equal('hello', getline('$'))
   endif
-  let exitval = bufnr()->term_getjob()->job_info().exitval
+  let job = bufnr()->term_getjob()
+  call WaitForAssert({-> assert_equal('dead', job_status(job))})
+  let exitval = job->job_info().exitval
   if !has('win32')
     call assert_equal(123, exitval)
   else
@@ -1150,7 +1154,11 @@ func Test_terminal_composing_unicode()
   endif
 
   enew
-  let buf = term_start(cmd, {'curwin': 1})
+  let term_opts = {'curwin': 1}
+  if has('sun')
+    let term_opts.env = {'LC_ALL': 'C.UTF-8'}
+  endif
+  let buf = term_start(cmd, term_opts)
   let g:job = term_getjob(buf)
   call WaitFor({-> term_getline(buf, 1) !=# ''}, 1000)
 

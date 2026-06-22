@@ -2162,6 +2162,16 @@ if test "$enable_rubyinterp" = "yes" -o "$enable_rubyinterp" = "dynamic"; then
 	  AC_DEFINE(DYNAMIC_RUBY)
 	  RUBY_CFLAGS="-DDYNAMIC_RUBY_DLL=\\\"$libruby_soname\\\" $RUBY_CFLAGS"
 	  RUBY_LIBS=
+	  dnl For dynamic Ruby keep only the library search path / runpath from
+	  dnl librubyarg so the dlopen()ed library can be found at runtime,
+	  dnl without adding -lruby and thus a hard dependency on the Ruby
+	  dnl library, which would defeat dynamic loading.
+	  for arg in $librubyarg; do
+	    case "$arg" in
+	      -L*|-R*|-Wl,-R*|-Wl,-rpath*) RUBY_LIBS="$RUBY_LIBS $arg" ;;
+	    esac
+	  done
+	  librubyarg=
 	fi
 	if test "X$librubyarg" != "X"; then
 	  RUBY_LIBS="$librubyarg $RUBY_LIBS"
@@ -4027,7 +4037,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
 
 dnl Check for timer_create. It probably requires the 'rt' library.
 AC_CACHE_CHECK([for timer_create without -lrt], [vim_cv_timer_create], [
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([
   #include <time.h>
   ], [
     timer_create(CLOCK_MONOTONIC, NULL, NULL);
@@ -4041,7 +4051,7 @@ if test "x$vim_cv_timer_create" = "xno" ; then
   save_LIBS="$LIBS"
   LIBS="$LIBS -lrt"
   AC_CACHE_CHECK([for timer_create with -lrt], [vim_cv_timer_create_with_lrt], [
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([
     #include <time.h>
     ], [
       timer_create(CLOCK_MONOTONIC, NULL, NULL);

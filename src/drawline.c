@@ -3696,6 +3696,17 @@ win_line(
 			else if (wlv.line_attr)
 			    wlv.char_attr = hl_combine_attr(
 						 wlv.char_attr, wlv.line_attr);
+			// Show a Visual or search highlight on the first cell
+			// of an empty line, on top of the background color.
+			if (wlv.vcol == 0)
+			{
+			    if (area_attr != 0)
+				wlv.char_attr = hl_combine_attr(
+						     wlv.char_attr, area_attr);
+			    else if (search_attr != 0)
+				wlv.char_attr = hl_combine_attr(
+						   wlv.char_attr, search_attr);
+			}
 		    }
 # endif
 		}
@@ -3802,6 +3813,10 @@ win_line(
 	    else
 # endif
 		wp->w_wcol = wlv.col - wlv.boguscols;
+	    // Screen cells concealed before the cursor on this screen line, so
+	    // pum_display() can line the menu up with the visible text;
+	    // "skip_cells" is the concealed cell at the cursor not yet counted.
+	    wp->w_wcol_conceal_off = wlv.vcol_off_co + skip_cells;
 	    if (wlv.vcol + skip_cells < wp->w_virtcol)
 		// Cursor beyond end of the line with 'virtualedit'.
 		wp->w_wcol += wp->w_virtcol - wlv.vcol - skip_cells;

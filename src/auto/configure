@@ -8613,6 +8613,12 @@ printf "%s\n" "$rubyhdrdir" >&6; }
 
 	  RUBY_CFLAGS="-DDYNAMIC_RUBY_DLL=\\\"$libruby_soname\\\" $RUBY_CFLAGS"
 	  RUBY_LIBS=
+	  	  	  	  	  for arg in $librubyarg; do
+	    case "$arg" in
+	      -L*|-R*|-Wl,-R*|-Wl,-rpath*) RUBY_LIBS="$RUBY_LIBS $arg" ;;
+	    esac
+	  done
+	  librubyarg=
 	fi
 	if test "X$librubyarg" != "X"; then
 	  RUBY_LIBS="$librubyarg $RUBY_LIBS"
@@ -15072,7 +15078,7 @@ main (void)
   return 0;
 }
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   vim_cv_timer_create=yes
 else case e in #(
@@ -15080,7 +15086,8 @@ else case e in #(
    ;;
 esac
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext ;;
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext ;;
 esac
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $vim_cv_timer_create" >&5
@@ -15111,7 +15118,7 @@ main (void)
   return 0;
 }
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   vim_cv_timer_create_with_lrt=yes
 else case e in #(
@@ -15119,7 +15126,8 @@ else case e in #(
      ;;
 esac
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext ;;
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext ;;
 esac
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $vim_cv_timer_create_with_lrt" >&5
