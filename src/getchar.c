@@ -1379,9 +1379,9 @@ gotchars_add_byte(gotchars_state_T *state, char_u byte)
 		// When receiving a modifier, wait for the modified key.
 		goto ret_false;
 	    c = TO_SPECIAL(state->prev_c, c);
-	    if (c == K_FOCUSGAINED || c == K_FOCUSLOST)
-		// Drop K_FOCUSGAINED and K_FOCUSLOST, they are not useful
-		// in a recording.
+	    // Drop K_FOCUSGAINED, K_FOCUSLOST and K_COMPLETE_DELAY, they are
+	    // not useful in a recording.
+	    if (c == K_FOCUSGAINED || c == K_FOCUSLOST || c == K_COMPLETE_DELAY)
 		state->buflen = 0;
 	}
 	// When receiving a multibyte character, store it until we have all
@@ -2175,7 +2175,8 @@ vgetc(void)
 #endif
 
 #ifdef FEAT_BEVAL_TERM
-    if (c != K_MOUSEMOVE && c != K_IGNORE && c != K_CURSORHOLD)
+    if (c != K_MOUSEMOVE && c != K_IGNORE && c != K_CURSORHOLD
+	    && c != K_COMPLETE_DELAY)
     {
 	// Don't trigger 'balloonexpr' unless only the mouse was moved.
 	bevalexpr_due_set = FALSE;

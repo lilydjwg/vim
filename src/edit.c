@@ -677,6 +677,9 @@ edit(
 
 	// Don't want K_CURSORHOLD for the second key, e.g., after CTRL-V.
 	did_cursorhold = TRUE;
+	if (c != K_CURSORHOLD && c != K_COMPLETE_DELAY)
+	    // Don't want delayed autocompletion from the previous key either.
+	    ins_compl_clear_autocomplete_delay();
 
 #ifdef FEAT_RIGHTLEFT
 	if (p_hkmap && KeyTyped)
@@ -898,6 +901,8 @@ do_intr:
 		break;
 	    }
 doESCkey:
+	    // Drop a pending autocomplete so it does not outlive Insert mode.
+	    ins_compl_clear_autocomplete_delay();
 	    /*
 	     * This is the ONLY return from edit()!
 	     */
@@ -1171,6 +1176,9 @@ doESCkey:
 	    break;
 
 	case K_COMPLETE_DELAY:	// 'autocompletedelay' expired
+	    // If CTRL-G U was used apply it to the next typed key.
+	    if (dont_sync_undo == TRUE)
+		dont_sync_undo = MAYBE;
 	    ins_compl_clear_autocomplete_delay();
 	    if (!ins_compl_has_autocomplete() || char_avail()
 		    || curwin->w_cursor.col == 0)
@@ -1533,8 +1541,9 @@ normalchar:
 	    break;
 	}   // end of switch (c)
 
-	// If typed something may trigger CursorHoldI again.
-	if (c != K_CURSORHOLD
+	// If typed something may trigger CursorHoldI again; K_COMPLETE_DELAY is
+	// injected, not typed.
+	if (c != K_CURSORHOLD && c != K_COMPLETE_DELAY
 #ifdef FEAT_COMPL_FUNC
 		// but not in CTRL-X mode, a script can't restore the state
 		&& ctrl_x_mode_normal()

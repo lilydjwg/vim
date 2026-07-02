@@ -206,6 +206,9 @@ static buf_T	  *compl_curr_buf = NULL;  // buf where completion is active
 // COMPL_FUNC_TIMEOUT_NON_KW_MS). - girish
 static int	  compl_autocomplete = FALSE;	    // whether autocompletion is active
 static bool	  compl_autocomplete_pending = false;
+#ifdef ELAPSED_FUNC
+static elapsed_T  compl_autocomplete_start_tv;	    // when the delay was armed
+#endif
 static int	  compl_timeout_ms = COMPL_INITIAL_TIMEOUT_MS;
 static int	  compl_time_slice_expired = FALSE; // time budget exceeded for current source
 static int	  compl_from_nonkeyword = FALSE;    // completion started from non-keyword
@@ -2564,12 +2567,6 @@ ins_compl_new_leader(void)
     ins_compl_delete();
     ins_compl_insert_bytes(compl_leader.string + get_compl_len(), -1);
     compl_used_match = FALSE;
-
-    if (p_acl > 0)
-    {
-	update_screen(UPD_VALID); // Show char (deletion) immediately
-	out_flush();
-    }
 
     if (compl_started)
     {
@@ -6221,7 +6218,6 @@ ins_compl_next(
     int	    compl_no_insert = (cur_cot_flags & COT_NOINSERT) != 0
 		    || (compl_autocomplete && !ins_compl_has_preinsert());
     int	    compl_preinsert = ins_compl_has_preinsert();
-    int	    has_autocomplete_delay = (compl_autocomplete && p_acl > 0);
 
     // When user complete function return -1 for findstart which is next
     // time of 'always', compl_shown_match become NULL.
@@ -6265,11 +6261,7 @@ ins_compl_next(
 
     // Insert the text of the new completion, or the compl_leader.
     if (!started && ins_compl_preinsert_longest())
-    {
 	ins_compl_insert(TRUE, TRUE);
-	if (has_autocomplete_delay)
-	    update_screen(0);  // Show the inserted text right away
-    }
     else if (compl_no_insert && !started && !compl_preinsert)
     {
 	ins_compl_insert_bytes(compl_orig_text.string + get_compl_len(), -1);
@@ -6295,7 +6287,7 @@ ins_compl_next(
 	// may undisplay the popup menu first
 	ins_compl_upd_pum();
 
-	if (pum_enough_matches() && !has_autocomplete_delay)
+	if (pum_enough_matches())
 	    // Will display the popup menu, don't redraw yet to avoid flicker.
 	    pum_call_update_screen();
 	else
@@ -6303,19 +6295,16 @@ ins_compl_next(
 	    // inserted.
 	    update_screen(0);
 
-	if (!has_autocomplete_delay)
-	{
-	    // display the updated popup menu
-	    ins_compl_show_pum();
+	// display the updated popup menu
+	ins_compl_show_pum();
 #ifdef FEAT_GUI
-	    if (gui.in_use)
-	    {
-		// Show the cursor after the match, not after the redrawn text.
-		setcursor();
-		out_flush_cursor(FALSE, FALSE);
-	    }
-#endif
+	if (gui.in_use)
+	{
+	    // Show the cursor after the match, not after the redrawn text.
+	    setcursor();
+	    out_flush_cursor(FALSE, FALSE);
 	}
+#endif
 
 	// Delete old text to be replaced, since we're still searching and
 	// don't want to match ourselves!
@@ -7398,6 +7387,7 @@ ins_compl_arm_autocomplete_delay(void)
 #ifdef ELAPSED_FUNC
     if (p_acl > 0)
     {
+	ELAPSED_INIT(compl_autocomplete_start_tv);
 	compl_autocomplete_pending = true;
 	return true;
     }
@@ -7421,6 +7411,19 @@ ins_compl_clear_autocomplete_delay(void)
 ins_compl_autocomplete_pending(void)
 {
     return compl_autocomplete_pending;
+}
+
+/*
+ * Return the time in msec since the 'autocompletedelay' was armed.
+ */
+    long
+ins_compl_autocomplete_elapsed(void)
+{
+#ifdef ELAPSED_FUNC
+    return ELAPSED_FUNC(compl_autocomplete_start_tv);
+#else
+    return 0;
+#endif
 }
 
 /*
