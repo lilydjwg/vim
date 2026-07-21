@@ -613,6 +613,54 @@ func Test_mksession_terminal_shared_windows()
   call delete('Xtest_mks.out')
 endfunc
 
+func Test_mksession_terminal_shell_command()
+  CheckFeature terminal
+
+  set sessionoptions+=terminal
+  terminal
+  let term_buf = bufnr()
+  eval term_buf->term_setrestore('echo HELLO_WORLD')
+  mksession! Xtest_mks.out
+
+  call StopShellInTerminal(term_buf)
+
+  source Xtest_mks.out
+
+  let restored_buf = bufnr()
+  call assert_equal('terminal', getbufvar(restored_buf, '&buftype'))
+  call WaitForAssert({-> assert_match(
+        \ 'HELLO_WORLD',
+        \ term_getline(restored_buf, 1))})
+  call WaitForAssert({-> assert_match(
+        \ 'finished',
+        \ term_getstatus(restored_buf))})
+
+  bwipe!
+  call delete('Xtest_mks.out')
+endfunc
+
+" Plain :terminal stores no command (tl_command == NULL), so nothing is
+" written after the ':terminal ++curwin ...' line.  Restoring must still
+" produce a running shell terminal.
+func Test_mksession_terminal_default_restore()
+  CheckFeature terminal
+
+  terminal
+  let term_buf = bufnr()
+  mksession! Xtest_mks.out
+  call StopShellInTerminal(term_buf)
+  %bwipe!
+
+  source Xtest_mks.out
+  let restored = bufnr()
+  call assert_equal('terminal', getbufvar(restored, '&buftype'))
+  call WaitForAssert({-> assert_match('running', term_getstatus(restored))})
+  call StopShellInTerminal(restored)
+
+  %bwipe!
+  call delete('Xtest_mks.out')
+endfunc
+
 func Test_mkview_terminal_windows()
   CheckFeature terminal
 
@@ -1076,8 +1124,7 @@ endfunc
 
 " Test for mksession without options restores winminheight
 func Test_mksession_winminheight()
-  set winheight=10 winwidth=10 winminheight& winminwidth&
-  defer execute('set winheight& winwidth&')
+  set winheight& winwidth& winminheight& winminwidth&
   set sessionoptions-=options
   defer execute('set sessionoptions&')
   split
@@ -1097,8 +1144,8 @@ func Test_mksession_winminheight()
   mksession! Xtest_mks.out
   tabclose | tabclose | close
   call assert_equal(1, tabpagenr('$'))
-  set winminheight=2 winminwidth=2
-  defer execute('set winminheight& winminwidth&')
+  set winheight=2 winminheight=2 winwidth=2 winminwidth=2
+  defer execute('set winheight& winwidth& winminheight& winminwidth&')
   source Xtest_mks.out
   call assert_equal(3, tabpagenr('$'))
   call assert_equal([2, 2], [&winminheight, &winminwidth])
@@ -1761,6 +1808,21 @@ func Test_mksession_vim9_duplicate_import()
   defer delete('XDummyOutput')
   call assert_equal([ref_txt], readfile('XDummyOutput'))
 
+endfunc
+
+" 'winminwidth' restore must not fail when the session's saved 'winwidth' is
+" smaller than the sourcing context's 'winminwidth'.
+func Test_mksession_winminwidth()
+  set winminheight& winminwidth& winheight=2 winwidth=1 sessionoptions-=options
+  split
+  mksession! Xtest_mks.out
+  defer delete('Xtest_mks.out')
+  only
+  set winheight=2 winminheight=2 winwidth=2 winminwidth=2
+  defer execute('set winheight& winwidth& winminheight& winminwidth& sessionoptions&')
+  source Xtest_mks.out
+  call assert_equal([2, 2], [&winminheight, &winminwidth])
+  only
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab
