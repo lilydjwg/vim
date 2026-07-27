@@ -117,6 +117,7 @@ static void redraw_under_popup_area(int winrow, int wincol, int height,
 	int width, int leftoff);
 static void redraw_overlapped_opacity_popups(int winrow, int wincol,
 	int height, int width, int leftoff, int zindex);
+static void redraw_win_under_opacity_popup(win_T *wp);
 #ifdef FEAT_IMAGE_KITTY
 static void popup_image_clear_kitty(win_T *wp);
 #endif
@@ -1110,9 +1111,9 @@ apply_general_options(win_T *wp, dict_T *dict)
 			    if (gui.in_use)
 			    {
 				if (gui.char_width > 0)
-				    cx = gui.char_width;
+				    cx = LOG2PHY(gui.char_width);
 				if (gui.char_height > 0)
-				    cy = gui.char_height;
+				    cy = LOG2PHY(gui.char_height);
 			    }
 			    else
 #  endif
@@ -3013,6 +3014,35 @@ popup_adjust_position(win_T *wp)
     }
 }
 
+#if defined(FEAT_GUI_GTK) && defined(FEAT_IMAGE)
+/*
+ * Should be called when scale factor changes.
+ */
+    void
+popup_update_scale(double old_scale)
+{
+    win_T *wp;
+    double ratio = old_scale / gui.scale;
+
+    FOR_ALL_POPUPWINS_IN_TAB(curtab, wp)
+    {
+	// If the popup has an image, recalculate its bounding box in cells
+	if (wp->w_popup_image_data != NULL)
+	{
+	    // Add +0.5 so that it rounds to nearest whole value
+	    wp->w_minwidth  = wp->w_minwidth * ratio + 0.5;
+	    wp->w_maxwidth  = wp->w_maxwidth * ratio + 0.5;
+	    wp->w_minheight = wp->w_minheight * ratio + 0.5;
+	    wp->w_maxheight = wp->w_maxheight * ratio + 0.5;
+	}
+
+	// Reflow the popup layout with the newly calculated limits
+	popup_adjust_position(wp);
+    }
+    redraw_later(UPD_CLEAR);
+}
+#endif
+
 typedef enum
 {
     TYPE_NORMAL,
@@ -4612,6 +4642,11 @@ popup_close(int id, int force)
 		first_popupwin = wp->w_next;
 	    else
 		prev->w_next = wp->w_next;
+#ifdef FEAT_TERMINAL
+	    // If the popup to be closed is opaque, terminal windows under
+	    // the popup should trigger a force repaint of their windows.
+	    redraw_win_under_opacity_popup(wp);
+#endif
 	    popup_free(wp);
 	    return OK;
 	}
@@ -4655,6 +4690,11 @@ popup_close_tabpage(tabpage_T *tp, int id, int force)
 		*root = wp->w_next;
 	    else
 		prev->w_next = wp->w_next;
+#ifdef FEAT_TERMINAL
+	    // If the popup to be closed is opaque, terminal windows under
+	    // the popup should trigger a force repaint of their windows.
+	    redraw_win_under_opacity_popup(wp);
+#endif
 	    popup_free(wp);
 	    return OK;
 	}
@@ -6825,9 +6865,13 @@ popup_image_gui_clip(
 	int	*draw_h)
 {
     popup_clip_T    cl;
-    int		    cell_x = gui.char_width > 0 ? gui.char_width : 8;
-    int		    cell_y = gui.char_height > 0 ? gui.char_height : 16;
+    // "gui.char_*" are in logical pixels, must convert to physical first,
+    // because all the other dimensions are in physical pixels.
+    int		    cell_x = LOG2PHY(gui.char_width > 0 ? gui.char_width : 8);
+    int		    cell_y = LOG2PHY(gui.char_height > 0 ? gui.char_height : 16);
     win_T	    *cw;
+    int		    visible_w;
+    int		    visible_h;
 
     popup_compute_clip(wp, &cl);
     *row += cl.clip_top_content;
@@ -6857,6 +6901,18 @@ popup_image_gui_clip(
 	*draw_w = 0;
     if (*draw_h < 0)
 	*draw_h = 0;
+
+    // If image is larger than the actual screen size, then clip it. Maybe best
+    // solution would be to somehow make popup win bigger than the screen size
+    // (as if 'nowrap' is on). However that would require a lot of changes so
+    // just clip the image for now.
+    visible_w = wp->w_width - cl.clip_left_content - cl.clip_right_content;
+    visible_h = wp->w_height - cl.clip_top_content - cl.clip_bot_content;
+
+    if (visible_w > 0)
+	*draw_w = MIN(*draw_w, visible_w * cell_x);
+    if (visible_h > 0)
+	*draw_h = MIN(*draw_h, visible_h * cell_y);
 }
 # endif
 
@@ -7085,12 +7141,12 @@ popup_emit_image(win_T *wp)
     // vim still thinks it is at the image origin, so the relative-move
     // optimisation would otherwise place the cursor on the line just
     // after the image.
-    out_str((char_u *)"\033[?25l");
+    cursor_off();
     term_windgoto(row, col);
     out_str(wp->w_popup_image_seq);
     screen_start();
     setcursor_mayforce(TRUE);
-    out_str((char_u *)"\033[?25h");
+    cursor_on();
     out_flush();
 
     // The sixel bytes just painted over every cell of the emitted rectangle,
