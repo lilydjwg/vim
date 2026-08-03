@@ -2537,9 +2537,23 @@ scroll_cursor_top(int min_scroll, int always)
 	{
 	    validate_virtcol();
 	    if (curwin->w_skipcol >= curwin->w_virtcol)
-		// TODO: if the line doesn't fit may optimize w_skipcol instead
-		// of making it zero
-		reset_skipcol();
+	    {
+		// Skip up to the screen line the cursor is in, so that the
+		// position in the line is kept.
+		int	width1 = curwin->w_width - curwin_col_off();
+		int	width2 = width1 + curwin_col_off2();
+		int	plines_off = 0;
+		int	skipcol;
+
+		if (width2 > 0 && curwin->w_virtcol >= (colnr_T)width1)
+		    plines_off = (curwin->w_virtcol - width1) / width2 + 1;
+		skipcol = skipcol_from_plines(curwin, plines_off);
+		if (skipcol != curwin->w_skipcol)
+		{
+		    curwin->w_skipcol = skipcol;
+		    redraw_later(UPD_SOME_VALID);
+		}
+	    }
 	}
 	if (curwin->w_topline != old_topline
 		|| curwin->w_skipcol != old_skipcol
@@ -2686,6 +2700,15 @@ scroll_cursor_bot(int min_scroll, int set_topbot)
     validate_cheight();
     used = curwin->w_cline_height;
 #endif
+
+    if (do_sms && (dy_flags & DY_LASTLINE))
+    {
+	// The rest of the cursor line may be cut off at the bottom.
+	int upto_cursor = plines_win_col(curwin, cln, curwin->w_cursor.col);
+
+	if (upto_cursor < used)
+	    used = upto_cursor;
+    }
 
     // If the cursor is on or below botline, we will at least scroll by the
     // height of the cursor line, which is "used".  Correct for empty lines,
@@ -3113,19 +3136,6 @@ cursor_correct(void)
 #endif
 	    )
 	return;
-
-    if (curwin->w_p_sms && !curwin->w_p_wrap)
-    {
-	// 'smoothscroll' is active
-	if (curwin->w_cline_height == curwin->w_height)
-	{
-	    // The cursor line just fits in the window, don't scroll.
-	    reset_skipcol();
-	    return;
-	}
-	// TODO: If the cursor line doesn't fit in the window then only adjust
-	// w_skipcol.
-    }
 
     /*
      * Narrow down the area where the cursor can be put by taking lines from

@@ -2034,12 +2034,34 @@ func Test_splitkeep_cmdheight()
   set splitkeep& cmdheight&
 endfunc
 
+func Test_splitkeep_screen_smoothscroll()
+  set splitkeep=screen
+  setlocal smoothscroll
+  call setline(1, [repeat('x', 3000)] + repeat(['line'], 10))
+  exe "normal! gg10\<C-E>"
+  redraw
+  let skipcol = winsaveview().skipcol
+  call assert_notequal(0, skipcol)
+
+  " Keeping the same screen lines also keeps the position in a long line.
+  split
+  close
+  redraw
+  call assert_equal(skipcol, winsaveview().skipcol)
+
+  %bwipeout!
+  set splitkeep&
+endfunc
+
 func Test_aucmd_win_scroll_multibyte()
   " Using the autocommand window must not scroll the current window when the
   " cursor is behind multi-byte characters.
   set splitkeep=cursor
-  call setline(1, repeat([repeat(nr2char(0x3042), 200)], 20))
-  normal! G0100l
+  " Use a window with a fixed size, the size of the screen may change while
+  " the test is running.
+  call NewWindow(11, 40)
+  call setline(1, repeat([repeat(nr2char(0x3042), 100)], 20))
+  normal! G050l
   redraw
   let topline = line('w0')
 
@@ -2049,6 +2071,7 @@ func Test_aucmd_win_scroll_multibyte()
   call assert_equal(topline, line('w0'))
 
   %bwipeout!
+  only!
   set splitkeep&
 endfunc
 

@@ -4831,8 +4831,11 @@ typedef struct
     int		do_syntax;
 #endif
     int		user_abort;
+#ifdef FEAT_PRINT_PANGO
+    int		user_abort_msg;
+#endif
     char_u	*jobname;
-#ifdef FEAT_POSTSCRIPT
+#if defined(FEAT_POSTSCRIPT) || defined(FEAT_PRINT_PANGO)
     char_u	*outfile;
     char_u	*arguments;
 #endif
@@ -5358,7 +5361,11 @@ typedef struct {
     char	cts_has_prop_with_text;	// TRUE if a property inserts text
     int		cts_cur_text_width;	// width of current inserted text
     int		cts_prop_lines;		// nr of properties above or below
+    bool	cts_has_below;		// true if a text property below was
+					// counted, its width fills up the line
     int		cts_first_char;		// width text props above the line
+    int		cts_above_width;	// width of text props above the line,
+					// kept for the whole line
     int		cts_with_trailing;	// include size of trailing props with
 					// last character
     int		cts_start_incl;		// prop has true "start_incl" arg
