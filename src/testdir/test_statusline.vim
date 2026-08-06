@@ -301,7 +301,7 @@ func Test_statusline()
   let s:expected_curbuf = string(bufnr(''))
   let s:expected_curwin = string(win_getid())
   set statusline=%{SyntaxItem()}
-  call assert_match('^vimNumber\s*$', s:get_statusline())
+  call assert_match('^vimAddress\s*$', s:get_statusline())
   s/^/"/
   call assert_match('^vimLineComment\s*$', s:get_statusline())
   syntax off
@@ -1087,6 +1087,40 @@ func Test_statusline_vsep_borrow_hl()
   " Now the leftmost vsep is between two non-current windows.
   call term_sendkeys(buf, "\<C-w>l\<C-L>")
   call VerifyScreenDump(buf, 'Test_statusline_vsep_borrow_hl_02', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_statusline_vsep_borrow_hl_mode_change()
+  CheckScreendump
+
+  " With 'statusline' set, a mode change repaints the status line through
+  " showruler().  The vsep cell must follow without another key press.
+  let lines =<< trim END
+    hi User1 ctermfg=Red ctermbg=Yellow
+    hi User2 ctermfg=Blue ctermbg=Green
+    set laststatus=2
+    func MyStl()
+      return mode() ==# 'i' ? '%1*INSERT' : '%2*NORMAL'
+    endfunc
+    set statusline=%!MyStl()
+    call setline(1, ['aaa', 'bbb'])
+    vsplit
+    wincmd w
+  END
+  call writefile(lines, 'XTest_statusline_vsep_mode', 'D')
+
+  let buf = RunVimInTerminal('-S XTest_statusline_vsep_mode',
+        \ {'rows': 6, 'cols': 78})
+  call term_sendkeys(buf, "\<C-L>")
+  call VerifyScreenDump(buf, 'Test_statusline_vsep_borrow_hl_mode_01', {})
+
+  call term_sendkeys(buf, "i")
+  call VerifyScreenDump(buf, 'Test_statusline_vsep_borrow_hl_mode_02', {})
+
+  " Leaving Insert mode restores the state of the first dump.
+  call term_sendkeys(buf, "\<Esc>")
+  call VerifyScreenDump(buf, 'Test_statusline_vsep_borrow_hl_mode_01', {})
 
   call StopVimInTerminal(buf)
 endfunc
