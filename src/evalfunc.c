@@ -7186,7 +7186,7 @@ f_has(typval_T *argvars, typval_T *rettv)
 #endif
 		},
 	{"gui_gtk2",
-#if defined(FEAT_GUI_GTK) && !defined(USE_GTK3)
+#if defined(FEAT_GUI_GTK) && !defined(USE_GTK3) && !defined(USE_GTK4)
 		1
 #else
 		0
@@ -9256,6 +9256,7 @@ find_some_match(typval_T *argvars, typval_T *rettv, matchtype_T type)
     list_T	*l = NULL;
     listitem_T	*li = NULL;
     long	idx = 0;
+    int		prev_lock = 0;
     char_u	*tofree = NULL;
 
     // Make 'cpoptions' empty, the 'l' flag should not be used here.
@@ -9357,6 +9358,15 @@ find_some_match(typval_T *argvars, typval_T *rettv, matchtype_T type)
     if (regmatch.regprog != NULL)
     {
 	regmatch.rm_ic = p_ic;
+
+	// Lock the list, the string() method of an object item could remove
+	// the item the loop is standing on.
+	if (l != NULL)
+	{
+	    prev_lock = l->lv_lock;
+	    if (l->lv_lock == 0)
+		l->lv_lock = VAR_LOCKED;
+	}
 
 	for (;;)
 	{
@@ -9460,6 +9470,8 @@ find_some_match(typval_T *argvars, typval_T *rettv, matchtype_T type)
 		rettv->vval.v_number += (varnumber_T)(str - expr);
 	    }
 	}
+	if (l != NULL)
+	    l->lv_lock = prev_lock;
 	vim_regfree(regmatch.regprog);
     }
 

@@ -15,15 +15,7 @@
 # ifdef VMS
 #  include "gui_gtk_vms.h"
 # endif
-# ifdef USE_GTK4
-// Types used in proto files but not available without X11 headers
-typedef void *Widget;
-typedef void *XtAppContext;
-typedef void  Display;
-typedef unsigned long Window;
-typedef unsigned long Atom;
-typedef GdkEvent GdkEventKey;	// GTK4: GdkEventKey merged into GdkEvent
-# else
+# ifndef USE_GTK4
 #  include <X11/Intrinsic.h>
 # endif
 # pragma GCC diagnostic push
@@ -33,6 +25,15 @@ typedef GdkEvent GdkEventKey;	// GTK4: GdkEventKey merged into GdkEvent
 # endif
 # include <gtk/gtk.h>
 # pragma GCC diagnostic pop
+# ifdef USE_GTK4
+// Types used in proto files but not available without X11 headers
+typedef void *Widget;
+typedef void *XtAppContext;
+typedef void  Display;
+typedef unsigned long Window;
+typedef unsigned long Atom;
+typedef GdkEvent GdkEventKey;	// GTK4: GdkEventKey merged into GdkEvent
+# endif
 #endif
 
 #ifdef FEAT_GUI_HAIKU
@@ -503,6 +504,13 @@ typedef struct Gui
 #endif
 #if defined(FEAT_GUI_GTK) && defined(USE_GTK4)
     int decor_height;
+
+    // Size of the form widget last asked for with gui_mch_set_shellsize().
+    // "pending_form_skip" counts how many allocations that do not answer it
+    // may still be ignored.
+    int pending_form_w;
+    int pending_form_h;
+    int pending_form_skip;
 
     // Used for clipboard functionality in GTK4 GUI
     GdkContentProvider *regular_provider;

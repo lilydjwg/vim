@@ -1955,6 +1955,7 @@ $quote	eval.txt	/*$quote*
 09.2	usr_09.txt	/*09.2*
 09.3	usr_09.txt	/*09.3*
 09.4	usr_09.txt	/*09.4*
+0b	eval.txt	/*0b*
 0o	eval.txt	/*0o*
 0x	eval.txt	/*0x*
 10.1	usr_10.txt	/*10.1*
@@ -5739,6 +5740,7 @@ GNOME	gui_x11.txt	/*GNOME*
 GTK	gui_x11.txt	/*GTK*
 GTK+	gui_x11.txt	/*GTK+*
 GTK3	gui_x11.txt	/*GTK3*
+GTK4	gui_x11.txt	/*GTK4*
 GUI	gui.txt	/*GUI*
 GUI-X11	gui_x11.txt	/*GUI-X11*
 GUIEnter	autocmd.txt	/*GUIEnter*

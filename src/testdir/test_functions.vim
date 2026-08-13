@@ -253,7 +253,6 @@ func Test_strtrans()
   call assert_equal('^A^_^?', strtrans("\x01\x1f\x7f"))
   " an unprintable byte above 0x7f uses the meta notation
   call assert_equal('| ', strtrans("\xa0"))
-  " a printable high byte is unchanged
   call assert_equal("\xe9", strtrans("\xe9"))
   call assert_equal("x^B\xe9| y", strtrans("x\x02\xe9\xa0y"))
   set encoding=utf-8
@@ -1251,6 +1250,86 @@ func Test_matchstrpos()
   call assert_equal(['ing', 1, 4, 7], matchstrpos(['vim', 'testing', 'execute'], 'ing'))
   call assert_equal(['', -1, -1, -1], matchstrpos(['vim', 'testing', 'execute'], 'img'))
   call assert_equal(['', -1, -1], matchstrpos(test_null_list(), '\a'))
+endfunc
+
+" While match() iterates over a list, stringifying an item can run the
+" string() method of an object, which must not be able to free the item
+" the loop is standing on.
+func Test_match_list_changed_while_matching()
+  let lines =<< trim END
+    vim9script
+    class C
+      def string(): string
+        if !g:removed
+          g:removed = true
+          remove(g:mlist, 0)
+        endif
+        return 'nostring'
+      enddef
+    endclass
+    g:mlist = [C.new(), C.new(), C.new()]
+  END
+  call writefile(lines, 'Xmatchmutate.vim', 'D')
+  let g:removed = v:false
+  source Xmatchmutate.vim
+  call assert_fails('call match(g:mlist, "xyz")', 'E741:')
+  call assert_equal(3, len(g:mlist))
+  let g:removed = v:false
+  call assert_fails('call matchstr(g:mlist, "xyz")', 'E741:')
+  call assert_equal(3, len(g:mlist))
+  unlet g:mlist g:removed
+endfunc
+
+" Same for join() and string().
+func Test_join_list_changed_while_stringified()
+  let lines =<< trim END
+    vim9script
+    class C
+      def string(): string
+        if !g:removed
+          g:removed = true
+          remove(g:jlist, 0)
+        endif
+        return 'nostring'
+      enddef
+    endclass
+    g:jlist = [C.new(), C.new(), C.new()]
+  END
+  call writefile(lines, 'Xjoinmutate.vim', 'D')
+  let g:removed = v:false
+  source Xjoinmutate.vim
+  call assert_fails('call join(g:jlist, ",")', 'E741:')
+  call assert_equal(3, len(g:jlist))
+  let g:removed = v:false
+  call assert_fails('call string(g:jlist)', 'E741:')
+  call assert_equal(3, len(g:jlist))
+  unlet g:jlist g:removed
+endfunc
+
+" Same for a dict, where the item can also be added and reallocate the
+" hash table.
+func Test_dict_changed_while_stringified()
+  let lines =<< trim END
+    vim9script
+    class C
+      def string(): string
+        if !g:removed
+          g:removed = true
+          for k in keys(g:d)
+            remove(g:d, k)
+          endfor
+        endif
+        return 'nostring'
+      enddef
+    endclass
+    g:d = {'a': C.new(), 'b': C.new(), 'c': C.new()}
+  END
+  call writefile(lines, 'Xdictmutate.vim', 'D')
+  let g:removed = v:false
+  source Xdictmutate.vim
+  call assert_fails('call string(g:d)', 'E741:')
+  call assert_equal(3, len(g:d))
+  unlet g:d g:removed
 endfunc
 
 " Test for matchstrlist()

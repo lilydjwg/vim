@@ -986,9 +986,7 @@ gui_mch_stop_blink(int may_call_gui_update_cursor)
     if (blink_state == BLINK_OFF && may_call_gui_update_cursor)
     {
 	gui_update_cursor(TRUE, FALSE);
-#if !GTK_CHECK_VERSION(3,0,0)
-	gui_mch_flush();
-#endif
+	gui_may_flush();
     }
     blink_state = BLINK_NONE;
 }
@@ -1008,9 +1006,7 @@ blink_cb(gpointer data UNUSED)
 	blink_state = BLINK_ON;
 	blink_timer = timeout_add(blink_ontime, blink_cb, NULL);
     }
-#if !GTK_CHECK_VERSION(3,0,0)
-    gui_mch_flush();
-#endif
+    gui_may_flush();
 
     return FALSE;		// don't happen again
 }
@@ -1033,9 +1029,7 @@ gui_mch_start_blink(void)
 	blink_timer = timeout_add(blink_waittime, blink_cb, NULL);
 	blink_state = BLINK_ON;
 	gui_update_cursor(TRUE, FALSE);
-#if !GTK_CHECK_VERSION(3,0,0)
-	gui_mch_flush();
-#endif
+	gui_may_flush();
     }
 }
 
@@ -2220,6 +2214,20 @@ button_release_event(GtkWidget *widget UNUSED,
     }
 
     return TRUE;
+}
+
+/*
+ * Another widget, e.g. a modal dialog, was shadowing us with a GTK grab. The
+ * button release went to that widget, thus forget about the pressed button to
+ * avoid that the next mouse move is taken for a drag.
+ */
+    static void
+grab_notify_event(GtkWidget *widget UNUSED,
+		  gboolean  was_grabbed,
+		  gpointer  data UNUSED)
+{
+    if (!was_grabbed)
+	dragging_button_state = 0;
 }
 
 
@@ -4228,6 +4236,8 @@ gui_mch_init(void)
 		     G_CALLBACK(button_press_event), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "button-release-event",
 		     G_CALLBACK(button_release_event), NULL);
+    g_signal_connect(G_OBJECT(gui.drawarea), "grab-notify",
+		     G_CALLBACK(grab_notify_event), NULL);
     g_signal_connect(G_OBJECT(gui.drawarea), "scroll-event",
 		     G_CALLBACK(scroll_event), NULL);
 
