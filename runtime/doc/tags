@@ -4790,6 +4790,7 @@ E1576	tagsrch.txt	/*E1576*
 E1577	options.txt	/*E1577*
 E1578	spell.txt	/*E1578*
 E158	sign.txt	/*E158*
+E1581	vim9.txt	/*E1581*
 E159	sign.txt	/*E159*
 E16	cmdline.txt	/*E16*
 E160	sign.txt	/*E160*
@@ -6752,6 +6753,7 @@ clipboard-providers-no-clipboard	eval.txt	/*clipboard-providers-no-clipboard*
 clipboard-providers-paste	eval.txt	/*clipboard-providers-paste*
 clipboard-providers-plus	eval.txt	/*clipboard-providers-plus*
 clipboard-providers-textlock	eval.txt	/*clipboard-providers-textlock*
+clipboard-providers-wsl	eval.txt	/*clipboard-providers-wsl*
 clipboard-unnamed	options.txt	/*clipboard-unnamed*
 clipboard-unnamedplus	options.txt	/*clipboard-unnamedplus*
 clojure-indent	indent.txt	/*clojure-indent*
@@ -8941,6 +8943,7 @@ list-repeat	windows.txt	/*list-repeat*
 list2blob()	builtin.txt	/*list2blob()*
 list2str()	builtin.txt	/*list2str()*
 list2tuple()	builtin.txt	/*list2tuple()*
+listener-text	builtin.txt	/*listener-text*
 listener_add()	builtin.txt	/*listener_add()*
 listener_flush()	builtin.txt	/*listener_flush()*
 listener_remove()	builtin.txt	/*listener_remove()*

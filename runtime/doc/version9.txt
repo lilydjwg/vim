@@ -1,4 +1,4 @@
-*version9.txt*	For Vim version 9.2.  Last change: 2026 Aug 13
+*version9.txt*	For Vim version 9.2.  Last change: 2026 Aug 18
 
 
 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
@@ -52590,7 +52590,7 @@ GUI ~
 - Added experimental support for the GTK 4 GUI (via patch 9.2.0501 and many
   following), enable with `--enable-gui=gtk4` configure switch at build time.
 - Add support for fullscreen mode in the GTK UI |'go-s'|.
-- Enable native printing dialog for the GTK4 UI using pango library, see
+- Enable native printing dialog for the GTK4 UI using Pango library, see
   |pango-printing|.
 
 Popups ~
@@ -52700,6 +52700,9 @@ Changed ~
 - |serverlist()| can return a list of all available server names.
 - Improve visual appearance when the terminal does not support colors.
 - Improve diff highlighting for terminals with 256 or less colors.
+- |listener_add()| accepts a Dictionary of options and can include the
+  resulting text of a change |listener-text|.
+- |extend()| and |extendnew()| also accept |Blobs|.
 
 
 							*added-9.3*
@@ -52743,7 +52746,7 @@ Highlighting: ~
 
 Configure Switches: ~
 
---enable-hardcopy-pango	Enable the pango |:hardcopy| backend |pango-printing|
+--enable-hardcopy-pango	Enable the Pango |:hardcopy| backend |pango-printing|
 
 ==============================================================================
 PATCHES						*patches-9.3* *bug-fixes-9.3*

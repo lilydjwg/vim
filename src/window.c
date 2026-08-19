@@ -1378,10 +1378,13 @@ win_split_ins(
 	if (flags & (WSP_TOP | WSP_BOT))
 	{
 	    // set height and row of new window to full height
+	    // no status line when 'laststatus' is zero
+	    int stl_height = p_ls > 0 ? statusline_height(curfrp->fr_win) : 0;
+
 	    wp->w_winrow = tabline_height();
-	    win_new_height(wp, curfrp->fr_height
-		    - statusline_height(curfrp->fr_win) - WINBAR_HEIGHT(wp));
-	    wp->w_status_height = statusline_height(curfrp->fr_win);
+	    win_new_height(wp, curfrp->fr_height - stl_height
+							  - WINBAR_HEIGHT(wp));
+	    wp->w_status_height = stl_height;
 	}
 	else
 	{
@@ -1905,7 +1908,14 @@ win_exchange(long Prenum)
 	else
 	    frame_append(frp2, wp->w_frame);
     }
+    // Keep the total height of each window the same, so that the frames keep
+    // their height; the status line height is computed below.
     temp = curwin->w_status_height;
+    if (temp != wp->w_status_height)
+    {
+	win_new_height(curwin, curwin->w_height + temp - wp->w_status_height);
+	win_new_height(wp, wp->w_height + wp->w_status_height - temp);
+    }
     curwin->w_status_height = wp->w_status_height;
     wp->w_status_height = temp;
     temp = curwin->w_vsep_width;
@@ -1918,6 +1928,9 @@ win_exchange(long Prenum)
     frame_fix_width(wp);
 
     win_comp_pos();		// recompute window positions
+#if defined(FEAT_STL_OPT)
+    frame_change_statusline_height();
+#endif
 
     if (wp->w_buffer != curbuf)
 	reset_VIsual_and_resel();
@@ -1993,7 +2006,14 @@ win_rotate(int upwards, int count)
 	}
 
 	// exchange status height and vsep width of old and new last window
+	// Keep the total height of each window the same, so that the frames
+	// keep their height; the status line height is computed below.
 	n = wp2->w_status_height;
+	if (n != wp1->w_status_height)
+	{
+	    win_new_height(wp2, wp2->w_height + n - wp1->w_status_height);
+	    win_new_height(wp1, wp1->w_height + wp1->w_status_height - n);
+	}
 	wp2->w_status_height = wp1->w_status_height;
 	wp1->w_status_height = n;
 	frame_fix_height(wp1);
@@ -2007,6 +2027,9 @@ win_rotate(int upwards, int count)
 	// recompute w_winrow and w_wincol for all windows
 	win_comp_pos();
     }
+#if defined(FEAT_STL_OPT)
+    frame_change_statusline_height();
+#endif
 
     redraw_all_later(UPD_NOT_VALID);
 }

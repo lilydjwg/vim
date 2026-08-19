@@ -2973,6 +2973,7 @@ struct listener_S
 {
     listener_T	*lr_next;
     int		lr_id;
+    bool	lr_text;	// include the resulting text in each change
     callback_T	lr_callback;
 };
 
@@ -3633,6 +3634,7 @@ struct file_buffer
     listener_T	*b_listener;       // Listeners accepting buffered reports.
     listener_T	*b_sync_listener;  // Listeners requiring unbuffered reports.
     list_T	*b_recorded_changes;
+    size_t	b_recorded_text_size;  // bytes of text held by the above
 #endif
 #ifdef FEAT_PROP_POPUP
     bool	b_has_textprop;	// true when text props were added
@@ -4277,7 +4279,7 @@ struct window_S
     // visible under the new frame's transparent pixels.
     bool	w_popup_image_px_dirty;
 #  ifdef FEAT_IMAGE_SIXEL
-    char_u	*w_popup_image_seq;	// cached sixel DCS sequence (terminal)
+    char_u	*w_popup_image_seq;	// cached sixel DCS sequence
     int		w_popup_image_seq_w;	// pixel width of cached seq
     int		w_popup_image_seq_h;	// pixel height used for cached seq;
 					// -1 means cache is invalid
@@ -4285,10 +4287,10 @@ struct window_S
     int		w_popup_image_seq_crop_y; // pixel offset (top) into source
     int		w_popup_image_seq_cells_w; // cell width  spanning seq pixels
     int		w_popup_image_seq_cells_h; // cell height spanning seq pixels
-    int		w_popup_image_seq_zindex;  // zindex encoded into seq (kitty z=)
-    bool	w_popup_image_emit_valid;  // true while the kitty placement
-					   // emitted at w_popup_image_emit_*
-					   // is still on the terminal
+#  endif
+#  ifdef FEAT_IMAGE_KITTY
+    bool	w_popup_image_transmit;	    // If image has been transmitted to
+					    // terminal
 #  endif
 #  ifdef FEAT_IMAGE_GDI
     // Pre-built Windows GUI image cache.  The bitmap is a 32-bit top-down

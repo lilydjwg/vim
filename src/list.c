@@ -3176,13 +3176,16 @@ extend(typval_T *argvars, typval_T *rettv, char_u *arg_errmsg, int is_new)
 	    type = argvars[0].vval.v_dict->dv_type;
 	dict_extend_func(argvars, type, func_name, arg_errmsg, is_new, rettv);
     }
+    else if (argvars[0].v_type == VAR_BLOB && argvars[1].v_type == VAR_BLOB)
+	blob_extend_func(argvars, arg_errmsg, is_new, rettv);
     else
-	semsg(_(e_argument_of_str_must_be_list_or_dictionary), func_name);
+	semsg(_(e_argument_of_str_must_be_list_dictionary_or_blob), func_name);
 }
 
 /*
  * "extend(list, list [, idx])" function
  * "extend(dict, dict [, action])" function
+ * "extend(blob, blob [, idx])" function
  */
     void
 f_extend(typval_T *argvars, typval_T *rettv)
@@ -3195,6 +3198,7 @@ f_extend(typval_T *argvars, typval_T *rettv)
 /*
  * "extendnew(list, list [, idx])" function
  * "extendnew(dict, dict [, action])" function
+ * "extendnew(blob, blob [, idx])" function
  */
     void
 f_extendnew(typval_T *argvars, typval_T *rettv)
@@ -3472,7 +3476,7 @@ f_reduce(typval_T *argvars, typval_T *rettv)
     else if (argvars[1].v_type == VAR_PARTIAL)
 	func_name = partial_name(argvars[1].vval.v_partial);
     else
-	func_name = tv_get_string(&argvars[1]);
+	func_name = tv_get_string_strict(&argvars[1]);
     if (func_name == NULL || *func_name == NUL)
     {
 	emsg(_(e_missing_function_argument));

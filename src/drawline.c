@@ -2872,16 +2872,6 @@ win_line(
 #endif
 		// no more cells to skip
 		skip_cells = 0;
-#ifdef FEAT_TERMINAL
-		if (term_show_buffer(wp->w_buffer)
-		    && wlv.vcol == 0
-		    && wlv.win_attr == term_get_attr(wp, lnum, -1)
-		    && wlv.win_attr == term_get_default_attr(wp))
-		    // Reset the attribute for an empty line with the
-		    // default background, so a Visual selection shows;
-		    // keep an explicitly set background color.
-		    wlv.win_attr = 0;
-#endif
 	    }
 
 	    if (has_mbyte)
@@ -3325,8 +3315,9 @@ win_line(
 		}
 	    }
 
-	    // Handling of non-printable characters.
-	    if (!vim_isprintc(c))
+	    // Handling of non-printable characters. 'isprint' does not apply
+	    // to a UTF-8 leading byte, the character was checked above.
+	    if (!vim_isprintc(c) && !(enc_utf8 && c >= 0x80))
 	    {
 		// when getting a character from the file, we may have to
 		// turn it into something else on the way to putting it
