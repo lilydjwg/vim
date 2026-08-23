@@ -1338,7 +1338,6 @@ endfunc
 
 " This caused a Crash
 func Test_terminal_csi_resize_oob()
-  return
   CheckUnix
   CheckExecutable printf
 
@@ -1392,6 +1391,56 @@ func Test_terminal_negative_col_oob()
     let buf = term_start([&shell, &shellcmdflag, 'printf "%s" ' .. shellescape(seq)],
           \ #{term_rows: 10, term_cols: 40})
     call TermWait(buf)
+    call assert_true(bufexists(buf))
+    exe 'bwipe! ' .. buf
+  endfor
+endfunc
+
+" This caused a hang
+func Test_terminal_rep_no_preceding_char()
+  CheckUnix
+  CheckExecutable printf
+
+  " REP repeats the preceding graphic character.  When none was printed yet
+  " the repeat width in libvterm is zero, so the cursor never reached the end
+  " column and Vim looped forever while rendering the sequence.
+  let buf = term_start([&shell, &shellcmdflag, 'printf "%s" ' .. shellescape("\<ESC>[9b")],
+        \ #{term_rows: 10, term_cols: 40})
+  call TermWait(buf)
+  " Getting here without a hang is the test.
+  call assert_true(bufexists(buf))
+  exe 'bwipe! ' .. buf
+
+  " REP after a graphic character still repeats it.
+  let buf = term_start([&shell, &shellcmdflag, 'printf "%s" ' .. shellescape("X\<ESC>[4b")],
+        \ #{term_rows: 10, term_cols: 40})
+  call TermWait(buf)
+  call WaitForAssert({-> assert_equal('XXXXX', term_getline(buf, 1))})
+  exe 'bwipe! ' .. buf
+endfunc
+
+" This caused a Crash
+func Test_terminal_scrollregion_resize_oob()
+  CheckUnix
+  CheckExecutable printf
+
+  " A scroll region set before the terminal was made smaller kept its old top
+  " row, since on_resize() only clamped the bottom row.  Every scroll after
+  " that used a rectangle that ends before it starts, which made libvterm pass
+  " a negative size to memmove().
+
+  " Sequences: set the scroll region to rows 5-9, shrink the terminal to three
+  " rows with CSI 8 ; rows ; cols t, then
+  " 1 SU, 2 SD, 3 a line feed at the bottom of the stale region
+  let seqs = ["\<ESC>[5;9r\<ESC>[8;3;40t\<ESC>[5S",
+        \ "\<ESC>[5;9r\<ESC>[8;3;40t\<ESC>[5T",
+        \ "\<ESC>[5;9r\<ESC>[8;3;40t\n\n\n"]
+
+  for seq in seqs
+    let buf = term_start([&shell, &shellcmdflag, 'printf "%s" ' .. shellescape(seq)],
+          \ #{term_rows: 10, term_cols: 40})
+    call TermWait(buf)
+    " Getting here without a crash (and no ASAN report) is the test.
     call assert_true(bufexists(buf))
     exe 'bwipe! ' .. buf
   endfor
