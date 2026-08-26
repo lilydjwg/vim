@@ -2,7 +2,7 @@
 " Language:	   Vim script
 " Maintainer:	   Hirohito Higashi <h.east.727 ATMARK gmail.com>
 "	   Doug Kearns <dougkearns@gmail.com>
-" Last Change:	   2026 Aug 12
+" Last Change:	   2026 Aug 24
 " Former Maintainer: Charles E. Campbell
 
 " DO NOT CHANGE DIRECTLY.
@@ -180,7 +180,7 @@ syn match	vimUserAutoEvent	contained	"\<\h\w*\>"	skipwhite skipnl nextgroup=vimU
 
 " Highlight commonly used Groupnames {{{2
 " GEN_SYN_VIM: vimGroup, START_STR='syn keyword vimGroup contained', END_STR=''
-syn keyword vimGroup contained Added Bold BoldItalic Boolean Changed Character Comment Conditional Constant Debug Define Delimiter Error Exception Float Function Identifier Ignore Include Italic Keyword Label Macro Number Operator PreCondit PreProc Removed Repeat Special SpecialChar SpecialComment Statement StorageClass String Structure Tag Todo Type Typedef Underlined
+syn keyword vimGroup contained Added Bold BoldItalic Boolean Changed Character Comment Conditional Constant Debug Define Delimiter Error Exception Float Function Identifier Ignore Include Italic Keyword Label Macro Number Operator PreCondit PreProc Regexp Removed Repeat Special SpecialChar SpecialComment Statement StorageClass String Structure Tag Todo Type Typedef Underlined
 
 " Default highlighting groups {{{2
 " GEN_SYN_VIM: vimHLGroup, START_STR='syn keyword vimHLGroup contained', END_STR=''
@@ -579,7 +579,12 @@ Vim9 syn match 	vimAugroup	contained	"\<aug\%[roup]\>\ze\s*\%([#|]\|$\)"	skipwhi
 " ================================
 
 " TODO: explicitly match the {cmd} arg rather than bailing out to TOP
-syn region	vimAutocmdBlock	contained	matchgroup=vimSep start="{" end="^\s*\zs}" contains=@vimDefBodyList
+syn region	vimAutocmdBlock	contained
+      \ matchgroup=vimSep
+      \ start="{\ze\s*\%($\|[#|]\)"
+      \ end="^\s*\zs}"
+      \ end="\%(\\\@<!|\s*\)\=\zs}"
+      \ contains=@vimDefBodyList
 
 syn match	vimAutocmdGroup	contained	"\%(\\["|[:space:]]\|[^"|[:space:]]\)\+" skipwhite nextgroup=vimAutoEvent,vimAutoEventGlob
 syn match	vimAutocmdBang	contained	"\a\@1<=!"		     skipwhite nextgroup=vimAutocmdGroup,vimAutoEvent,vimAutoEventGlob
@@ -736,8 +741,9 @@ syn region	vimUserCmdReplacement contained
       \ keepend
 syn region	vimUserCmdBlock	    contained
       \ matchgroup=vimSep
-      \ start="{"
+      \ start="{\ze\s*\%($\|[#|]\)"
       \ end="^\s*\zs}"
+      \ end="\%(\\\@<!|\s*\)\=\zs}"
       \ contains=@vimDefBodyList,@vimUserCmdList
 
 syn keyword	vimDelcommand	contained	delc[ommand]		skipwhite nextgroup=vimDelcommandAttr,vimDelcommandName
@@ -2149,6 +2155,7 @@ syn region	vim9Block	contained
       \ matchgroup=vimSep
       \ start="{\ze\s*\%($\|[#|]\)"
       \ end="^\s*\zs}"
+      \ end="\%(\\\@<!|\s*\)\=\zs}"
       \ skipwhite nextgroup=vim9Comment,vimCmdSep
       \ contains=@vimDefBodyList
 
