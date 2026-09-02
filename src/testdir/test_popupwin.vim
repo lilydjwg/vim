@@ -2694,6 +2694,39 @@ func Test_popup_settext_scrollbar_disappear()
   call StopVimInTerminal(buf)
 endfunc
 
+func Test_popup_scrolled_width()
+  CheckScreendump
+
+  let lines =<< trim END
+    set mouse=a
+    let g:p = popup_create(['start', repeat('x', 100)]
+          \ + repeat(['hello'], 20), #{
+          \ line: 3,
+          \ col: 1,
+          \ pos: 'topleft',
+          \ maxwidth: 48,
+          \ padding: [0, 1, 0, 1],
+          \ border: [],
+          \ })
+    func ScrollToBottom()
+      let pos = popup_getpos(g:p)
+      call test_setmouse(pos.line + 2, pos.col + 2)
+      for i in range(6)
+        call feedkeys("\<ScrollWheelDown>", 'xt')
+      endfor
+    endfunc
+  END
+  call writefile(lines, 'XtestPopupScrollWidth', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupScrollWidth', #{rows: 15, cols: 50})
+  call VerifyScreenDump(buf, 'Test_popup_scrolled_width_1', {})
+
+  " Scrolling the wrapped line out of view must not change the width.
+  call term_sendkeys(buf, ":call ScrollToBottom()\<CR>")
+  call VerifyScreenDump(buf, 'Test_popup_scrolled_width_2', {})
+
+  call StopVimInTerminal(buf)
+endfunc
+
 func Test_popup_settext_getline()
   let id = popup_create('', #{ tabpage: 0 })
   call popup_settext(id, ['a','b'])
@@ -6340,6 +6373,32 @@ func Test_popup_no_filter_at_hit_enter()
   call term_sendkeys(buf, "\<CR>")
   call VerifyScreenDump(buf, 'Test_popupwin_hit_enter_2', {})
 
+  call StopVimInTerminal(buf)
+endfunc
+
+func Test_popupwin_close_and_redraw_keeps_cursor()
+  CheckRunVimInTerminal
+
+  let lines =<< trim END
+      call setline(1, repeat(['some text'], 8))
+      call cursor(3, 2)
+      let g:id = popup_atcursor(['a popup'], #{moved: 'any'})
+      func CloseIt()
+        call popup_close(g:id)
+        redraw
+      endfunc
+      autocmd ModeChanged * ++once call CloseIt()
+  END
+  call writefile(lines, 'XtestPopupCursor', 'D')
+  let buf = RunVimInTerminal('-S XtestPopupCursor', #{rows: 10})
+  call WaitForAssert({-> assert_equal([3, 2], term_getcursor(buf)[0:1])})
+
+  " With the operator waiting, nothing after the redraw puts the cursor back.
+  call term_sendkeys(buf, "c")
+  call TermWait(buf, 100)
+  call assert_equal([3, 2], term_getcursor(buf)[0:1])
+
+  call term_sendkeys(buf, "\<Esc>")
   call StopVimInTerminal(buf)
 endfunc
 
