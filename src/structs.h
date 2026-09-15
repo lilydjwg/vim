@@ -1692,6 +1692,7 @@ struct itf2class_S {
 #define CLASS_EXTENDED	    0x2	    // another class extends this one
 #define CLASS_ABSTRACT	    0x4	    // abstract class
 #define CLASS_ENUM	    0x8	    // enum
+#define CLASS_DRYRUN	    0x10    // defined by ":source ++dryrun"
 
 // "class_T": used for v_class of typval of VAR_CLASS
 // Also used for an interface (class_flags has CLASS_INTERFACE).
@@ -5501,7 +5502,7 @@ struct cellsize {
 };
 #endif
 
-#if defined(FEAT_IMAGE) || defined(PROTO)
+#if defined(FEAT_IMAGE)
 // RGB(A) image input shared by all popup image backends.
 // "data" points to width*height*3 bytes of tightly packed R,G,B triples
 // when has_alpha is FALSE, or width*height*4 R,G,B,A quadruples otherwise.
