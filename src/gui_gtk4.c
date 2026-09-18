@@ -735,7 +735,6 @@ gui_mch_open(void)
     guicolor_T bg_pixel = INVALCOLOR;
     guint pixel_width;
     guint pixel_height;
-    long columns = Columns, rows = Rows;
 
     if (gui.geom != NULL)
     {
@@ -745,12 +744,12 @@ gui_mch_open(void)
 	mask = vim_parse_geometry((char *)gui.geom, &w, &h);
 
 	if (mask & WidthValue)
-	    columns = Columns = w;
+	    Columns = w;
 	if (mask & HeightValue)
 	{
 	    if (p_window > (long)h - 1 || !option_was_set((char_u *)"window"))
 		p_window = h - 1;
-	    rows = Rows = h;
+	    Rows = h;
 	}
 	limit_screen_size();
 
@@ -808,8 +807,6 @@ gui_mch_open(void)
     // Undo the 80x24 clamp above, gui_init() asks for this size next.  Drain
     // the pending allocation before that, or gui_resize_shell() overwrites it.
     gui_mch_update();
-    Columns = columns;
-    Rows = rows;
 
     // Make sure the drawing area gets keyboard focus.
     gtk_widget_grab_focus(gui.drawarea);
@@ -1611,7 +1608,8 @@ gui_mch_draw_popup_image(
 	int	 src_x,
 	int	 src_y,
 	int	 draw_w,
-	int	 draw_h)
+	int	 draw_h,
+	int	 part)
 {
     if (wp->w_popup_image_data == NULL
 	    || wp->w_popup_image_w <= 0 || wp->w_popup_image_h <= 0
@@ -1623,7 +1621,7 @@ gui_mch_draw_popup_image(
     {
 	vim_draw_area_add_image(VIM_DRAW_AREA(gui.drawarea),
 		wp->w_popup_image_texture, row, col, src_x, src_y,
-		draw_w, draw_h, wp->w_zindex, wp->w_id);
+		draw_w, draw_h, wp->w_zindex, wp->w_id, part);
 
 	gtk_widget_queue_draw(gui.drawarea);
     }
@@ -1651,7 +1649,8 @@ gui_mch_draw_popup_image(
 	int	 src_x,
 	int	 src_y,
 	int	 draw_w,
-	int	 draw_h)
+	int	 draw_h,
+	int	 part UNUSED)
 {
     int x, y;
 
