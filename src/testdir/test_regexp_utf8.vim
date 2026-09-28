@@ -28,6 +28,32 @@ func Test_regexp_literal_byte_search()
   endtry
 endfunc
 
+" ASCII range collections must honor Unicode case folding.
+func Test_ascii_collection_unicode_casefold()
+  let save_encoding = &encoding
+  let save_ic = &ignorecase
+  try
+    set encoding=utf-8 ignorecase
+    for engine in [1, 2]
+      for c in [nr2char(0x17f), nr2char(0x212a)]
+        for [positive, negative] in [['[a-z]', '[^a-z]'],
+              \ ['[A-Z]', '[^A-Z]'],
+              \ ['[a-zA-Z]', '[^a-zA-Z]'],
+              \ ['[a-zA-Z_]', '[^a-zA-Z_]'],
+              \ ['[a-zA-Z0-9_]', '[^a-zA-Z0-9_]']]
+          call assert_equal(0, match(c, '\%#=' .. engine .. positive))
+          call assert_equal(-1, match(c, '\%#=' .. engine .. negative))
+        endfor
+        " No character folds into [0-9a-fA-F], so the hex class is kept.
+        call assert_equal(-1, match(c, '\%#=' .. engine .. '[0-9a-fA-F]'))
+      endfor
+    endfor
+  finally
+    let &encoding = save_encoding
+    let &ignorecase = save_ic
+  endtry
+endfunc
+
 func s:equivalence_test()
   let str = "AÀÁÂÃÄÅĀĂĄǍǞǠǺȂȦȺḀẠẢẤẦẨẪẬẮẰẲẴẶ BƁɃḂḄḆ CÇĆĈĊČƇȻḈꞒ DĎĐƊḊḌḎḐḒ EÈÉÊËĒĔĖĘĚȄȆȨɆḔḖḘḚḜẸẺẼẾỀỂỄỆ FƑḞꞘ GĜĞĠĢƓǤǦǴḠꞠ HĤĦȞḢḤḦḨḪⱧ IÌÍÎÏĨĪĬĮİƗǏȈȊḬḮỈỊ JĴɈ KĶƘǨḰḲḴⱩꝀ LĹĻĽĿŁȽḶḸḺḼⱠ MḾṀṂ NÑŃŅŇǸṄṆṈṊꞤ OÒÓÔÕÖØŌŎŐƟƠǑǪǬǾȌȎȪȬȮȰṌṎṐṒỌỎỐỒỔỖỘỚỜỞỠỢ PƤṔṖⱣ QɊ RŔŖŘȐȒɌṘṚṜṞⱤꞦ SŚŜŞŠȘṠṢṤṦṨⱾꞨ TŢŤŦƬƮȚȾṪṬṮṰ UÙÚÛÜŨŪŬŮŰƯǕǙǛǓǗȔȖɄṲṴṶṸṺỤỦỨỪỬỮỰ  VƲṼṾ WŴẀẂẄẆẈ XẊẌ YÝŶŸƳȲɎẎỲỴỶỸ ZŹŻŽƵẐẒẔⱫ aàáâãäåāăąǎǟǡǻȃȧᶏḁẚạảấầẩẫậắằẳẵặⱥ bƀɓᵬᶀḃḅḇ cçćĉċčƈȼḉꞓꞔ dďđɗᵭᶁᶑḋḍḏḑḓ eèéêëēĕėęěȅȇȩɇᶒḕḗḙḛḝẹẻẽếềểễệ fƒᵮᶂḟꞙ gĝğġģǥǧǵɠᶃḡꞡ hĥħȟḣḥḧḩḫẖⱨꞕ iìíîïĩīĭįǐȉȋɨᶖḭḯỉị jĵǰɉ kķƙǩᶄḱḳḵⱪꝁ lĺļľŀłƚḷḹḻḽⱡ mᵯḿṁṃ nñńņňŉǹᵰᶇṅṇṉṋꞥ oòóôõöøōŏőơǒǫǭǿȍȏȫȭȯȱɵṍṏṑṓọỏốồổỗộớờởỡợ pƥᵱᵽᶈṕṗ qɋʠ rŕŗřȑȓɍɽᵲᵳᶉṛṝṟꞧ sśŝşšșȿᵴᶊṡṣṥṧṩꞩ tţťŧƫƭțʈᵵṫṭṯṱẗⱦ uùúûüũūŭůűųǚǖưǔǘǜȕȗʉᵾᶙṳṵṷṹṻụủứừửữự vʋᶌṽṿ wŵẁẃẅẇẉẘ xẋẍ yýÿŷƴȳɏẏẙỳỵỷỹ zźżžƶᵶᶎẑẓẕⱬ"
   let groups = split(str)
@@ -708,6 +734,23 @@ func Test_lookbehind_submatch_on_second_line()
 
   set re&
   bwipe!
+endfunc
+
+" The old (backtracking) engine converts the negated collections [^0-9],
+" [^a-zA-Z0-9_], [^a-zA-Z_] and [^a-zA-Z] into the \D, \W, \H and \A classes.
+" These classes match a multibyte character, just like the collections do, so
+" the conversion must give the same result.  A Latin1 test cannot exercise this,
+" so check it here with the old engine forced.
+func Test_recognize_char_class_multibyte_old_engine()
+  let mb = 'α'
+  call assert_equal(mb, matchstr('0' .. mb .. '9', '\%#=1[^0-9]\+'))
+  call assert_equal(mb, matchstr('a' .. mb .. 'Z', '\%#=1[^a-zA-Z0-9_]\+'))
+  " The '_' distinguishes [^a-zA-Z_] (\H) from [^a-zA-Z] (\A).
+  call assert_equal('9' .. mb, matchstr('a9' .. mb .. '_z', '\%#=1[^a-zA-Z_]\+'))
+  call assert_equal('9' .. mb .. '_', matchstr('a9' .. mb .. '_z', '\%#=1[^a-zA-Z]\+'))
+  " The positive classes must not match the multibyte character.
+  call assert_equal('12', matchstr('12' .. mb, '\%#=1[0-9]\+'))
+  call assert_equal('ab', matchstr('ab' .. mb, '\%#=1[a-zA-Z0-9_]\+'))
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab
