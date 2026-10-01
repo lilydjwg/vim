@@ -1493,6 +1493,7 @@ valid_dest_reg(int name)
  * For an option "option_scope" is set.
  * For a v:var "vimvaridx" is set.
  * "type" is set to the destination type if known, unchanted otherwise.
+ * When "has_index" is TRUE an item of the variable is assigned to.
  * Return FAIL if an error message was given.
  */
     int
@@ -1500,6 +1501,7 @@ get_var_dest(
 	char_u		*name,
 	assign_dest_T	*dest,
 	cmdidx_T	cmdidx,
+	int		has_index,
 	int		*option_scope,
 	int		*vimvaridx,
 	type_T		**type,
@@ -1600,8 +1602,9 @@ get_var_dest(
 	    semsg(_(e_variable_not_found_str), name);
 	    return FAIL;
 	}
+	// An item of a read-only variable can be changed, as when not compiled.
 	// We use the current value of "sandbox" here, is that OK?
-	if (var_check_ro(di_flags, name, FALSE))
+	if (!has_index && var_check_ro(di_flags, name, FALSE))
 	    return FAIL;
 	*dest = dest_vimvar;
 	vtv = get_vim_var_tv(*vimvaridx);
@@ -1902,9 +1905,9 @@ compile_lhs_script_var(
 			lhs->lhs_name);
 	    return FAIL;
 	}
-	else if (cctx->ctx_ufunc->uf_script_ctx_version == SCRIPT_VERSION_VIM9
-		&& script_namespace
-		&& !script_var && import == NULL)
+	// With ":source ++dryrun" the ":let" that creates it was not executed.
+	else if (script_namespace && !script_var && import == NULL
+							       && !source_dryrun)
 	{
 	    semsg(_(e_unknown_variable_str), lhs->lhs_name);
 	    return FAIL;
@@ -1961,6 +1964,7 @@ compile_lhs_var_dest(
     int	    declare_error = FALSE;
 
     if (get_var_dest(lhs->lhs_name, &lhs->lhs_dest, cmdidx,
+				lhs->lhs_has_index,
 				&lhs->lhs_opt_flags, &lhs->lhs_vimvaridx,
 				&lhs->lhs_type, cctx) == FAIL)
 	return FAIL;
@@ -4587,14 +4591,17 @@ compile_def_function_body(
 	    goto linefail;
 	}
 
-	// When processing the end of an if-else block, don't clear the
-	// "ctx_had_throw" flag.  If an if-else block ends in a "throw"
+	// When processing the end of an if-else or try-catch block, don't
+	// clear the "ctx_had_throw" flag.  If such a block ends in a "throw"
 	// statement, then it is considered to end in a "return" statement.
 	// The "ctx_had_throw" is cleared immediately after processing the
-	// if-else block ending statement.
+	// block ending statement.
 	// Otherwise, clear the "had_throw" flag.
 	if (ea.cmdidx != CMD_else && ea.cmdidx != CMD_elseif
-						&& ea.cmdidx != CMD_endif)
+						&& ea.cmdidx != CMD_endif
+						&& ea.cmdidx != CMD_catch
+						&& ea.cmdidx != CMD_finally
+						&& ea.cmdidx != CMD_endtry)
 	    cctx->ctx_had_throw = FALSE;
 
 	p = skipwhite(p);
@@ -4691,9 +4698,14 @@ compile_def_function_body(
 		    break;
 	    case CMD_continue:
 		    line = compile_continue(p, cctx);
+		    // "continue" unconditionally jumps back to the loop,
+		    // like a "return".
+		    cctx->ctx_had_return = TRUE;
 		    break;
 	    case CMD_break:
 		    line = compile_break(p, cctx);
+		    // "break" unconditionally exits the loop, like a "return".
+		    cctx->ctx_had_return = TRUE;
 		    break;
 
 	    case CMD_try:
@@ -4702,13 +4714,16 @@ compile_def_function_body(
 	    case CMD_catch:
 		    line = compile_catch(p, cctx);
 		    cctx->ctx_had_return = FALSE;
+		    cctx->ctx_had_throw = FALSE;
 		    break;
 	    case CMD_finally:
 		    line = compile_finally(p, cctx);
 		    cctx->ctx_had_return = FALSE;
+		    cctx->ctx_had_throw = FALSE;
 		    break;
 	    case CMD_endtry:
 		    line = compile_endtry(p, cctx);
+		    cctx->ctx_had_throw = FALSE;
 		    break;
 	    case CMD_throw:
 		    line = compile_throw(p, cctx);

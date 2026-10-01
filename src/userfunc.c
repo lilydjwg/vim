@@ -1117,10 +1117,14 @@ get_function_body(
 	    int	    c;
 	    char_u  *end;
 	    char_u  *cmd;
+	    bool    colon = false;
 
 	    // skip ':' and blanks
 	    for (p = theline; VIM_ISWHITE(*p) || *p == ':'; ++p)
-		;
+	    {
+		if (*p == ':')
+		    colon = true;
+	    }
 
 	    // Check for "endfunction", "enddef" or "}".
 	    // When a ":" follows it must be a dict key; "enddef: value,"
@@ -1276,7 +1280,11 @@ get_function_body(
 	    }
 
 	    // Check for ":append", ":change", ":insert".  Not for :def.
-	    char_u *tp = p = skip_range(p, FALSE, NULL);
+	    // In Vim9 script a range comes after a colon; without one a
+	    // leading "'" starts a string, not a mark.
+	    if (!vim9_function || colon)
+		p = skip_range(p, FALSE, NULL);
+	    char_u *tp = p;
 	    if (!vim9_function
 		&& (checkforcmd(&p, "append", 1)
 		    || checkforcmd(&p, "change", 1)
@@ -1624,7 +1632,6 @@ lambda_function_body(
     if (!ASCII_ISUPPER(*ufunc->uf_name))
 	ufunc->uf_flags |= FC_VIM9;
     ufunc->uf_script_ctx = current_sctx;
-    ufunc->uf_script_ctx_version = current_sctx.sc_version;
     ufunc->uf_script_ctx.sc_lnum += sourcing_lnum_top;
     set_function_type(ufunc);
 
@@ -5739,7 +5746,6 @@ define_function(
     fp->uf_calls = 0;
     fp->uf_cleared = FALSE;
     fp->uf_script_ctx = current_sctx;
-    fp->uf_script_ctx_version = current_sctx.sc_version;
     fp->uf_script_ctx.sc_lnum += sourcing_lnum_top;
     if (is_export)
     {
@@ -6113,6 +6119,100 @@ function_exists(char_u *name, int no_deref)
 	n = translated_function_exists(p, is_global);
     vim_free(p);
     return n;
+}
+
+/*
+ * Add what getinfo() reports for the user defined function "name" to "d".
+ * Returns FAIL when there is no such function.
+ */
+    int
+user_func_info(char_u *name, dict_T *d)
+{
+    char_u	*nm = name;
+    char_u	*p;
+    int		is_global = FALSE;
+    ufunc_T	*fp = NULL;
+    list_T	*args;
+    int		is_def;
+    char	*tofree;
+
+    if (*name == NUL)
+	return FAIL;
+    p = trans_function_name(&nm, &is_global, FALSE,
+			 TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF);
+    if (p != NULL && *skipwhite(nm) == NUL)
+	fp = find_func(p, is_global);
+    vim_free(p);
+    if (fp == NULL)
+	return FAIL;
+
+    is_def = fp->uf_def_status != UF_NOT_COMPILED;
+    dict_add_string(d, "name", printable_func_name(fp));
+    dict_add_string(d, "kind", (char_u *)(is_def ? "def" : "function"));
+    dict_add_bool(d, "available", TRUE);
+    args = list_alloc();
+    if (args == NULL || dict_add_list(d, "args", args) == FAIL)
+    {
+	list_unref(args);
+	return FAIL;
+    }
+    for (int j = 0; j < fp->uf_args.ga_len; ++j)
+    {
+	dict_T	*arg = dict_alloc();
+
+	if (arg == NULL || list_append_dict(args, arg) == FAIL)
+	{
+	    dict_unref(arg);
+	    return FAIL;
+	}
+	dict_add_string(arg, "name", FUNCARG(fp, j));
+	if (fp->uf_arg_types == NULL)
+	    dict_add_string(arg, "type", (char_u *)"any");
+	else
+	{
+	    dict_add_string(arg, "type",
+			     (char_u *)type_name(fp->uf_arg_types[j], &tofree));
+	    vim_free(tofree);
+	}
+	if (j >= fp->uf_args.ga_len - fp->uf_def_args.ga_len)
+	    dict_add_string(arg, "default", ((char_u **)fp->uf_def_args.ga_data)
+			     [j - fp->uf_args.ga_len + fp->uf_def_args.ga_len]);
+    }
+    if (has_varargs(fp))
+    {
+	dict_T	*va = dict_alloc();
+
+	if (va == NULL || dict_add_dict(d, "varargs", va) == FAIL)
+	{
+	    dict_unref(va);
+	    return FAIL;
+	}
+	dict_add_string(va, "name",
+			 fp->uf_va_name == NULL ? (char_u *)"" : fp->uf_va_name);
+	if (fp->uf_va_type == NULL)
+	    dict_add_string(va, "type", (char_u *)"list<any>");
+	else
+	{
+	    dict_add_string(va, "type",
+				 (char_u *)type_name(fp->uf_va_type, &tofree));
+	    vim_free(tofree);
+	}
+    }
+    if (is_def)
+    {
+	dict_add_string(d, "returns",
+				 (char_u *)type_name(fp->uf_ret_type, &tofree));
+	vim_free(tofree);
+    }
+    else
+	dict_add_string(d, "returns", (char_u *)"any");
+    dict_add_bool(d, "abort", (fp->uf_flags & FC_ABORT) != 0);
+    dict_add_bool(d, "range", (fp->uf_flags & FC_RANGE) != 0);
+    dict_add_bool(d, "dict", (fp->uf_flags & FC_DICT) != 0);
+    dict_add_bool(d, "closure", (fp->uf_flags & FC_CLOSURE) != 0);
+    dict_add_number(d, "sid", fp->uf_script_ctx.sc_sid);
+    dict_add_number(d, "lnum", fp->uf_script_ctx.sc_lnum);
+    return OK;
 }
 
 #if defined(FEAT_PYTHON) || defined(FEAT_PYTHON3)

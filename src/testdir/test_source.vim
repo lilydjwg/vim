@@ -859,6 +859,19 @@ func Test_source_dryrun()
   call assert_true(exists('*DryrunLegacy'))
   delfunc DryrunLegacy
 
+  " a :def function in a legacy script can assign to a script variable
+  " with "s:", although the ":let" that creates it is not executed
+  let lines =<< trim END
+    let s:count = 0
+    def DryrunLegacyDef()
+      s:count += 1
+    enddef
+  END
+  call writefile(lines, 'Xdryrun_legacydef.vim', 'D')
+  source ++dryrun Xdryrun_legacydef.vim
+  call assert_true(exists('*DryrunLegacyDef'))
+  delfunc DryrunLegacyDef
+
   " no SourceCmd, SourcePre or SourcePost autocommand, also not for the
   " imported script
   let g:dryrun_events = ''
@@ -948,6 +961,21 @@ func Test_source_buffer_long_line()
   END
   call writefile(lines, 'Xtest.vim', 'D')
   source Xtest.vim
+  bwipe!
+endfunc
+
+" A line of a certain length made the line after it be dropped.  The length
+" follows from the 250 bytes get_one_sourceline() starts with, try up to
+" about twice as much.
+func Test_source_buffer_line_after_long_line()
+  new
+  for len in range(2, 512)
+    call setline(1, ['" ' .. repeat('x', len - 2), 'let g:Xsourced = ' .. len])
+    unlet! g:Xsourced
+    source
+    call assert_equal(len, get(g:, 'Xsourced', 0), 'line length ' .. len)
+  endfor
+  unlet! g:Xsourced
   bwipe!
 endfunc
 
