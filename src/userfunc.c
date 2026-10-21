@@ -1607,16 +1607,17 @@ lambda_function_body(
     lnum_save = SOURCING_LNUM;
     SOURCING_LNUM = sourcing_lnum_top;
 
-    // parse argument types
+    // parse argument types, the type variables of the function being
+    // compiled may be used
     if (parse_argument_types(ufunc, argtypes, varargs, NULL, NULL, 0,
-		NULL) == FAIL)
+					    evalarg->eval_cctx) == FAIL)
     {
 	SOURCING_LNUM = lnum_save;
 	goto erret;
     }
 
     // parse the return type, if any
-    if (parse_return_type(ufunc, ret_type, NULL) == FAIL)
+    if (parse_return_type(ufunc, ret_type, evalarg->eval_cctx) == FAIL)
 	goto erret;
 
     pt = ALLOC_CLEAR_ONE(partial_T);
@@ -1925,6 +1926,8 @@ errret:
     {
 	vim_free(fp->uf_arg_types);
 	vim_free(fp->uf_name_exp);
+	vim_free(fp->uf_va_name);
+	clear_type_list(&fp->uf_type_list);
 	vim_free(fp);
     }
     vim_free(pt);
@@ -2700,7 +2703,9 @@ func_remove(ufunc_T *fp)
 	return FALSE;
 
     hi = hash_find(&func_hashtab, UF2HIKEY(fp));
-    if (HASHITEM_EMPTY(hi))
+    // Another function with the same name may be in the table, e.g. a global
+    // function with the name of a class method, do not remove it.
+    if (HASHITEM_EMPTY(hi) || HI2UF(hi) != fp)
 	return FALSE;
 
     // When there is a def-function index do not actually remove the
@@ -5782,6 +5787,9 @@ errret_2:
 	VIM_CLEAR(fp->uf_va_name);
 	VIM_CLEAR(fp->uf_name_exp);
 	clear_func_type_list(&fp->uf_type_list, &fp->uf_func_type);
+	// the generic types were moved from "gfatab" to "fp"
+	if (IS_GENERIC_FUNC(fp))
+	    generic_func_clear_items(fp);
     }
     if (free_fp)
 	VIM_CLEAR(fp);
@@ -6311,6 +6319,14 @@ copy_function(ufunc_T *fp, int extra_namelen)
     ufunc->uf_def_status = UF_TO_BE_COMPILED;
     ufunc->uf_dfunc_idx = 0;
     ufunc->uf_class = NULL;
+#ifdef FEAT_PROFILE
+    // The copy gets its own profiling data, see below.
+    ufunc->uf_profiling = FALSE;
+    ufunc->uf_prof_initialized = FALSE;
+    ufunc->uf_tml_count = NULL;
+    ufunc->uf_tml_total = NULL;
+    ufunc->uf_tml_self = NULL;
+#endif
 
     ga_copy_strings(&fp->uf_args, &ufunc->uf_args);
     ga_copy_strings(&fp->uf_def_args, &ufunc->uf_def_args);
@@ -6351,6 +6367,13 @@ copy_function(ufunc_T *fp, int extra_namelen)
     ufunc->uf_block_ids = NULL;
 
     ga_copy_strings(&fp->uf_lines, &ufunc->uf_lines);
+
+#ifdef FEAT_PROFILE
+    // Profile the copy when the function is profiled, e.g. after
+    // ":profile! file", which only applies when a function is defined.
+    if (fp->uf_profiling)
+	func_do_profile(ufunc);
+#endif
 
     ufunc->uf_refcount = 1;
 

@@ -3306,6 +3306,13 @@ load_namespace_var(ectx_T *ectx, isntype_T isn_type, isn_T *iptr)
 	else
 	    semsg(_(e_undefined_variable_char_str),
 					      namespace, iptr->isn_arg.string);
+	// Push a value anyway, the stack must have the expected size when the
+	// error is ignored because of ":silent!" in a calling function.
+	typval_T *tv = STACK_TV_BOT(0);
+	tv->v_type = VAR_NUMBER;
+	tv->v_lock = 0;
+	tv->vval.v_number = 0;
+	++ectx->ec_stack.ga_len;
 	return FAIL;
     }
     else
@@ -4268,7 +4275,14 @@ exec_instructions(ectx_T *ectx)
 		    SOURCING_LNUM = iptr->isn_lnum;
 		    if (eval_variable(name, (int)STRLEN(name), 0,
 			      STACK_TV_BOT(0), NULL, EVAL_VAR_VERBOSE) == FAIL)
+		    {
+			tv = STACK_TV_BOT(0);
+			tv->v_type = VAR_NUMBER;
+			tv->v_lock = 0;
+			tv->vval.v_number = 0;
+			++ectx->ec_stack.ga_len;
 			goto on_error;
+		    }
 		    ++ectx->ec_stack.ga_len;
 		}
 		break;
@@ -4925,18 +4939,46 @@ exec_instructions(ectx_T *ectx)
 		    }
 
 		    ufunc_T *ufunc;
+		    class_T *cl;
 		    if (mfunc->cmf_is_super)
+		    {
 			// Doing "super.Func", use the specific ufunc.
-			ufunc = mfunc->cmf_itf->class_obj_methods[
-							    mfunc->cmf_idx];
+			cl = mfunc->cmf_itf;
+			ufunc = cl->class_obj_methods[mfunc->cmf_idx];
+		    }
 		    else
 		    {
-			class_T *cl = obj->obj_class;
+			cl = obj->obj_class;
 
 			// convert the interface index to the object index
 			int idx = object_index_from_itf_index(mfunc->cmf_itf,
 						     TRUE, mfunc->cmf_idx, cl);
 			ufunc = cl->class_obj_methods[idx];
+		    }
+
+		    // A generic method: use the method with the type arguments
+		    // used when compiling.  The last one is cached, since
+		    // looking it up is slow.
+		    if (mfunc->cmf_ufunc != NULL && IS_GENERIC_FUNC(ufunc))
+		    {
+			if (mfunc->cmf_cache_cl == cl
+				&& mfunc->cmf_cache_generic == ufunc)
+			    ufunc = mfunc->cmf_cache_ufunc;
+			else
+			{
+			    ufunc_T *generic_ufunc = ufunc;
+
+			    ufunc = generic_func_get_same_types(generic_ufunc,
+							    mfunc->cmf_ufunc);
+			    if (ufunc == NULL)
+				goto on_error;
+
+			    ++cl->class_refcount;
+			    class_unref(mfunc->cmf_cache_cl);
+			    mfunc->cmf_cache_cl = cl;
+			    mfunc->cmf_cache_generic = generic_ufunc;
+			    mfunc->cmf_cache_ufunc = ufunc;
+			}
 		    }
 
 		    if (call_ufunc(ufunc, NULL, mfunc->cmf_argcount, ectx,
@@ -5148,7 +5190,31 @@ exec_instructions(ectx_T *ectx)
 			vim_free(pt);
 			goto theend;
 		    }
-		    if (fill_partial_and_closure(pt, ufunc,
+		    if (extra != NULL && extra->fre_outer_depth > 0
+					   && (ufunc->uf_flags & FC_CLOSURE))
+		    {
+			// Use the context of the function where the nested
+			// generic function is defined.
+			partial_T *outer_pt = ectx->ec_outer_ref == NULL
+				    ? NULL : ectx->ec_outer_ref->or_partial;
+
+			for (int depth = 1; outer_pt != NULL
+				    && depth < extra->fre_outer_depth; ++depth)
+			    outer_pt = get_pt_outer(outer_pt)->out_up_partial;
+			if (outer_pt == NULL)
+			{
+			    SOURCING_LNUM = iptr->isn_lnum;
+			    iemsg("outer partial unexpectedly NULL for FUNCREF");
+			    vim_free(pt);
+			    goto theend;
+			}
+			pt->pt_func = ufunc;
+			pt->pt_refcount = 1;
+			pt->pt_outer_partial = outer_pt;
+			++outer_pt->pt_refcount;
+			++ufunc->uf_refcount;
+		    }
+		    else if (fill_partial_and_closure(pt, ufunc,
 			       extra == NULL ? NULL : &extra->fre_loopvar_info,
 								 ectx) == FAIL)
 		    {
@@ -7590,7 +7656,9 @@ list_instructions(char *pfx, isn_T *instr, int instr_count, ufunc_T *ufunc)
 
 		    smsg("%s%4d METHODCALL %s.%s(argc %d)", pfx, current,
 			    mfunc->cmf_itf->class_name.string,
-			    mfunc->cmf_itf->class_obj_methods[
+			    mfunc->cmf_ufunc != NULL
+				? mfunc->cmf_ufunc->uf_name
+				: mfunc->cmf_itf->class_obj_methods[
 						      mfunc->cmf_idx]->uf_name,
 			    mfunc->cmf_argcount);
 		}
