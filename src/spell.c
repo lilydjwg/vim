@@ -2927,7 +2927,10 @@ check_need_cap(win_T *wp, linenr_T lnum, colnr_T col)
 	}
     }
     else
-	endcol = col;
+    {
+	colnr_T len = (colnr_T)STRLEN(line);
+	endcol = col > len ? len : col;
+    }
 
     if (endcol > 0)
     {
