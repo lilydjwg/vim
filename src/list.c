@@ -1579,10 +1579,12 @@ list_join_inner(
     // Stringify each item in the list.
     CHECK_LIST_MATERIALIZE(l);
     // Lock the list, the string() method of an object item could remove the
-    // item the loop is standing on.
+    // item the loop is standing on.  Also set VAR_FIXED, ":unlockvar" only
+    // resets VAR_LOCKED.
     prev_lock = l->lv_lock;
     if (l->lv_lock == 0)
 	l->lv_lock = VAR_LOCKED;
+    l->lv_lock |= VAR_FIXED;
     for (item = l->lv_first; item != NULL && !got_int; item = item->li_next)
     {
 	s.string = echo_string_core(&item->li_tv, &tofree, numbuf, copyID,
@@ -2578,6 +2580,7 @@ do_sort_uniq(typval_T *argvars, typval_T *rettv, int sort)
     sortinfo_T	*old_sortinfo;
     sortinfo_T	info;
     long	len;
+    int		prev_lock;
 
     if (in_vim9script()
 	    && (check_for_list_arg(argvars, 0) == FAIL
@@ -2614,10 +2617,16 @@ do_sort_uniq(typval_T *argvars, typval_T *rettv, int sort)
     if (parse_sort_uniq_args(argvars, &info) == FAIL)
 	goto theend;
 
+    // A user-supplied compare function could otherwise add, remove or
+    // reorder items while do_sort() or do_uniq() still hold pointers into
+    // the list, causing them to use an already freed list item.
+    prev_lock = l->lv_lock;
+    l->lv_lock = VAR_FIXED;
     if (sort)
 	do_sort(l, &info);
     else
 	do_uniq(l, &info);
+    l->lv_lock = prev_lock;
 
 theend:
     sortinfo = old_sortinfo;
@@ -2738,8 +2747,11 @@ list_filter_map(
     // set_vim_var_nr() doesn't set the type
     set_vim_var_type(VV_KEY, VAR_NUMBER);
 
+    // Lock the list.  Also set VAR_FIXED, ":unlockvar" in the expression
+    // only resets VAR_LOCKED and must not allow removing items.
     if (l->lv_lock == 0)
 	l->lv_lock = VAR_LOCKED;
+    l->lv_lock |= VAR_FIXED;
 
     // Create one funccall_T for all eval_expr_typval() calls.
     fc = eval_expr_get_funccal(expr, &newtv);
